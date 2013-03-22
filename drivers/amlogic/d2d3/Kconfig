@@ -1,0 +1,10 @@
+menuconfig D2D3
+       tristate "AMLOGIC D2D3 SUPPORT"
+       default n 
+if D2D3
+        config D2D3_SUPPORT
+        tristate "AMLOGIC D2D3 SUPORT"
+        default n
+        help 
+                "AMLOGIC D2D3 DRIVER SUPPORT"
+endif

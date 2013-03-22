@@ -1,0 +1,54 @@
+menuconfig AW_AXP
+	bool "AXP Power drivers"
+	select I2C
+	select REGULATOR
+	default n
+	---help---
+	  This option allows you to select AXP power driver
+
+if AW_AXP
+
+choice
+	prompt "AXP PMU type"
+	default AW_AXP20
+
+config AW_AXP18
+	bool "AXP18 driver"
+	---help---
+	  AXP18 driver
+
+config AW_AXP19
+	bool "AXP19 driver"
+	---help---
+	  AXP19 driver
+
+config AW_AXP20
+	bool "AXP20 driver"
+	---help---
+	  AXP20 driver
+
+endchoice
+
+config AXP_CHARGEINIT
+	bool "AXP initial charging environment set"
+	default y
+
+config AXP_CHGCHANGE
+	bool "AXP charging current set when suspend\resume\shutdown"
+	default y
+
+
+# //add OCV Measurement by wch
+config AXP_USE_OCV
+	bool "AXP use ocv measure battery cap"
+	help
+		"If you choose this way, you should not use axp KULUNJI measure battery cap."	
+	default n	
+	
+config UBOOT_BATTERY_PARAMETERS
+    bool "BATTERY PARAMETERS FROM UBOOT" 
+    help 
+        select this option when your battery parameters is passed from uboot
+    default n
+
+endif # !AW_AXP

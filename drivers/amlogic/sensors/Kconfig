@@ -1,0 +1,32 @@
+menuconfig AM_SENSORS
+	bool "Amlogic Sensors support"
+	default n
+
+if AM_SENSORS
+
+config MPU3050
+	bool "InvenSense MPU-3050 6-axis sensor"
+	depends on MISC_DEVICES
+	default n
+	help
+	 Invensense mpu3050 sensors
+	source "drivers/amlogic/sensors/mpu3050/Kconfig"
+
+config LIGHT_SENSOR
+	bool "LightSensor"
+	depends on INPUT
+	default n
+	help
+	 GL3526 Light Sensor
+
+config AMLOGIC_Gsnesor
+	bool "amlogic Gsensor driver for 3-axis accelaration sensors"
+	depends on I2C
+	default n
+	help
+	 Say Y here if you want to use the amlogic Gsensor drivers.
+	source "drivers/amlogic/sensors/aml_Gsensor/Kconfig"
+	 	 
+endif # AM_SENSORS
+
+
