@@ -1408,6 +1408,7 @@ static struct platform_device aml_uart_device = {
 static int WIFI_ON;
 /* BT ON Flag */
 static int BT_ON;
+
 static void wifi_gpio_init(void)
 {
 //set pinmux
@@ -1534,6 +1535,61 @@ static void extern_wifi_power(int is_power)
 //EXPORT_SYMBOL(extern_wifi_power);
 
 #endif
+
+
+/*WIFI 40181*/
+
+#if defined(CONFIG_SDIO_DHD_CDC_WIFI_40181_MODULE_MODULE)
+/******************************
+*WL_REG_ON      -->GPIOC_8
+*WIFI_32K               -->GPIOC_15(CLK_OUT1)
+*WIFIWAKE(WL_HOST_WAKE)-->GPIOX_11
+*******************************/
+//#define WL_REG_ON_USE_GPIOC_6
+void extern_wifi_set_enable(int enable)
+{
+        if(enable){
+#ifdef WL_REG_ON_USE_GPIOC_6
+                SET_CBUS_REG_MASK(PREG_PAD_GPIO2_O, (1<<6));
+#else
+                SET_CBUS_REG_MASK(PREG_PAD_GPIO2_O, (1<<8));
+#endif
+                printk("Enable WIFI  Module!\n");
+        }
+        else{
+#ifdef WL_REG_ON_USE_GPIOC_6
+                CLEAR_CBUS_REG_MASK(PREG_PAD_GPIO2_O, (1<<6));
+#else
+                CLEAR_CBUS_REG_MASK(PREG_PAD_GPIO2_O, (1<<8));
+#endif
+                printk("Disable WIFI  Module!\n");
+        }
+}
+EXPORT_SYMBOL(extern_wifi_set_enable);
+
+static void wifi_set_clk_enable(int on)
+{
+    //set clk for wifi
+        printk("set WIFI CLK Pin GPIOC_15 32KHz ***%d\n",on);
+        WRITE_CBUS_REG(HHI_GEN_CLK_CNTL,(READ_CBUS_REG(HHI_GEN_CLK_CNTL)&(~(0x7f<<0)))|((0<<0)|(1<<8)|(7<<9)) );
+        CLEAR_CBUS_REG_MASK(PREG_PAD_GPIO2_EN_N, (1<<15));
+        if(on)
+                SET_CBUS_REG_MASK(PERIPHS_PIN_MUX_3, (1<<22));
+        else
+                CLEAR_CBUS_REG_MASK(PERIPHS_PIN_MUX_3, (1<<22));
+}
+
+static void aml_wifi_bcm4018x_init()
+{
+        wifi_set_clk_enable(1);
+        wifi_gpio_init();
+        extern_wifi_set_enable(0);
+        msleep(5);
+        extern_wifi_set_enable(1);
+}
+
+#endif
+
 /***********************************************************************
  * Card Reader Section
  **********************************************************************/
