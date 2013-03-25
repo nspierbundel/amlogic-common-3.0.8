@@ -1156,7 +1156,7 @@ CONFIG_AM_LOGO=y
 # Amlogic HDMI TX Support
 #
 CONFIG_AML_HDMI_TX=y
-CONFIG_AML_HDMI_TX_HDCP=m
+# CONFIG_AML_HDMI_TX_HDCP is not set
 
 #
 # Amlogic TVIN Support
