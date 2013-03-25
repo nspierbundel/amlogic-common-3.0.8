@@ -393,7 +393,6 @@ static struct ctp_platform_data gt82x_data = {
 };
 #endif
 
-
 #ifdef CONFIG_AW_AXP20
 static struct i2c_board_info __initdata aml_i2c_bus_info_ao[];
 
@@ -467,64 +466,41 @@ static struct regulator_consumer_supply buck3_data[] = {
 };
 
 static struct axp_cfg_info axp_cfg = {
-    .pmu_twi_id = AXP20_I2CBUS,
-    .pmu_irq_id = AXP20_IRQNO,
+    .pmu_twi_id = 2,		//AXP20_I2CBUS
+    .pmu_irq_id = INT_WATCHDOG,
     .pmu_twi_addr = AXP20_ADDR,
-    .pmu_battery_rdc = BATRDC,
-    .pmu_battery_cap = BATTERYCAP,
-    .pmu_init_chgcur = INTCHGCUR,
-    .pmu_suspend_chgcur = SUSCHGCUR,
-    .pmu_resume_chgcur = RESCHGCUR,
-    .pmu_shutdown_chgcur = CLSCHGCUR,
-    .pmu_init_chgvol = INTCHGVOL,
-    .pmu_init_chgend_rate = INTCHGENDRATE,
-    .pmu_init_chg_enabled = INTCHGENABLED,
-    .pmu_init_adc_freq = INTADCFREQ,
-    .pmu_init_adc_freqc = INTADCFREQC,
-    .pmu_init_chg_pretime = INTCHGPRETIME,
-    .pmu_init_chg_csttime = INTCHGCSTTIME,
-    /*.pmu_bat_para1 = OCVREG0,
-    .pmu_bat_para2 = OCVREG1,
-    .pmu_bat_para3 = OCVREG2,
-    .pmu_bat_para4 = OCVREG3,
-    .pmu_bat_para5 = OCVREG4,
-    .pmu_bat_para6 = OCVREG5,
-    .pmu_bat_para7 = OCVREG6,
-    .pmu_bat_para8 = OCVREG7,
-    .pmu_bat_para9 = OCVREG8,
-    .pmu_bat_para10 = OCVREG9,
-    .pmu_bat_para11 = OCVREGA,
-    .pmu_bat_para12 = OCVREGB,
-    .pmu_bat_para13 = OCVREGC,
-    .pmu_bat_para14 = OCVREGD,
-    .pmu_bat_para15 = OCVREGE,
-    .pmu_bat_para16 = OCVREGF,
-    */.pmu_usbvol_limit = 1,
+	.pmu_battery_rdc = 132,
+	.pmu_battery_cap = 3800,
+    .pmu_init_chgcur = 1000000,		//set initial charging current limite
+	.pmu_suspend_chgcur = 1200000,	//set suspend charging current limite
+    .pmu_resume_chgcur = 1000000,							//set resume charging current limite
+    .pmu_shutdown_chgcur = 1200000,		//set shutdown charging current limite
+    .pmu_init_chgvol = 4200,			//set initial charing target voltage
+    .pmu_init_chgend_rate = 15,		//set initial charing end current	rate
+    .pmu_init_chg_enabled = 1,		//set initial charing enabled
+	.pmu_init_adc_freq = 25,		//set initial adc frequency
+	.pmu_init_adc_freqc = 100,		//set initial coulomb adc coufrequency
+	.pmu_usbvol_limit = 1,
     .pmu_usbvol = 4000,
     .pmu_usbcur_limit = 0,
     .pmu_usbcur = 900,
     .pmu_pwroff_vol = 2600,
     .pmu_pwron_vol = 2600,
-    //.dcdc2_vol = 1500,
-    //.dcdc3_vol = 1100,
-    //.ldo2_vol = 3000,
-    //.ldo3_vol = 2800,
-    //.ldo4_vol = 2800,
     .pmu_pekoff_time = 6000,
     .pmu_pekoff_en  = 1,
     .pmu_peklong_time = 1500,
     .pmu_pwrok_time   = 64,
     .pmu_pwrnoe_time = 2000,
     .pmu_intotp_en = 1,
-    .pmu_pekon_time = 1000,
+    .pmu_pekon_time = 128,		//powerkey hold time for power on
 };
 
 static struct regulator_init_data axp_regl_init_data[] = {
     [vcc_ldo1] = {
         .constraints = { /* board default 1.25V */
             .name = "axp20_ldo1",
-            .min_uV =  AXP20LDO1 * 1000,
-            .max_uV =  AXP20LDO1 * 1000,
+            .min_uV =  1300 * 1000,
+            .max_uV =  1300 * 1000,
         },
         .num_consumer_supplies = ARRAY_SIZE(ldo1_data),
         .consumer_supplies = ldo1_data,
@@ -652,21 +628,22 @@ static struct axp_funcdev_info axp_regldevs[] = {
 static struct power_supply_info battery_data ={
     .name ="PTI PL336078",
     .technology = POWER_SUPPLY_TECHNOLOGY_LiFe,
-    .voltage_max_design = INTCHGVOL,    //axp_cfg.pmu_init_chgvol,
+    .voltage_max_design = 4200000,	//set initial charing target voltage
     .voltage_min_design = 2600 * 1000,  //axp_cfg.pmu_pwroff_vol * 1000,
-    .energy_full_design = BATTERYCAP,   //axp_cfg.pmu_battery_cap,
+	.energy_full_design = 3800,		//battery capability
     .use_for_apm = 1,
 };
 
 static struct axp_supply_init_data axp_sply_init_data = {
-    //.battery_info = &battery_data,
-    //.chgcur = INTCHGCUR,    //axp_cfg.pmu_init_chgcur,
-    //.chgvol = INTCHGVOL,    //axp_cfg.pmu_init_chgvol,
-    //.chgend = INTCHGENDRATE,    //axp_cfg.pmu_init_chgend_rate,
-    //.chgen = INTCHGENABLED, //axp_cfg.pmu_init_chg_enabled,
-    //.sample_time = INTADCFREQC, //axp_cfg.pmu_init_adc_freq,
-    //.chgpretime = INTCHGPRETIME,    //axp_cfg.pmu_init_chg_pretime,
-    //.chgcsttime = INTCHGCSTTIME,    //axp_cfg.pmu_init_chg_csttime,
+   /* .battery_info = &battery_data,
+    .chgcur = 500000,		//set initial charging current limite
+    .chgvol = 4200000,	//set initial charing target voltage
+    .chgend = 10,		//set initial charing end current	rate
+    .chgen = 1,			//set initial charing enabled
+    .sample_time = 100,	//set initial coulomb adc coufrequency
+    .chgpretime = 50,		//set initial pre-charging time
+    .chgcsttime = 480,		//set initial pre-charging time
+*/
 };
 
 static struct axp_funcdev_info axp_splydev[]={
@@ -679,12 +656,12 @@ static struct axp_funcdev_info axp_splydev[]={
 
 static axp_gpio_cfg_t axp_init_gpio_cfg[] = {
     {
-        .gpio = AXP_GPIO1,			//AXP202 GPIO1 ==> VCCX2
+        .gpio = AXP_GPIO1,			//AXP202 GPIO1 ==> VCCX2 
         .dir = AXP_GPIO_OUTPUT,
         .level = AXP_GPIO_LOW,		//set AXP202 GPIO1 low
     },
     {
-        .gpio = AXP_GPIO2,			//AXP202 GPIO2 ==> HEMI2V_EN
+        .gpio = AXP_GPIO2,			//AXP202 GPIO2 ==> HEMI2V_EN 
         .dir = AXP_GPIO_OUTPUT,
         .level = AXP_GPIO_LOW,		//set AXP202 GPIO2 low
     },
@@ -711,6 +688,8 @@ static struct axp_platform_data axp_pdata = {
 };
 
 #endif
+
+
 
 /***********************************************************************
  * Meson CS DCDC section
