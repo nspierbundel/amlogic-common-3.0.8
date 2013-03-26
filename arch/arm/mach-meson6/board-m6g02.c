@@ -99,9 +99,22 @@
 
 #include "board-m6ref-power.h"
 
-//#includeïncludes/iomap.h
+#include "includes/oimap.h"
 
 #include"includes/fb.h"
+
+
+#ifdef CONFIG_AM_WIFI
+#include <plat/wifi_power.h>
+#endif
+
+#ifdef CONFIG_SND_SOC_RT5631
+#include <sound/rt5631.h>
+#endif
+
+#ifdef CONFIG_SND_SOC_WM8960
+#include <sound/wm8960.h>
+#endif
 
 #include"includes/hdmi-sensors.h"
 
@@ -126,8 +139,8 @@ static struct platform_device saradc_device = {
 #include"includes/hdmi-gpoi.h"  //vibrate function
 
 
-//#include"includes/hdmi-keys.h" // power and menu keys
-#include"includes/nohdmi-keys.h" // power and menu keys
+#include"includes/hdmi-keys.h" // power and menu keys
+//#include"includes/nohdmi-keys.h" // power and menu keys
 
 #include"includes/hdmi-i2c.h" // i2c
 //#include"includes/nohdmi-i2c.h" // i2c
@@ -148,7 +161,7 @@ static struct platform_device saradc_device = {
  **********************************************************************/
 /**
 */
-//#include"includes/hdmi-wifi.h" // Wifi
+#include"includes/hdmi-wifi.h" // Wifi
 //#include"includes/nohdmi-wifi.h" // wifi
 
 /***********************************************************************
@@ -168,7 +181,7 @@ static struct platform_device saradc_device = {
 /***********************************************************************
  *WiFi power section
  **********************************************************************/
-//#include"includes/hdmi-wifipwr.h" // Wifi
+#include"includes/hdmi-wifipwr.h" // Wifi
 //#include"includes/nohdmi-wifipwr.h" // wifi
 
 
@@ -225,7 +238,7 @@ static __init void meson_init_machine(void)
     setup_usb_devices();
     setup_devices_resource();
 #ifdef CONFIG_AM_WIFI
-   // wifi_dev_init();
+    wifi_dev_init();
 #endif
     platform_add_devices(platform_devs, ARRAY_SIZE(platform_devs));
 
@@ -233,8 +246,8 @@ static __init void meson_init_machine(void)
     aml_i2c_init();
 #endif
 #ifdef CONFIG_AM_WIFI_USB
-    //if(wifi_plat_data.usb_set_power)
-    //    wifi_plat_data.usb_set_power(0);//power off built-in usb wifi
+    if(wifi_plat_data.usb_set_power)
+        wifi_plat_data.usb_set_power(0);//power off built-in usb wifi
 #endif
 
 #ifdef CONFIG_MPU_SENSORS_MPU3050

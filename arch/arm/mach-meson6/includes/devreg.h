@@ -58,13 +58,13 @@ static struct platform_device  *platform_devs[] = {
     &aml_wm8960_audio,
 #endif
 #ifdef CONFIG_AM_WIFI
-   // &wifi_power_device,
+    &wifi_power_device,
 #endif
 
 #ifdef CONFIG_USB_ANDROID
-    //&android_usb_device,
+    &android_usb_device,
 #ifdef CONFIG_USB_ANDROID_MASS_STORAGE
-   // &usb_mass_storage_device,
+    &usb_mass_storage_device,
 #endif
 #endif
 
