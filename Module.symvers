@@ -1343,6 +1343,7 @@
 0x00000000	__nf_ct_ext_add	vmlinux	EXPORT_SYMBOL
 0x00000000	qdisc_class_hash_init	vmlinux	EXPORT_SYMBOL
 0x00000000	sk_prot_clear_portaddr_nulls	vmlinux	EXPORT_SYMBOL
+0x00000000	init_rxtx_rings	vmlinux	EXPORT_SYMBOL
 0x00000000	mtd_del_partition	vmlinux	EXPORT_SYMBOL_GPL
 0x00000000	single_open_net	vmlinux	EXPORT_SYMBOL_GPL
 0x00000000	set_page_dirty_lock	vmlinux	EXPORT_SYMBOL
