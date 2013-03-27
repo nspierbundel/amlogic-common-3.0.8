@@ -483,7 +483,7 @@ static struct axp_cfg_info axp_cfg = {
     .pmu_init_adc_freqc = INTADCFREQC,
     .pmu_init_chg_pretime = INTCHGPRETIME,
     .pmu_init_chg_csttime = INTCHGCSTTIME,
-    .pmu_bat_para1 = OCVREG0,
+    /*.pmu_bat_para1 = OCVREG0,
     .pmu_bat_para2 = OCVREG1,
     .pmu_bat_para3 = OCVREG2,
     .pmu_bat_para4 = OCVREG3,
@@ -499,7 +499,7 @@ static struct axp_cfg_info axp_cfg = {
     .pmu_bat_para14 = OCVREGD,
     .pmu_bat_para15 = OCVREGE,
     .pmu_bat_para16 = OCVREGF,
-    .pmu_usbvol_limit = 1,
+    */.pmu_usbvol_limit = 1,
     .pmu_usbvol = 4000,
     .pmu_usbcur_limit = 0,
     .pmu_usbcur = 900,
@@ -1380,105 +1380,7 @@ static struct platform_device aml_uart_device = {
  **********************************************************************/
 
 #ifdef CONFIG_AM_NAND
-static struct mtd_partition normal_partition_info[] = {
-    {
-        .name = "logo",
-        .offset = 32*SZ_1M+40*SZ_1M,
-        .size = 8*SZ_1M,
-    },
-    {
-        .name = "aml_logo",
-        .offset = 48*SZ_1M+40*SZ_1M,
-        .size = 8*SZ_1M,
-    },
-    {
-        .name = "recovery",
-        .offset = 64*SZ_1M+40*SZ_1M,
-        .size = 8*SZ_1M,
-    },
-    {
-        .name = "boot",
-        .offset = 96*SZ_1M+40*SZ_1M,
-        .size = 8*SZ_1M,
-    },
-    {
-        .name = "system",
-        .offset = 128*SZ_1M+40*SZ_1M,
-        .size = 512*SZ_1M,
-    },
-    {
-        .name = "cache",
-        .offset = 640*SZ_1M+40*SZ_1M,
-        .size = 128*SZ_1M,
-    },
-    {
-        .name = "userdata",
-        .offset = 768*SZ_1M+40*SZ_1M,
-        .size = 512*SZ_1M,
-    },
-    {
-        .name = "NFTL_Part",
-        .offset = MTDPART_OFS_APPEND,
-        .size = MTDPART_SIZ_FULL,
-    },
-};
-
-
-static struct aml_nand_platform aml_nand_mid_platform[] = {
-#ifndef CONFIG_AMLOGIC_SPI_NOR
-    {
-        .name = NAND_BOOT_NAME,
-        .chip_enable_pad = AML_NAND_CE0,
-        .ready_busy_pad = AML_NAND_CE0,
-        .platform_nand_data = {
-            .chip =  {
-                .nr_chips = 1,
-                .options = (NAND_TIMING_MODE5 | NAND_ECC_BCH30_1K_MODE),
-            },
-        },
-        .T_REA = 20,
-        .T_RHOH = 15,
-    },
-#endif
-    {
-        .name = NAND_NORMAL_NAME,
-        .chip_enable_pad = (AML_NAND_CE0) | (AML_NAND_CE1 << 4),// | (AML_NAND_CE2 << 8) | (AML_NAND_CE3 << 12)*/),
-        .ready_busy_pad = (AML_NAND_CE0) | (AML_NAND_CE1 << 4),// | (AML_NAND_CE1 << 8) | (AML_NAND_CE1 << 12)*/),
-        .platform_nand_data = {
-            .chip =  {
-                .nr_chips = 2,
-                .nr_partitions = ARRAY_SIZE(normal_partition_info),
-                .partitions = normal_partition_info,
-                .options = (NAND_TIMING_MODE5 | NAND_ECC_BCH30_1K_MODE | NAND_TWO_PLANE_MODE),
-            },
-        },
-        .T_REA = 20,
-        .T_RHOH = 15,
-    }
-};
-
-static struct aml_nand_device aml_nand_mid_device = {
-    .aml_nand_platform = aml_nand_mid_platform,
-    .dev_num = ARRAY_SIZE(aml_nand_mid_platform),
-};
-
-static struct resource aml_nand_resources[] = {
-    {
-        .start = 0xc1108600,
-        .end = 0xc1108624,
-        .flags = IORESOURCE_MEM,
-    },
-};
-
-static struct platform_device aml_nand_device = {
-    .name = "aml_nand",
-    .id = 0,
-    .num_resources = ARRAY_SIZE(aml_nand_resources),
-    .resource = aml_nand_resources,
-    .dev = {
-        .platform_data = &aml_nand_mid_device,
-    },
-};
+#include"m6g02-nand.h"
 #endif
 
 /***********************************************************************
@@ -2581,7 +2483,7 @@ static __init void meson_init_early(void)
 
 }
 
-MACHINE_START(MESON6_REF, "Amlogic Meson 6 reference board")
+MACHINE_START(MESON6_G02, "Amlogic Meson6 g02 reference platform")
     .boot_params    = BOOT_PARAMS_OFFSET,
     .map_io         = meson_map_io,///2
     .init_early     = meson_init_early,///3

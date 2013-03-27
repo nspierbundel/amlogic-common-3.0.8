@@ -1,7 +1,3 @@
-#ifndef __MACH_MESON6_BOARD_M6REF_H
-#define __MACH_MESON6_BOARD_M6REF_H
-
-#include <asm/page.h>
 /***********************************************************************
  * IO Mapping
  **********************************************************************/
@@ -24,36 +20,23 @@
 #define AUDIODSP_ADDR_END   (AUDIODSP_ADDR_START+SZ_1M-1)   /*audiodsp memend*/
 
 /******** Frame buffer memory configuration ***********/
-#define OSD_480_PIX         (640*480)
+/*#define OSD_480_PIX         (640*480)
 #define OSD_576_PIX         (768*576)
 #define OSD_720_PIX         (1280*720)
 #define OSD_1080_PIX        (1920*1080)
-#define OSD_PANEL_PIX       (1024*600)
-#define B16BpP  (4)
-#define B32BpP  (8)
+#define OSD_PANEL_PIX       (800*480)
+#define B16BpP  (2)
+#define B32BpP  (4)
 #define DOUBLE_BUFFER   (2)
 
-#define OSD1_MAX_MEM        U_ALIGN(OSD_PANEL_PIX*B32BpP*DOUBLE_BUFFER)
-//#define OSD2_MAX_MEM        U_ALIGN(32*32*B32BpP)
-#define OSD2_MAX_MEM        U_ALIGN(OSD_PANEL_PIX*B32BpP*DOUBLE_BUFFER)
+#define OSD1_MAX_MEM        U_ALIGN(OSD_1080_PIX*B32BpP*DOUBLE_BUFFER)
+#define OSD2_MAX_MEM        U_ALIGN(OSD_1080_PIX*B32BpP*DOUBLE_BUFFER)
+defined in .h*/
 /******** Reserved memory configuration ***************/
-#define OSD1_ADDR_START     U_ALIGN(AUDIODSP_ADDR_END )
+/*#define OSD1_ADDR_START     U_ALIGN(AUDIODSP_ADDR_END )
 #define OSD1_ADDR_END       (OSD1_ADDR_START+OSD1_MAX_MEM - 1)
 #define OSD2_ADDR_START     U_ALIGN(OSD1_ADDR_END)
 #define OSD2_ADDR_END       (OSD2_ADDR_START +OSD2_MAX_MEM -1)
-
-#if defined(CONFIG_FB_OSD2_ENABLE)
-#define PMEM_START U_ALIGN(OSD2_ADDR_END)
-#else
-#define PMEM_START U_ALIGN(OSD1_ADDR_END)
-#endif
-#if defined(CONFIG_ANDROID_PMEM) || defined(CONFIG_CMEM)
-#define PMEM_SIZE (32*SZ_1M)
-#else
-#define PMEM_SIZE 0
-#endif
-#define PMEM_END (PMEM_START + PMEM_SIZE-1)
-
 
 #if defined(CONFIG_AM_VDEC_H264)
 #define CODEC_MEM_SIZE      U_ALIGN(32*SZ_1M)
@@ -62,7 +45,7 @@
 #endif
 #define CODEC_ADDR_START    U_ALIGN(OSD2_ADDR_END)
 #define CODEC_ADDR_END      (CODEC_ADDR_START+CODEC_MEM_SIZE-1)
-
+defined in .h*/
 /********VDIN memory configuration ***************/
 #define VDIN_ADDR_START     U_ALIGN(CODEC_ADDR_END)
 #define VDIN_ADDR_END       (VDIN_ADDR_START + CODEC_MEM_SIZE - 1)
@@ -86,9 +69,9 @@
 
 #ifdef CONFIG_POST_PROCESS_MANAGER
 #ifdef CONFIG_POST_PROCESS_MANAGER_PPSCALER
-#define PPMGR_MEM_SIZE               1024 * 608 * 21
+#define PPMGR_MEM_SIZE               1280 * 800 * 21
 #else
-#define PPMGR_MEM_SIZE               1024 * 608 * 18
+#define PPMGR_MEM_SIZE               1280 * 800 * 18
 #endif
 #else
 #define PPMGR_MEM_SIZE		0
@@ -102,7 +85,3 @@
 #define STREAMBUF_ADDR_END      (STREAMBUF_ADDR_START+STREAMBUF_MEM_SIZE-1)
 
 #define RESERVED_MEM_END    (STREAMBUF_ADDR_END)
-//int __init m6g06_lcd_init(void);
-//int __init m6ref_power_init(void);
-
-#endif // __MACH_MESON3_BOARD_M3REF_H
