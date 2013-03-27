@@ -86,6 +86,9 @@
 #include <linux/efuse.h>
 #endif
 
+#ifdef CONFIG_AML_HDMI_TX
+#include <linux/hdmi/hdmi_config.h>
+#endif
 
 #ifdef CONFIG_AW_AXP
 #include <linux/power_supply.h>
@@ -147,7 +150,7 @@ static struct platform_device saradc_device = {
 
 #include"includes/uart.h"
 
-
+#include"includes/hdmitx.h"
 /***********************************************************************
  * Nand Section
  **********************************************************************/
