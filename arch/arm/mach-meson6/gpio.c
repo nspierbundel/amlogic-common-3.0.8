@@ -640,6 +640,20 @@ void gpio_enable_edge_int(int pin , int flag, int group)
         aml_set_reg32_bits(P_GPIO_INTR_EDGE_POL, flag, group+16, 1);
 }
 
+gpio_mode_t get_gpio_mode(gpio_bank_t bank, int bit)
+{
+    unsigned long addr = gpio_addrs[bank].mode_addr;
+#ifdef CONFIG_EXGPIO
+    if (bank >= EXGPIO_BANK0) {
+        return get_exgpio_mode(bank - EXGPIO_BANK0, bit);
+    }
+#endif
+    if (bank==PREG_PAD_GPIOAO)
+        return (READ_AOBUS_REG_BITS(addr, bit, 1) > 0) ? (GPIO_INPUT_MODE) : (GPIO_OUTPUT_MODE);
+    return (READ_CBUS_REG_BITS(addr, bit, 1) > 0) ? (GPIO_INPUT_MODE) : (GPIO_OUTPUT_MODE);
+}
+
+
 int set_gpio_mode(gpio_bank_t bank, int bit, gpio_mode_t mode)
 {
     unsigned long addr = gpio_addrs[bank].mode_addr;
