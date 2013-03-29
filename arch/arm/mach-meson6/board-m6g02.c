@@ -89,7 +89,7 @@
 #ifdef CONFIG_AML_HDMI_TX
 #include <linux/hdmi/hdmi_config.h>
 #endif
-
+#define GPIO_PWR_HDMI	GPIO_D(6)
 #ifdef CONFIG_AW_AXP
 #include <linux/power_supply.h>
 #include <linux/apm_bios.h>
@@ -238,7 +238,7 @@ static int __init get_voltage_table(char *str)
 static __init void meson_init_machine(void)
 {
 //    meson_cache_init();
-print_gpio_status();
+//print_gpio_status();
     setup_usb_devices();
     setup_devices_resource();
 #ifdef CONFIG_AM_WIFI
