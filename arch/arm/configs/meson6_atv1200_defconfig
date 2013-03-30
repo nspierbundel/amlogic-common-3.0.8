@@ -1197,8 +1197,6 @@ CONFIG_V4L_AMLOGIC_VIDEO=y
 # Amlogic MIPI Support
 #
 # CONFIG_AMLOGIC_MIPI is not set
-# CONFIG_MEM_MIPI is not set
-# CONFIG_VDIN_MIPI is not set
 
 #
 # AMLOGIC DVB driver
