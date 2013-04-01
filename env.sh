@@ -14,4 +14,4 @@ TOP=${PWD}
 export MKIMAGE=${TOP}/arch/arm/boot/mkimage
 make uImage -j16
 #make uImage
-make modules  -j16
+#make modules  -j16
