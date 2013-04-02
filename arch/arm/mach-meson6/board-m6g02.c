@@ -121,8 +121,8 @@
 #include <sound/wm8960.h>
 #endif
 
-//#include"includes/hdmi-sensors.h"
-#include"includes/nohdmi-sensors.h"
+#include"includes/hdmi-sensors.h"
+//#include"includes/nohdmi-sensors.h"
 
 //#include"includes/nohdmi-csdcdc.h"
 //#include"includes/nohdmi-cpufreq.h"
@@ -143,8 +143,8 @@ static struct platform_device saradc_device = {
 //#include"includes/hdmi-gpoi.h"  //vibrate function
 
 
-//#include"includes/hdmi-keys.h" // power and menu keys
-#include"includes/nohdmi-keys.h" // power and menu keys
+#include"includes/hdmi-keys.h" // power and menu keys
+//#include"includes/nohdmi-keys.h" // power and menu keys
 
 //#include"includes/hdmi-i2c.h" // i2c
 #include"includes/nohdmi-i2c.h" // i2c

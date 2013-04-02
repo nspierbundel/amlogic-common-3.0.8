@@ -1039,12 +1039,12 @@ CONFIG_RTL8XXX_CU_USB_WIFI=y
 #
 # Amlogic Audio Interface
 #
-CONFIG_AMAUDIO=y
+# CONFIG_AMAUDIO is not set
 
 #
 # Amlogic audio dsp process 
 #
-CONFIG_AML_AUDIO_DSP=y
+# CONFIG_AML_AUDIO_DSP is not set
 
 #
 # Amlogic Canvas management driver
