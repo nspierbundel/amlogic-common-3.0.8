@@ -121,6 +121,10 @@
 #include <sound/wm8960.h>
 #endif
 
+#if defined(CONFIG_AML_HDMI_TX)
+    &aml_hdmi_device,
+#endif
+
 //#include"includes/hdmi-sensors.h"
 #include"includes/nohdmi-sensors.h"
 
