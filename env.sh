@@ -5,8 +5,8 @@ export CROSS_COMPILE=/data/buildroot-AmLogic/output/external-toolchain/bin/arm-n
 make clean
 #make meson6_atv1200_defconfig
 #make meson_stv_mbx_mc_atv1200_defconfig
-#make menuconfig
-#cp .config arch/arm/configs/meson6_atv1200_defconfig
+make menuconfig
+cp .config arch/arm/configs/meson6_atv1200_defconfig
 #cp .config arch/arm/configs/meson_stv_mbx_mc_atv1200_defconfig
 #make vmlinux
 
