@@ -86,11 +86,12 @@
 #include <linux/efuse.h>
 #endif
 
-#ifdef CONFIG_AML_HDMI_TX
+//#ifdef CONFIG_AML_HDMI_TX
 #include <linux/hdmi/hdmi_config.h>
-#endif
-
-#ifdef CONFIG_AW_AXP
+//#endif
+#define GPIO_PWR_HDMI	GPIO_D(6)
+#if 0 
+//CONFIG_AW_AXP
 #include <linux/power_supply.h>
 #include <linux/apm_bios.h>
 #include <linux/apm-emulation.h>
@@ -120,7 +121,7 @@
 #include <sound/wm8960.h>
 #endif
 
-#include"includes/hdmi-sensors.h"
+//#include"includes/hdmi-sensors.h"
 //#include"includes/nohdmi-sensors.h"
 
 //#include"includes/nohdmi-csdcdc.h"
@@ -139,11 +140,11 @@ static struct platform_device saradc_device = {
 };
 #endif
 
-#include"includes/hdmi-gpoi.h"  //vibrate function
+//#include"includes/hdmi-gpoi.h"  //vibrate function
 
 
-#include"includes/hdmi-keys.h" // power and menu keys
-//#include"includes/nohdmi-keys.h" // power and menu keys
+//#include"includes/hdmi-keys.h" // power and menu keys
+#include"includes/nohdmi-keys.h" // power and menu keys
 
 #include"includes/hdmi-i2c.h" // i2c
 //#include"includes/nohdmi-i2c.h" // i2c
@@ -210,7 +211,7 @@ static struct platform_device saradc_device = {
 #include"includes/devreg.h"
 
 
-
+#if 0
 static int __init get_voltage_table(char *str)
 {
 
@@ -221,24 +222,29 @@ static int __init get_voltage_table(char *str)
 //		printk("tmpvolt3 is %d\n",tmpvolt);
     if(strcmp(str, "0601")==0) //if(ptr==0601)   1.36
     {
-			meson_cs_dcdc_regulator_device.dev.platform_data = &vcck_pdata2,
+	//		meson_cs_dcdc_regulator_device.dev.platform_data = &vcck_pdata2,
 			printk("1.36 pcb11111111111111111! \n");
 			tmpvolt=1;	
     }
 		else 
 		{
-		  meson_cs_dcdc_regulator_device.dev.platform_data = &vcck_pdata,
+	//	  meson_cs_dcdc_regulator_device.dev.platform_data = &vcck_pdata,
 			printk("1.30 pcb2222222222222222! \n");
 			tmpvolt=0;	
 		}
 //		printk("tmpvolt4 is %d\n",tmpvolt);
     return 0;
 }
+#endif
 
 static __init void meson_init_machine(void)
 {
 //    meson_cache_init();
+<<<<<<< HEAD
 //  print_gpio_status();
+=======
+//print_gpio_status();
+>>>>>>> test
     setup_usb_devices();
     setup_devices_resource();
 #ifdef CONFIG_AM_WIFI
@@ -255,7 +261,7 @@ static __init void meson_init_machine(void)
 #endif
 
 #ifdef CONFIG_MPU_SENSORS_MPU3050
-    mpu3050_init_irq();
+    // mpu3050_init_irq();
 #endif
 #ifdef CONFIG_AM_LCD_OUTPUT
   //  m6ref_lcd_init();

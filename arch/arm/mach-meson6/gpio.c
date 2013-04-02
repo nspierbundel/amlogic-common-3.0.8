@@ -581,14 +581,22 @@ int gpio_direction_input(unsigned gpio)
     return (get_gpio_val(bank, bit));
 }
 
+int gpio_direction_output(unsigned gpio, int value)
+{
+    gpio_bank_t bank = (gpio_bank_t)(gpio >> 16);
+    int bit = gpio & 0xFFFF;
+    set_gpio_val(bank, bit, value ? 1 : 0);
+    set_gpio_mode(bank, bit, GPIO_OUTPUT_MODE);
+    return 0;
+}
+
 void gpio_enable_level_int(int pin , int flag, int group)
 {
-        group &= 7;
+    group &= 7;
 
-  			aml_set_reg32_bits(P_GPIO_INTR_GPIO_SEL0+(group>>2), pin, (group&3)*8, 8);
-
-        aml_set_reg32_bits(P_GPIO_INTR_EDGE_POL, 0, group, 1);
-        aml_set_reg32_bits(P_GPIO_INTR_EDGE_POL, flag, group+16, 1);
+	aml_set_reg32_bits(P_GPIO_INTR_GPIO_SEL0+(group>>2), pin, (group&3)*8, 8);
+    aml_set_reg32_bits(P_GPIO_INTR_EDGE_POL, 0, group, 1);
+    aml_set_reg32_bits(P_GPIO_INTR_EDGE_POL, flag, group+16, 1);
 }
 int gpio_to_idx(unsigned gpio)
 {
@@ -640,6 +648,19 @@ void gpio_enable_edge_int(int pin , int flag, int group)
         aml_set_reg32_bits(P_GPIO_INTR_EDGE_POL, flag, group+16, 1);
 }
 
+gpio_mode_t get_gpio_mode(gpio_bank_t bank, int bit)
+{
+    unsigned long addr = gpio_addrs[bank].mode_addr;
+#ifdef CONFIG_EXGPIO
+    if (bank >= EXGPIO_BANK0) {
+        return get_exgpio_mode(bank - EXGPIO_BANK0, bit);
+    }
+#endif
+    if (bank==PREG_PAD_GPIOAO)
+        return (aml_get_reg32_bits(addr, bit, 1) > 0) ? (GPIO_INPUT_MODE) : (GPIO_OUTPUT_MODE);
+    return (aml_get_reg32_bits(addr, bit, 1) > 0) ? (GPIO_INPUT_MODE) : (GPIO_OUTPUT_MODE);
+}
+
 int set_gpio_mode(gpio_bank_t bank, int bit, gpio_mode_t mode)
 {
     unsigned long addr = gpio_addrs[bank].mode_addr;
@@ -652,6 +673,7 @@ int set_gpio_mode(gpio_bank_t bank, int bit, gpio_mode_t mode)
 		aml_set_reg32_bits(addr, mode, bit, 1);
     return 0;
 }
+
 unsigned long  get_gpio_val(gpio_bank_t bank, int bit)
 {
     unsigned long addr = gpio_addrs[bank].in_addr;
@@ -660,8 +682,27 @@ unsigned long  get_gpio_val(gpio_bank_t bank, int bit)
         return get_exgpio_val(bank - EXGPIO_BANK0, bit);
     }
 #endif
-		return aml_get_reg32_bits(addr,bit,1);
+    return aml_get_reg32_bits(addr,bit,1);
 }
+
+int set_gpio_val(gpio_bank_t bank, int bit, unsigned long val)
+{
+    unsigned long addr = gpio_addrs[bank].out_addr;
+#ifdef CONFIG_EXGPIO
+    if (bank >= EXGPIO_BANK0) {
+        set_exgpio_val(bank - EXGPIO_BANK0, bit, val);
+        return 0;
+    }
+#endif
+    /* AO output: Because GPIO enable and output use the same register, we need shift 16 bit*/
+    if(bank == PREG_PAD_GPIOAO) { /* AO output need shift 16 bit*/
+		aml_set_reg32_bits(addr, val ? 1 : 0, bit+16, 1);
+    } else {
+		aml_set_reg32_bits(addr, val ? 1 : 0, bit, 1);
+    }
+    return 0;
+}
+
 void gpio_free(unsigned gpio)
 {
 	return;
@@ -672,5 +713,29 @@ int gpio_request(unsigned gpio, const char *label)
 	return 0;
 }
 
+int gpio_cansleep(unsigned gpio)
+{
+    /* Always return 0. We don't have I2C/SPI GPIOs. */
+    return 0;
+}
+
+void gpio_set_value_cansleep(unsigned gpio, int value)
+{
+    /* Nothing. We don't have I2C/SPI GPIOs that are handled by AM_GPIO. */
+}
+
+void gpio_set_value(unsigned gpio, int value)
+{
+    gpio_bank_t bank = (gpio_bank_t)(gpio >> 16);
+    int bit = gpio & 0xFFFF;
+    set_gpio_val(bank, bit, value ? 1 : 0);
+}
+
+int gpio_get_value(unsigned gpio)
+{
+    gpio_bank_t bank = (gpio_bank_t)(gpio >> 16);
+    int bit = gpio & 0xFFFF;
+    return (get_gpio_val(bank, bit));
+}
 
 //#endif

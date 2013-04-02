@@ -2,6 +2,10 @@
  * Device Register Section
  **********************************************************************/
 static struct platform_device  *platform_devs[] = {
+#if defined(CONFIG_AML_HDMI_TX)
+    &aml_hdmi_device,
+#endif
+
 #if defined(CONFIG_I2C_AML) || defined(CONFIG_I2C_HW_AML)
     &aml_i2c_device_a,
     &aml_i2c_device_b,
