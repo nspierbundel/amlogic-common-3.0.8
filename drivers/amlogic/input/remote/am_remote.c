@@ -48,6 +48,8 @@
 #include "plat/remote.h"
 #include "am_remote.h"
 
+#include <plat/io.h>
+
 #undef NEW_BOARD_LEARNING_MODE
 
 #define IR_CONTROL_HOLD_LAST_KEY    (1<<6)

@@ -39,6 +39,8 @@
 #include <mach/am_regs.h>
 #include "am_remote.h"
 
+#include <plat/io.h>
+
 extern char *remote_log_buf;
 
 static int dbg_printk(const char *fmt, ...)

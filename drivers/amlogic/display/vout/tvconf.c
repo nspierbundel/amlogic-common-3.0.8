@@ -47,6 +47,8 @@
 #include <linux/amlog.h>
 #include <mach/power_gate.h>
 
+#include <plat/io.h>
+
 #define PIN_MUX_REG_0	  0x202c
 #define P_PIN_MUX_REG_0  CBUS_REG_ADDR(PIN_MUX_REG_0)
 static    disp_module_info_t    *info;
