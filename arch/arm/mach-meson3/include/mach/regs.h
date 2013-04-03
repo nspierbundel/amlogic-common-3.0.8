@@ -8721,5 +8721,8 @@
 //
 // Closing file:  ./register_map.h
 //
+#define ENCP_INFO_READ 								0x271d
+#define P_ENCP_INFO_READ           CBUS_REG_ADDR(ENCP_INFO_READ)
+
 
 #endif

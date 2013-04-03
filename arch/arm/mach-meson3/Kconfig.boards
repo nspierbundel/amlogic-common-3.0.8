@@ -20,4 +20,12 @@ config MACH_M3_REF
 	help
 	  Support for Amlogic Meson3 reference development platform.
 
+	  
+config MACH_MESON3_8726M_SKT
+	depends on ARCH_MESON3=y
+	bool "MyGica A11"
+	default y
+	help
+	  Support for Amlogic Meson3 reference development platform
+	  
 endif # ARCH_MESON3
