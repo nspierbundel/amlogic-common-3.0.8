@@ -142,6 +142,14 @@ static struct platform_device saradc_device = {
 
 //#include"includes/hdmi-gpoi.h"  //vibrate function
 
+/***********************************************************************
+ * Card Reader Section
+ **********************************************************************/
+
+#ifdef CONFIG_CARDREADER
+//#include"includes/no-hdmi-cardread.h"
+//#include"includes/hdmi-cardread.h"
+#endif
 
 //#include"includes/hdmi-keys.h" // power and menu keys
 #include"includes/nohdmi-keys.h" // power and menu keys
