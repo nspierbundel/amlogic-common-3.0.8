@@ -30,7 +30,7 @@ static struct platform_device  *platform_devs[] = {
     &vm_device,
 #endif
 #if defined(CONFIG_CARDREADER)
-    //&meson_card_device,
+//    &meson_card_device,
 #endif // CONFIG_CARDREADER
 #if defined(CONFIG_MMC_AML)
     &aml_mmc_device,

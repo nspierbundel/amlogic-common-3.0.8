@@ -29,13 +29,13 @@
 #define OSD_720_PIX         (1280*720)
 #define OSD_1080_PIX        (1920*1080)
 #define OSD_PANEL_PIX       (1024*600)
-#define B16BpP  (4)
+#define B16BpP  (2)
 #define B32BpP  (8)
 #define DOUBLE_BUFFER   (2)
 
-#define OSD1_MAX_MEM        U_ALIGN(OSD_PANEL_PIX*B32BpP*DOUBLE_BUFFER)
+#define OSD1_MAX_MEM        U_ALIGN(OSD_1080_PIX*B32BpP*DOUBLE_BUFFER)
 //#define OSD2_MAX_MEM        U_ALIGN(32*32*B32BpP)
-#define OSD2_MAX_MEM        U_ALIGN(OSD_PANEL_PIX*B32BpP*DOUBLE_BUFFER)
+#define OSD2_MAX_MEM        U_ALIGN(OSD_1080_PIX*B32BpP*DOUBLE_BUFFER)
 /******** Reserved memory configuration ***************/
 #define OSD1_ADDR_START     U_ALIGN(AUDIODSP_ADDR_END )
 #define OSD1_ADDR_END       (OSD1_ADDR_START+OSD1_MAX_MEM - 1)
@@ -86,9 +86,9 @@
 
 #ifdef CONFIG_POST_PROCESS_MANAGER
 #ifdef CONFIG_POST_PROCESS_MANAGER_PPSCALER
-#define PPMGR_MEM_SIZE               1024 * 608 * 21
+#define PPMGR_MEM_SIZE               1920 * 1088 * 18
 #else
-#define PPMGR_MEM_SIZE               1024 * 608 * 18
+#define PPMGR_MEM_SIZE               1920 * 1088 * 15
 #endif
 #else
 #define PPMGR_MEM_SIZE		0

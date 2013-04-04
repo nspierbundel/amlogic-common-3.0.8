@@ -1065,7 +1065,7 @@ CONFIG_AM_TV_OUTPUT=y
 #
 # Amlogic video output2 module
 #
-CONFIG_AM_TV_OUTPUT2=y
+# CONFIG_AM_TV_OUTPUT2 is not set
 
 #
 # Amlogic osd module
@@ -1087,7 +1087,6 @@ CONFIG_FB_OSD1_DEFAULT_HEIGHT_VIRTUAL=1440
 #
 # Amlogic osd_ext module
 #
-# CONFIG_AM_FB_EXT is not set
 
 #
 # Amlogic Backlight Support
