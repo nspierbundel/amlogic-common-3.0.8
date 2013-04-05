@@ -68,7 +68,8 @@ unsigned int aml_pcm_capture_phy_end_addr = 0;
 unsigned int aml_pcm_playback_off = 0;
 unsigned int aml_pcm_playback_enable = 1;
 
-unsigned int aml_iec958_playback_start_addr = 0;
+//unsigned int aml_iec958_playback_start_addr = 0;
+void *aml_iec958_playback_start_addr = 0;
 unsigned int aml_iec958_playback_start_phy = 0;
 unsigned int aml_iec958_playback_size = 0;  // in bytes
 
@@ -400,8 +401,9 @@ static int audio_notify_hdmi_info(int audio_type, void *v){
 	}
 	audio_sr_info = substream->runtime->rate;
 	audio_type_info = audio_type;
-
+	return 0;
 }
+
 static void iec958_notify_hdmi_info(void)
 {
 	unsigned audio_type = AOUT_EVENT_IEC_60958_PCM;
