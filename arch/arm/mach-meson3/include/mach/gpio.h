@@ -1,9 +1,8 @@
 #ifndef __MACH_MESON3_GPIO_H_
 #define __MACH_MESON3_GPIO_H_
+
 #include <linux/types.h>
 #include <mach/pinmux.h>
-
-
 
 /**
  * =================================================================================================
@@ -138,6 +137,10 @@ gpio_mode_t get_gpio_mode(gpio_bank_t bank, int bit);
 
 int set_gpio_val(gpio_bank_t bank, int bit, unsigned long val);
 unsigned long  get_gpio_val(gpio_bank_t bank, int bit);
+
+/* Needed for GPIO */
+extern void gpio_set_value_cansleep(unsigned gpio, int value);
+extern int gpio_cansleep(unsigned gpio);
 
 #define GPIOA_bank_bit0_27(bit)     (PREG_PAD_GPIO0)
 #define GPIOA_bit_bit0_27(bit)      (bit)
