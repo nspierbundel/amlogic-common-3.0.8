@@ -236,38 +236,6 @@ static struct platform_device input_device_key = {
 };
 #endif
 
-
-#if 0
-static  typeof(devices_pins)  *cur_board_pinmux;
-static struct aml_uart_platform  __initdata aml_uart_plat = {
-    .uart_line[0]       =  UART_AO,
-    .uart_line[1]       =   UART_A,
-    .uart_line[2]       =   UART_B,
-    .uart_line[3]       =   UART_C,
-};
-
-    
-//#endif
-static  struct aml_i2c_platform_a  __initdata aml_i2c_data_a={
-       .udelay = 8,
-       .timeout =10 ,
-       .resource ={
-            .start =    I2C_MASTER_A_START,
-            .end   =    I2C_MASTER_A_END,
-            .flags =    IORESOURCE_MEM,
-       }
-   } ;
-static struct aml_i2c_platform_b   __initdata aml_i2c_data_b={
-       .freq= 3,
-       .wait=7,
-       .resource ={
-            .start =    I2C_MASTER_B_START,
-            .end   =    I2C_MASTER_B_END,
-            .flags =    IORESOURCE_MEM,
-       }
-   };
-#endif
-
 static void set_usb_a_vbus_power(char is_power_on)
 {
 }
@@ -338,58 +306,11 @@ static struct aml_i2c_platform aml_i2c_plat = {
     .wait_xfer_interval	= 5,
     .master_no          = AML_I2C_MASTER_A,
     .use_pio            = 0,
-    .master_i2c_speed   = AML_I2C_SPPED_300K,
+    .master_i2c_speed   = AML_I2C_SPPED_100K,
 
     .master_pinmux      = {
         .chip_select    = pinmux_dummy_share,
         .pinmux         = &aml_i2c_0_pinmux_item[0]
-    }
-};
-
-static pinmux_item_t aml_i2c_1_pinmux_item[]={
-    {
-        .reg = 5,
-        //.clrmask = (3<<28)|(3<<26),
-        .setmask = 3<<30
-    },
-    PINMUX_END_ITEM
-};
-
-static struct aml_i2c_platform aml_i2c_plat1 = {
-    .wait_count         = 50000,
-    .wait_ack_interval	= 5,
-    .wait_read_interval	= 5,
-    .wait_xfer_interval	= 5,
-    .master_no          = AML_I2C_MASTER_B,
-    .use_pio            = 0,
-    .master_i2c_speed   = AML_I2C_SPPED_300K,
-
-    .master_pinmux      = {
-        .chip_select    = pinmux_dummy_share,
-        .pinmux         = &aml_i2c_1_pinmux_item[0]
-    }
-};
-
-static pinmux_item_t aml_i2c_ao_pinmux_item[] = {
-    {
-        .reg		= AO,
-        .clrmask	= 3<<1,
-        .setmask	= 3<<5
-    },
-    PINMUX_END_ITEM
-};
-
-static struct aml_i2c_platform aml_i2c_plat2 = {
-    .wait_count         = 50000,
-    .wait_ack_interval  = 5,
-    .wait_read_interval = 5,
-    .wait_xfer_interval	= 5,
-    .master_no          = AML_I2C_MASTER_AO,
-    .use_pio            = 0,
-    .master_i2c_speed   = AML_I2C_SPPED_100K,
-
-    .master_pinmux      = {
-        .pinmux         = &aml_i2c_ao_pinmux_item[0]
     }
 };
 
@@ -398,22 +319,6 @@ static struct resource aml_i2c_resource[] = {
         .start = MESON_I2C_MASTER_A_START,
         .end   = MESON_I2C_MASTER_A_END,
         .flags = IORESOURCE_MEM,
-	}
-};
-
-static struct resource aml_i2c_resource1[] = {
-    [0] = {
-        .start = MESON_I2C_MASTER_A_START,
-        .end   = MESON_I2C_MASTER_A_END,
-        .flags = IORESOURCE_MEM,
-    }
-};
-
-static struct resource aml_i2c_resource2[] = {
-	[0]= {
-		.start =    MESON_I2C_MASTER_AO_START,
-		.end   =    MESON_I2C_MASTER_AO_END,
-		.flags =    IORESOURCE_MEM,
 	}
 };
 
@@ -427,35 +332,15 @@ static struct platform_device aml_i2c_device = {
     },
 };
 
-static struct platform_device aml_i2c_device1 = {
-    .name         = "aml-i2c",
-    .id       = 1,
-    .num_resources    = ARRAY_SIZE(aml_i2c_resource1),
-    .resource     = aml_i2c_resource1,
-    .dev = {
-        .platform_data = &aml_i2c_plat1,
-    },
-};
-
-static struct platform_device aml_i2c_device2 = {
-    .name         = "aml-i2c",
-    .id       = 2,
-    .num_resources    = ARRAY_SIZE(aml_i2c_resource2),
-    .resource     = aml_i2c_resource2,
-    .dev = {
-        .platform_data = &aml_i2c_plat2,
-    },
-};
-
 static struct i2c_board_info __initdata aml_i2c_bus_info[] = {
-	// Add AT88 Crypto Device
+	{
+		I2C_BOARD_INFO("at88scxx", 0xB6),
+	},
 };
-
 
 static int __init aml_i2c_init(void)
 {
-	i2c_register_board_info(0, aml_i2c_bus_info,
-		ARRAY_SIZE(aml_i2c_bus_info));
+	return i2c_register_board_info(0, aml_i2c_bus_info, ARRAY_SIZE(aml_i2c_bus_info));
 }
 #endif
 
@@ -1298,6 +1183,9 @@ static struct platform_device  *platform_devs[] = {
 #if defined(CONFIG_AML_RTC)
     &meson_rtc_device,
 #endif
+#if defined(CONFIG_I2C_AML) || defined(CONFIG_I2C_HW_AML)
+    &aml_i2c_device
+#endif
 };
 
 static void __init power_hold(void)
@@ -1355,7 +1243,7 @@ static __init void meson_m3ref_init(void)
     gpio_out_low(PAD_GPIOC_4);
 */
 #if defined(CONFIG_I2C_AML) || defined(CONFIG_I2C_HW_AML)
-    //aml_i2c_init();
+    aml_i2c_init();
 #endif
 #ifdef CONFIG_AM_ETHERNET
     setup_eth_device();
