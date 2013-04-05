@@ -204,7 +204,7 @@ static int _key_code_list[] = {KEY_POWER};
 static inline int key_input_init_func(void)
 {
 	// Power Button, GPIO AO3, ACTIVE LOW
-	gpio_direction_input(GPIO_KEY_POWER);    
+	gpio_direction_input(GPIO_KEY_POWER);
 	return 0;
 }
 
@@ -1085,11 +1085,29 @@ void m3ref_set_vccx2(int power_on)
         //restore_pinmux();
         printk(KERN_INFO "%s() Power ON\n", __FUNCTION__);
 	// TODO: Add vccx2 enable
-    }
-    else {
+
+	// VCCIO +3V3 -- GPIO AO2, ACTIVE HIGH
+	gpio_direction_output( GPIO_PWR_VCCIO, 1);
+
+	// VCCx2 +5V -- GPIO AO6, ACTIVE HIGH.
+	gpio_direction_output( GPIO_PWR_VCCx2, 1);
+
+	// HDMI Power +5V -- GPIO D6, ACTIVE HIGH
+	gpio_direction_output( GPIO_PWR_HDMI, 1);
+
+    } else {
         printk(KERN_INFO "%s() Power OFF\n", __FUNCTION__);
         //save_pinmux();
 	// TODO: Add vccx2 enable
+
+	// HDMI Power +5V -- GPIO D6, ACTIVE HIGH
+	gpio_direction_output( GPIO_PWR_HDMI, 0);
+
+	// VCCx2 +5V -- GPIO AO6, ACTIVE HIGH.
+	gpio_direction_output( GPIO_PWR_VCCx2, 0);
+
+	// VCCIO +3V3 -- GPIO AO2, ACTIVE HIGH
+	gpio_direction_output( GPIO_PWR_VCCIO, 0);
     }
 }
 
@@ -1140,27 +1158,27 @@ static struct platform_device  *platform_devs[] = {
 #if defined(CONFIG_AML_HDMI_TX)
     &aml_hdmi_device,
 #endif
-    // &meson_device_fb,
-    // &meson_device_codec,
+    &meson_device_fb,
+    //&meson_device_codec,
 #if defined(CONFIG_SND_AML_M3)
     //&aml_audio,
     //&aml_dai,
     //&aml_m3_audio,
 #endif
 #if defined(CONFIG_KEYPADS_AM)||defined(CONFIG_VIRTUAL_REMOTE)||defined(CONFIG_KEYPADS_AM_MODULE)
-    //&input_device,
+    &input_device,
 #endif
 #ifdef CONFIG_SARADC_AM
-    //&saradc_device,
+    &saradc_device,
 #endif
 #if defined(CONFIG_ADC_KEYPADS_AM)||defined(CONFIG_ADC_KEYPADS_AM_MODULE)
-    //&adc_kp_device,
+    &adc_kp_device,
 #endif
 #if defined(CONFIG_KEY_INPUT_CUSTOM_AM) || defined(CONFIG_KEY_INPUT_CUSTOM_AM_MODULE)
-    //&input_device_key,
+    &input_device_key,
 #endif
 #if defined(CONFIG_MMC_AML)
-    //&aml_mmc_device,
+    &aml_mmc_device,
 #endif
 #if defined(CONFIG_CARDREADER)
     &amlogic_card_device,
@@ -1175,10 +1193,10 @@ static struct platform_device  *platform_devs[] = {
     //&vdin_device,
 #endif
 #if defined(CONFIG_AML_AUDIO_DSP)
-    //&audiodsp_device,
+    &audiodsp_device,
 #endif //CONFIG_AML_AUDIO_DSP
 #ifdef CONFIG_POST_PROCESS_MANAGER
-    //&ppmgr_device,
+    &ppmgr_device,
 #endif
 #if defined(CONFIG_AML_RTC)
     &meson_rtc_device,
@@ -1208,18 +1226,6 @@ static void __init power_hold(void)
 
 	// Turn On Wifi Power. So the wifi-module can be detected.
 	// extern_usb_wifi_power(1);
-	
-	// gpio_out(PAD_GPIOD_1, gpio_status_out);
-    // gpio_out_high(PAD_GPIOD_1);
-	
-	gpio_out(PAD_GPIOAO_11, gpio_status_out); // POWER
-	gpio_out_low(PAD_GPIOAO_11);
-	
-	gpio_out(PAD_GPIOAO_10, gpio_status_out); // STATUS
-	gpio_out_low(PAD_GPIOAO_11);
-	
-	// gpio_direction_output( GPIO_LED_POWER, 1);
-	// gpio_direction_output( GPIO_LED_STATUS, 1
 }
 
 static __init void meson_m3ref_init(void)
@@ -1227,32 +1233,16 @@ static __init void meson_m3ref_init(void)
 	// backup_board_pinmux();
 	meson_cache_init();
 	setup_devices_resource();
-	printk("----------- POWER HOLD --------------");
 	power_hold();
 	platform_add_devices(platform_devs, ARRAY_SIZE(platform_devs));
 	
-    // setup_i2c_devices();
-
-    // setup_uart_devices();
-    // device_clk_setting();
-    // device_pinmux_init();
-
-    m3ref_set_vccx2(1);
-    //setup_usb_devices();
-
-    /*
-    printk(KERN_INFO"TEST GPIOC 4");
-    gpio_out_high(PAD_GPIOC_4);
-    gpio_out_low(PAD_GPIOC_4);
-*/
 #if defined(CONFIG_I2C_AML) || defined(CONFIG_I2C_HW_AML)
-    aml_i2c_init();
+	aml_i2c_init();
 #endif
 #ifdef CONFIG_AM_ETHERNET
-    setup_eth_device();
+	setup_eth_device();
 #endif
     disable_unused_model();
-    printk("----------- END INIT --------------");
 }
 
 
