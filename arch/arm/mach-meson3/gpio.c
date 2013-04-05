@@ -721,7 +721,14 @@ int gpio_cansleep(unsigned gpio)
 
 void gpio_set_value_cansleep(unsigned gpio, int value)
 {
-    /* Nothing. We don't have I2C/SPI GPIOs that are handled by AM_GPIO. */
+    might_sleep();
+    gpio_set_value(gpio, value);
+}
+
+int gpio_get_value_cansleep(unsigned gpio)
+{
+    might_sleep();
+    return gpio_get_value(gpio);
 }
 
 void gpio_set_value(unsigned gpio, int value)
@@ -737,5 +744,13 @@ int gpio_get_value(unsigned gpio)
     int bit = gpio & 0xFFFF;
     return (get_gpio_val(bank, bit));
 }
+
+int gpio_is_valid(int number)
+{
+    /* only non-negative numbers are valid */
+    return number >= 0;
+}
+EXPORT_SYMBOL(gpio_is_valid);
+
 
 //#endif
