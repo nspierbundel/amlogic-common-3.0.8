@@ -110,7 +110,7 @@ static struct platform_device saradc_device = {
 #endif
 
 
-#if defined(CONFIG_LEDS_GPIO)
+#if defined(CONFIG_LEDS_GPIO_PLATFORM)
 #include <linux/leds.h>
 #endif
 
@@ -1184,7 +1184,10 @@ static struct platform_device  *platform_devs[] = {
     &meson_rtc_device,
 #endif
 #if defined(CONFIG_I2C_AML) || defined(CONFIG_I2C_HW_AML)
-    &aml_i2c_device
+    &aml_i2c_device,
+#endif
+#if defined(CONFIG_LEDS_GPIO_PLATFORM)
+    &aml_leds,
 #endif
 };
 
