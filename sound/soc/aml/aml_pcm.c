@@ -75,11 +75,14 @@ unsigned int aml_iec958_playback_size = 0;  // in bytes
 
 static  unsigned  playback_substream_handle = 0 ;
 /*to keep the pcm status for clockgating*/
+/* vDorst: vars are not used in code, all are comment out in the code.
 static unsigned clock_gating_status = 0;
 static unsigned clock_gating_playback = 1;
 static unsigned clock_gating_capture = 2;
+*/
 static int audio_type_info = -1;
 static int audio_sr_info = -1;
+
 
 //static struct rt5631_platform_data *rt5631_snd_pdata = NULL;
 static struct aml_pcm_work_t{ 
@@ -89,9 +92,13 @@ static struct aml_pcm_work_t{
 
 int codec_power=1;
 unsigned int flag=0;
+/* vDorst: vars are not used in code, all are comment out in the code.
 static int num=0;
+*/
 
+#if 0
 static int codec_power_switch(struct snd_pcm_substream *substream, unsigned int status);
+#endif
 
 EXPORT_SYMBOL(aml_pcm_playback_start_addr);
 EXPORT_SYMBOL(aml_pcm_capture_start_addr);
