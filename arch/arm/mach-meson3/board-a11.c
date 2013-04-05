@@ -132,7 +132,7 @@ static struct platform_device saradc_device = {
 #define GPIO_SD_WP	GPIO_CARD(6)
 #define GPIO_SD_DET	GPIO_CARD(7)
 
-#if defined(CONFIG_LEDS_GPIO)
+#if defined(CONFIG_LEDS_GPIO_PLATFORM)
 /* LED Class Support for the leds */
 static struct gpio_led aml_led_pins[] = {
 	{	
