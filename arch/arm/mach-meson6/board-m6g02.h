@@ -30,7 +30,7 @@
 #define OSD_1080_PIX        (1920*1080)
 #define OSD_PANEL_PIX       (1024*600)
 #define B16BpP  (2)
-#define B32BpP  (8)
+#define B32BpP  (4)
 #define DOUBLE_BUFFER   (2)
 
 #define OSD1_MAX_MEM        U_ALIGN(OSD_1080_PIX*B32BpP*DOUBLE_BUFFER)
