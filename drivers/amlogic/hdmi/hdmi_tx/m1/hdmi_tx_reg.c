@@ -59,13 +59,36 @@ unsigned long READ_APB_REG(unsigned long addr)
 
 #endif
 
+// if the following bits are 0, then access HDMI IP Port will cause system hungup
+#define GATE_NUM    2
+Hdmi_Gate_s hdmi_gate[GATE_NUM] =   {   {HHI_HDMI_CLK_CNTL, 8},
+                                        {HHI_GCLK_MPEG2   , 4},
+                                    };
+
+// In order to prevent system hangup, add check_cts_hdmi_sys_clk_status() to check 
+static void check_cts_hdmi_sys_clk_status(void)
+{
+    int i;
+
+    for(i = 0; i < GATE_NUM; i++){
+        if(!(aml_read_reg32(CBUS_REG_ADDR(hdmi_gate[i].cbus_addr)) & (1<<hdmi_gate[i].gate_bit))){
+            printk("HDMI Gate Clock is off, turn on now\n");
+            aml_set_reg32_bits(CBUS_REG_ADDR(hdmi_gate[i].cbus_addr), 1, hdmi_gate[i].gate_bit, 1);
+        }
+    }
+}
+
 unsigned long hdmi_rd_reg(unsigned long addr)
 {
     unsigned long data;
-    WRITE_APB_REG(HDMI_ADDR_PORT, addr);
-    WRITE_APB_REG(HDMI_ADDR_PORT, addr);
+    check_cts_hdmi_sys_clk_status();
+//    WRITE_APB_REG(HDMI_ADDR_PORT, addr);
+//    WRITE_APB_REG(HDMI_ADDR_PORT, addr);
+    aml_write_reg32(P_HDMI_ADDR_PORT, addr);
+    aml_write_reg32(P_HDMI_ADDR_PORT, addr);
     
-    data = READ_APB_REG(HDMI_DATA_PORT);
+//    data = READ_APB_REG(HDMI_DATA_PORT);
+    data = aml_read_reg32(P_HDMI_DATA_PORT);
     
     return (data);
 }
@@ -73,20 +96,30 @@ unsigned long hdmi_rd_reg(unsigned long addr)
 
 void hdmi_wr_only_reg(unsigned long addr, unsigned long data)
 {
-    WRITE_APB_REG(HDMI_ADDR_PORT, addr);
-    WRITE_APB_REG(HDMI_ADDR_PORT, addr);
+    check_cts_hdmi_sys_clk_status();
+//    WRITE_APB_REG(HDMI_ADDR_PORT, addr);
+//    WRITE_APB_REG(HDMI_ADDR_PORT, addr);
+//    
+//    WRITE_APB_REG(HDMI_DATA_PORT, data);
+    aml_write_reg32(P_HDMI_ADDR_PORT, addr);
+    aml_write_reg32(P_HDMI_ADDR_PORT, addr);
     
-    WRITE_APB_REG(HDMI_DATA_PORT, data);
+    aml_write_reg32(P_HDMI_DATA_PORT, data);
 }
 
 void hdmi_wr_reg(unsigned long addr, unsigned long data)
 {
     unsigned long rd_data;
     
-    WRITE_APB_REG(HDMI_ADDR_PORT, addr);
-    WRITE_APB_REG(HDMI_ADDR_PORT, addr);
+    check_cts_hdmi_sys_clk_status();
+//    WRITE_APB_REG(HDMI_ADDR_PORT, addr);
+//    WRITE_APB_REG(HDMI_ADDR_PORT, addr);
+//    
+//    WRITE_APB_REG(HDMI_DATA_PORT, data);
+    aml_write_reg32(P_HDMI_ADDR_PORT, addr);
+    aml_write_reg32(P_HDMI_ADDR_PORT, addr);
     
-    WRITE_APB_REG(HDMI_DATA_PORT, data);
+    aml_write_reg32(P_HDMI_DATA_PORT, data);
     rd_data = hdmi_rd_reg (addr);
     if (rd_data != data) 
     {
