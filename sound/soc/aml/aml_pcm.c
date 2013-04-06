@@ -68,17 +68,21 @@ unsigned int aml_pcm_capture_phy_end_addr = 0;
 unsigned int aml_pcm_playback_off = 0;
 unsigned int aml_pcm_playback_enable = 1;
 
-unsigned int aml_iec958_playback_start_addr = 0;
+//unsigned int aml_iec958_playback_start_addr = 0;
+void *aml_iec958_playback_start_addr = 0;
 unsigned int aml_iec958_playback_start_phy = 0;
 unsigned int aml_iec958_playback_size = 0;  // in bytes
 
 static  unsigned  playback_substream_handle = 0 ;
 /*to keep the pcm status for clockgating*/
+/* vDorst: vars are not used in code, all are comment out in the code.
 static unsigned clock_gating_status = 0;
 static unsigned clock_gating_playback = 1;
 static unsigned clock_gating_capture = 2;
+*/
 static int audio_type_info = -1;
 static int audio_sr_info = -1;
+
 
 //static struct rt5631_platform_data *rt5631_snd_pdata = NULL;
 static struct aml_pcm_work_t{ 
@@ -88,9 +92,13 @@ static struct aml_pcm_work_t{
 
 int codec_power=1;
 unsigned int flag=0;
+/* vDorst: vars are not used in code, all are comment out in the code.
 static int num=0;
+*/
 
+#if 0
 static int codec_power_switch(struct snd_pcm_substream *substream, unsigned int status);
+#endif
 
 EXPORT_SYMBOL(aml_pcm_playback_start_addr);
 EXPORT_SYMBOL(aml_pcm_capture_start_addr);
@@ -400,8 +408,9 @@ static int audio_notify_hdmi_info(int audio_type, void *v){
 	}
 	audio_sr_info = substream->runtime->rate;
 	audio_type_info = audio_type;
-
+	return 0;
 }
+
 static void iec958_notify_hdmi_info(void)
 {
 	unsigned audio_type = AOUT_EVENT_IEC_60958_PCM;

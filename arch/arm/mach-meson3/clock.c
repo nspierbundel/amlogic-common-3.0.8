@@ -222,8 +222,9 @@ EXPORT_SYMBOL(get_system_clk);
 
 unsigned int get_mpeg_clk(void)
 {
- 
+    return 0;
 }
+
 EXPORT_SYMBOL(get_mpeg_clk);
 
 unsigned int get_misc_pll_clk(void)

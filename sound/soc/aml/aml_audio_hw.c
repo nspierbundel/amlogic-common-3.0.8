@@ -436,7 +436,8 @@ void audio_set_clk(unsigned freq, unsigned fs_config)
 {
     int i;
     int xtal = 0;
-    
+    struct clk *clk;
+
     int (*audio_clock_config)[2];
     
    // if (fs_config == AUDIO_CLK_256FS) {
@@ -985,7 +986,8 @@ void audio_i2s_swap_left_right(unsigned int flag)
 {
 	WRITE_MPEG_REG_BITS(AIU_I2S_MUTE_SWAP, flag, 0, 2);
 }
-unsigned int audio_hdmi_init_ready()
+
+unsigned int audio_hdmi_init_ready(void)
 {
 	return 	READ_MPEG_REG_BITS(AIU_HDMI_CLK_DATA_CTRL, 0, 2);
 }
