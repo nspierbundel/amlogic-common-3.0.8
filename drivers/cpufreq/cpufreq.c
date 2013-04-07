@@ -1,4 +1,4 @@
-/*
+  /*
  *  linux/drivers/cpufreq/cpufreq.c
  *
  *  Copyright (C) 2001 Russell King
@@ -189,6 +189,8 @@ EXPORT_SYMBOL_GPL(cpufreq_cpu_put);
  * systems as each CPU might be scaled differently. So, use the arch
  * per-CPU loops_per_jiffy value wherever possible.
  */
+#ifndef CONFIG_PLAT_MESON
+
 #ifndef CONFIG_SMP
 static unsigned long l_p_j_ref;
 static unsigned int  l_p_j_ref_freq;
@@ -220,7 +222,7 @@ static inline void adjust_jiffies(unsigned long val, struct cpufreq_freqs *ci)
 }
 #endif
 
-
+#endif
 /**
  * cpufreq_notify_transition - call notifier chain and adjust_jiffies
  * on frequency transition.
