@@ -1028,15 +1028,19 @@ void aml_nand_read_retry_exit_micron(struct mtd_info *mtd, int chipnr)
 {
 	
 	struct aml_nand_chip *aml_chip = mtd_to_nand_chip(mtd);
+	uint8_t default_val = 0;
 
 	if(aml_chip->new_nand_info.type != MICRON_20NM)
 		return;
 	//printk("Enter %s\n", __func__);
 
-	int default_val = 0;
-	
-	aml_nand_set_reg_value_micron(aml_chip, &default_val,
-		&aml_chip->new_nand_info.read_rety_info.reg_addr[0], chipnr, aml_chip->new_nand_info.read_rety_info.reg_cnt);
+	aml_nand_set_reg_value_micron(
+		aml_chip,
+		&default_val,
+		&aml_chip->new_nand_info.read_rety_info.reg_addr[0],
+		chipnr,
+		aml_chip->new_nand_info.read_rety_info.reg_cnt
+	);
 	udelay(10); 
 
 	return ;
@@ -1402,7 +1406,7 @@ static void aml_platform_adjust_timing(struct aml_nand_chip *aml_chip)
 
 static int aml_nand_add_partition(struct aml_nand_chip *aml_chip)
 {
-	uint32_t adjust_offset = 0, mini_part_blk_num, start_blk = 0,key_block;
+	uint32_t adjust_offset = 0, mini_part_blk_num, start_blk = 0;
 	struct mtd_info *mtd = &aml_chip->mtd;
 	struct aml_nand_platform *plat = aml_chip->platform;
 	struct platform_nand_chip *chip = &plat->platform_nand_data.chip;
@@ -1415,6 +1419,7 @@ static int aml_nand_add_partition(struct aml_nand_chip *aml_chip)
 	uint64_t mini_part_size = ((mtd->erasesize > NAND_MINI_PART_SIZE) ? mtd->erasesize : NAND_MINI_PART_SIZE);
 #ifdef CONFIG_AML_NAND_KEY
 	//mini_part_size = ((mtd->erasesize > (NAND_MINI_PART_SIZE + NAND_MINIKEY_PART_SIZE)) ? mtd->erasesize : (NAND_MINI_PART_SIZE + NAND_MINIKEY_PART_SIZE));
+	uint32_t key_block;
 #endif
 
 	if (chip->set_parts)
