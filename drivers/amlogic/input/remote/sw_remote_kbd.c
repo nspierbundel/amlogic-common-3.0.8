@@ -101,7 +101,7 @@ static int get_pulse_width(unsigned long data)
 
 static inline void kbd_software_mode_remote_wait(unsigned long data)
 {
-	unsigned short pulse_width;
+	// unsigned short pulse_width;
 	struct remote *remote_data = (struct remote *)data;
 
 //	pulse_width = get_pulse_width(data);
@@ -201,6 +201,9 @@ static inline void kbd_software_mode_remote_data(unsigned long data)
 {
 	unsigned short pulse_width;
 	struct remote *remote_data = (struct remote *)data;
+	int valid;
+	unsigned int cur_jiffies;
+	unsigned int cur_keycode;
 
 	pulse_width = get_pulse_width(data);
 	remote_data->step = REMOTE_STATUS_DATA;
@@ -295,13 +298,14 @@ static inline void kbd_software_mode_remote_data(unsigned long data)
 			}
 			else {
 				remote_data->step = REMOTE_STATUS_WAIT;
-				int valid = checkKeyCode(remote_data->cur_keycode, remote_data->time_window[0]);
+
+				valid = checkKeyCode(remote_data->cur_keycode, remote_data->time_window[0]);
 				if(valid || ((remote_data->register_data&0xffff) != remote_data->custom_code)) {
 					input_dbg("***invalid code=%08x-%08x, customer=%08x.\n", remote_data->register_data, remote_data->cur_keycode, remote_data->custom_code);
 					break;
 				}
-				unsigned int cur_jiffies = jiffies;
-				unsigned int cur_keycode = (remote_data->cur_keycode&0xff00)>>8;
+				cur_jiffies = jiffies;
+				cur_keycode = (remote_data->cur_keycode&0xff00)>>8;
 				// press A, press B before A release time out, so we need to send A release
 				if((remote_data->timer.expires > cur_jiffies) && (remote_data->last_keycode != cur_keycode)) {
 					remote_send_key(remote_data->input, remote_data->last_keycode, 0);
