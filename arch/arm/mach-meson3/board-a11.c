@@ -1264,7 +1264,7 @@ static void __init power_hold(void)
 	// extern_usb_wifi_power(1);
 }
 
-static __init void meson_m3ref_init(void)
+static __init void meson_machine_init,(void)
 {
 	// backup_board_pinmux();
 	meson_cache_init();
@@ -1347,12 +1347,12 @@ static  void __init meson_map_io(void)
     iotable_init(meson_io_desc, ARRAY_SIZE(meson_io_desc));
 }
 
-static __init void m3_irq_init(void)
+static __init void meson_irq_init(void)
 {
     meson_init_irq();
 }
 
-static __init void m3_fixup(struct machine_desc *mach, struct tag *tag, char **cmdline, struct meminfo *m)
+static __init void meson_fixup(struct machine_desc *mach, struct tag *tag, char **cmdline, struct meminfo *m)
 {
     struct membank *pbank;
     m->nr_banks = 0;
@@ -1376,10 +1376,10 @@ static __init void m3_fixup(struct machine_desc *mach, struct tag *tag, char **c
 MACHINE_START(M3_REF, "Amlogic Meson3 reference development platform")
     .boot_params    = BOOT_PARAMS_OFFSET,
     .map_io         = meson_map_io,
-    .init_irq       = m3_irq_init,
+    .init_irq       = meson_irq_init,
     .timer          = &meson_sys_timer,
-    .init_machine   = meson_m3ref_init,
-    .fixup          = m3_fixup,
+    .init_machine   = meson_machine_init,,
+    .fixup          = meson_fixup,
     .video_start    = RESERVED_MEM_START,
     .video_end      = RESERVED_MEM_END,
 MACHINE_END
@@ -1387,10 +1387,10 @@ MACHINE_END
 MACHINE_START(VMX25, "Amlogic Meson3 reference development platform (legacy)")
     .boot_params    = BOOT_PARAMS_OFFSET,
     .map_io         = meson_map_io,
-    .init_irq       = m3_irq_init,
+    .init_irq       = meson_irq_init,
     .timer          = &meson_sys_timer,
-    .init_machine   = meson_m3ref_init,
-    .fixup          = m3_fixup,
+    .init_machine   = meson_machine_init,,
+    .fixup          = meson_fixup,
     .video_start    = RESERVED_MEM_START,
     .video_end      = RESERVED_MEM_END,
 MACHINE_END
