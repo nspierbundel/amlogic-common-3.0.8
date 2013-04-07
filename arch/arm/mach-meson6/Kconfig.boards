@@ -21,10 +21,16 @@ config MACH_MESON6_G02
           Support for Amlogic Meson6 g02 reference platform.
 
 config MACH_MESON6_ATV520
-        depends on ARCH_MESON6
+        depends on MACH_MESON6_G02
         bool "MyGicca ATV 520"
+        default y
+	help
+          Support for Mygicca atv520.
+config MACH_MESON6_ATV1200
+        depends on MACH_MESON6_G02
+        bool "MyGicca ATV 1200"
         help
-          Support for Amlogic Meson6 g02 reference platform.
+          Support for Mygicca atv1200.
 
 
 endif # ARCH_MESON6
