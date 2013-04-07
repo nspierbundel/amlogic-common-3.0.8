@@ -91,7 +91,9 @@ static char DEFMAC[] = "\x00\x01\x23\xcd\xee\xaf";
 void start_test(struct net_device *dev);
 static void write_mac_addr(struct net_device *dev, char *macaddr);
 static int ethernet_reset(struct net_device *dev);
-static void set_phy_mode();
+#if MESON_CPU_TYPE >= MESON_CPU_TYPE_MESON6
+static void set_phy_mode(void);
+#endif
 /* --------------------------------------------------------------------------*/
 /**
  * @brief  mdio_read 
@@ -1756,9 +1758,10 @@ static int setup_net_device(struct net_device *dev)
 	return res;
 }
 
-static void set_phy_mode()
+#if MESON_CPU_TYPE >= MESON_CPU_TYPE_MESON6
+static void set_phy_mode(void)
 {
-	unsigned int val;
+	//unsigned int val;
 
 	struct am_net_private *priv = netdev_priv(my_ndev);
 
@@ -1780,6 +1783,7 @@ static void set_phy_mode()
 		break;
 	}
 }
+#endif
 /* --------------------------------------------------------------------------*/
 /**
  * @brief  probe_init 
