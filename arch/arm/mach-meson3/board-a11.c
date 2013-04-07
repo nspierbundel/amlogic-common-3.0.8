@@ -1264,7 +1264,7 @@ static void __init power_hold(void)
 	// extern_usb_wifi_power(1);
 }
 
-static __init void meson_machine_init,(void)
+static __init void meson_machine_init(void)
 {
 	// backup_board_pinmux();
 	meson_cache_init();
@@ -1378,7 +1378,7 @@ MACHINE_START(M3_REF, "Amlogic Meson3 reference development platform")
     .map_io         = meson_map_io,
     .init_irq       = meson_irq_init,
     .timer          = &meson_sys_timer,
-    .init_machine   = meson_machine_init,,
+    .init_machine   = meson_machine_init,
     .fixup          = meson_fixup,
     .video_start    = RESERVED_MEM_START,
     .video_end      = RESERVED_MEM_END,
@@ -1389,7 +1389,7 @@ MACHINE_START(VMX25, "Amlogic Meson3 reference development platform (legacy)")
     .map_io         = meson_map_io,
     .init_irq       = meson_irq_init,
     .timer          = &meson_sys_timer,
-    .init_machine   = meson_machine_init,,
+    .init_machine   = meson_machine_init,
     .fixup          = meson_fixup,
     .video_start    = RESERVED_MEM_START,
     .video_end      = RESERVED_MEM_END,
