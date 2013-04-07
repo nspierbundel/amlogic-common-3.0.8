@@ -1023,11 +1023,13 @@ static int remote_remove(struct platform_device *pdev)
 	return 0;
 }
 
-static void remote_resume(void)
+static int remote_resume(struct platform_device *pdev)
 {
 	printk("resume_remote make sure uboot interrupt clear\n");
 	am_remote_read_reg(AM_IR_DEC_FRAME);
+	return 0;
 }
+
 static struct platform_driver remote_driver = {
 	.probe = remote_probe,
 	.remove = remote_remove,
