@@ -553,10 +553,11 @@ void cec_node_uninit(hdmitx_dev_t* hdmitx_device)
     //free_irq(INT_HDMI_CEC, (void *)hdmitx_device);
 }
 
+extern void dump_hdmi_cec_reg(void);
+
 static int cec_task(void *data)
 {
-	extern void dump_hdmi_cec_reg(void);
-    hdmitx_dev_t* hdmitx_device = (hdmitx_dev_t*) data;
+//    hdmitx_dev_t* hdmitx_device = (hdmitx_dev_t*) data;
 
 //    printk("CEC: Physical Address [A]: %x\n",hdmitx_device->hdmi_info.vsdb_phy_addr.a);
 //    printk("CEC: Physical Address [B]: %x\n",hdmitx_device->hdmi_info.vsdb_phy_addr.b);
@@ -2200,7 +2201,7 @@ void cec_usrcmd_set_config(const char * buf, size_t count)
 {
     int i = 0;
     int j = 0;
-    int bool = 0;
+//    int bool = 0;
     char param[16] = {0};
 
     if(count > 32){
