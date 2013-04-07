@@ -128,16 +128,23 @@ static inline int internal_read(char __user *buf, int size, int intact)
 
         tail = log_stream.end - log_stream.rpointer;
         cache_invalidate(log_stream.rpointer, tail);
-        copy_to_user((void *)buf, (void *)(log_stream.rpointer), tail);
+        if (copy_to_user((void *)buf, (void *)(log_stream.rpointer), tail)) {
+		printk("internal_read: copy_to_user: Error!!\n");
+	}
 
         log_stream.rpointer = log_stream.start;
         cache_invalidate(log_stream.rpointer, len - tail);
-        copy_to_user((void *)(buf + tail), (void *)(log_stream.rpointer), len - tail);
+        if (copy_to_user((void *)(buf + tail), (void *)(log_stream.rpointer), len - tail)) {
+		printk("internal_read: copy_to_user: Error!!\n");
+	}
+
         log_stream.rpointer += len - tail;
 
     }else{
         cache_invalidate(log_stream.rpointer, len);
-        copy_to_user((void *)buf, (void *)(log_stream.rpointer), len);
+        if (copy_to_user((void *)buf, (void *)(log_stream.rpointer), len)) {
+		printk("internal_read: copy_to_user: Error!!\n");
+	}
         log_stream.rpointer += len;
     }
 
