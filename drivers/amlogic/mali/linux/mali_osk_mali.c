@@ -19,11 +19,24 @@
 #include "mali_osk.h"           /* kernel side OS functions */
 #include "mali_uk_types.h"
 #include "arch/config.h"        /* contains the configuration of the arch we are compiling for */
+#ifdef CONFIG_ARCH_MESON6
+#include "mali_platform.h"      /* mali_meson_is_revb() */
+#endif
 
 _mali_osk_errcode_t _mali_osk_resources_init( _mali_osk_resource_t **arch_config, u32 *num_resources )
 {
+#ifdef CONFIG_ARCH_MESON6
+    if (mali_meson_is_revb()) {
+        *num_resources = sizeof(arch_configuration_revb) / sizeof(arch_configuration_revb[0]);
+        *arch_config = arch_configuration_revb;
+    } else {
+        *num_resources = sizeof(arch_configuration) / sizeof(arch_configuration[0]);
+        *arch_config = arch_configuration;
+    }
+#else
     *num_resources = sizeof(arch_configuration) / sizeof(arch_configuration[0]);
     *arch_config = arch_configuration;
+#endif
     return _MALI_OSK_ERR_OK;
 }
 

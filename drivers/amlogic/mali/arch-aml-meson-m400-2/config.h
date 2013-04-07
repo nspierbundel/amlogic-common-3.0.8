@@ -58,6 +58,66 @@ static _mali_osk_resource_t arch_configuration [] =
 		.mmu_id = 2
 	},
 	{
+		.type = MMU,
+		.base = 0xd0063000,
+		.irq = INT_MALI_GP_MMU,
+		.description = "Mali-400 MMU for GP",
+		.mmu_id = 1
+	},
+	{
+		.type = MMU,
+		.base = 0xd0064000,
+		.irq = INT_MALI_PP_MMU,
+		.description = "Mali-400 MMU for PP 0",
+		.mmu_id = 2
+	},
+	{
+		.type = OS_MEMORY,
+		.description = "Mali Memory",
+		.alloc_order = 5, /* Medium preference for this memory */
+		.size = 0x20000000,
+		.flags = _MALI_CPU_WRITEABLE | _MALI_CPU_READABLE | _MALI_PP_READABLE | _MALI_PP_WRITEABLE |_MALI_GP_READABLE | _MALI_GP_WRITEABLE
+	},
+	{
+		.type = MEM_VALIDATION,
+		.description = "Framebuffer",
+		.base = 0x84000000,
+		.size = 0x12000000,
+		.flags = _MALI_CPU_WRITEABLE | _MALI_CPU_READABLE | _MALI_PP_WRITEABLE | _MALI_PP_READABLE
+	},
+	{
+		.type = MALI400L2,
+		.base = 0xD0061000,
+		.description = "Mali-400 L2 cache"
+	},
+};
+
+static _mali_osk_resource_t arch_configuration_revb [] =
+{
+#if 0
+	{
+        .type = PMU,
+        .description = "Mali-400 PMU",
+        .base = 0xd0062000,
+        .irq = INT_MALI_PMU,
+        .mmu_id = 0
+	},
+#endif
+	{
+		.type = MALI400GP,
+		.description = "Mali-400 GP",
+		.base = 0xd0060000,
+		.irq = INT_MALI_GP,
+		.mmu_id = 1
+	},
+	{
+		.type = MALI400PP,
+		.base = 0xd0068000,
+		.irq = INT_MALI_PP,
+		.description = "Mali-400 PP 0",
+		.mmu_id = 2
+	},
+	{
         .type = MALI400PP,
         .base = 0xd006a000,
         /* IRQ redirected */
@@ -92,14 +152,14 @@ static _mali_osk_resource_t arch_configuration [] =
 		.type = OS_MEMORY,
 		.description = "Mali Memory",
 		.alloc_order = 5, /* Medium preference for this memory */
-		.size = 0x14000000,
+		.size = 0x20000000,
 		.flags = _MALI_CPU_WRITEABLE | _MALI_CPU_READABLE | _MALI_PP_READABLE | _MALI_PP_WRITEABLE |_MALI_GP_READABLE | _MALI_GP_WRITEABLE
 	},
 	{
 		.type = MEM_VALIDATION,
 		.description = "Framebuffer",
 		.base = 0x84000000,
-		.size = 0x06000000,
+		.size = 0x12000000,
 		.flags = _MALI_CPU_WRITEABLE | _MALI_CPU_READABLE | _MALI_PP_WRITEABLE | _MALI_PP_READABLE
 	},
 	{

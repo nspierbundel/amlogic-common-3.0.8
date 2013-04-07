@@ -25,29 +25,21 @@ endif
 
 USING_OS_MEMORY ?= 1
 USING_MALI_PMM_TESTSUITE ?= 0
-OS_MEMORY_KERNEL_BUFFER_SIZE_IN_MB ?= 16
+OS_MEMORY_KERNEL_BUFFER_SIZE_IN_MB ?= 8
 USING_PROFILING ?= 0
 USING_INTERNAL_PROFILING ?= 0
 DISABLE_PP0 ?= 0
 DISABLE_PP1 ?= 0
 DISABLE_PP2 ?= 0
 DISABLE_PP3 ?= 0
-PROFILING_SKIP_PP_JOBS ?= 0
-PROFILING_SKIP_PP_AND_GP_JOBS ?= 0
-PROFILING_PRINT_L2_HITRATE_ON_GP_FINISH ?= 0
 TIMESTAMP ?= default
-BUILD ?= release
+BUILD ?= debug
 TARGET_PLATFORM ?= meson_platform
 
 ifeq ($(CONFIG_ARCH_MESON6),y)
 CONFIG ?= aml-meson-m400-2
 else
 CONFIG ?= aml-meson-m400-1
-endif
-
-ifeq ($(USING_UMP),1)
-	UMP_SYMVERS_FILE = ../ump/Module.symvers
-	KBUILD_EXTRA_SYMBOLS = $(srctree)/$(src)/$(UMP_SYMVERS_FILE)
 endif
 
 KERNEL_RUNTIME_PM_ENABLED ?= 0
@@ -76,11 +68,18 @@ endif
 
 
 ifeq ($(USING_PROFILING),1)
+ifeq ($(USING_INTERNAL_PROFILING),0)
 ifndef CONFIG_TRACEPOINTS
 # Should default to gator profiling, but we dont have the kernel feature required, so disable profiling
 override USING_PROFILING = 0
 $(warning "CONFIG_TRACEPOINTS required for USING_PROFILING")
 endif
+endif
+endif
+
+ifeq ($(USING_PROFILING),0)
+# make sure user hasnt selected incompatible flags
+override USING_INTERNAL_PROFILING = 0
 endif
 
 MALI_RELEASE_NAME=$(shell cat $(TOP_KBUILD_SRC)$(DRIVER_DIR)/.version 2> /dev/null)
@@ -146,10 +145,6 @@ DEFINES += -DDISABLE_PP0=$(DISABLE_PP0)
 DEFINES += -DDISABLE_PP1=$(DISABLE_PP1)
 DEFINES += -DDISABLE_PP2=$(DISABLE_PP2)
 DEFINES += -DDISABLE_PP3=$(DISABLE_PP3)
-DEFINES += -DPROFILING_SKIP_PP_JOBS=$(PROFILING_SKIP_PP_JOBS)
-DEFINES += -DPROFILING_SKIP_PP_AND_GP_JOBS=$(PROFILING_SKIP_PP_AND_GP_JOBS)
-DEFINES += -DPROFILING_PRINT_L2_HITRATE_ON_GP_FINISH=$(PROFILING_PRINT_L2_HITRATE_ON_GP_FINISH)
-
 DEFINES += -DMALI_PP_SCHEDULER_FORCE_NO_JOB_OVERLAP=$(MALI_PP_SCHEDULER_FORCE_NO_JOB_OVERLAP)
 DEFINES += -DMALI_PP_SCHEDULER_KEEP_SUB_JOB_STARTS_ALIGNED=$(MALI_PP_SCHEDULER_KEEP_SUB_JOB_STARTS_ALIGNED)
 DEFINES += -DMALI_PP_SCHEDULER_FORCE_NO_JOB_OVERLAP_BETWEEN_APPS=$(MALI_PP_SCHEDULER_FORCE_NO_JOB_OVERLAP_BETWEEN_APPS)
@@ -197,6 +192,7 @@ ccflags-y += $(DEFINES) -I$(TOP_KBUILD_SRC)$(DRIVER_DIR) -I$(DRIVER_DIR)/include
 SRC = \
 	common/mali_kernel_core.c \
 	linux/mali_kernel_linux.c \
+	$(OSKOS)/mali_osk_indir_mmap.c \
 	common/mali_kernel_descriptor_mapping.c \
 	common/mali_session.c \
 	common/mali_device_pause_resume.c \
@@ -233,24 +229,27 @@ SRC = \
 	__malidrv_build_info.c
 
 # Selecting files to compile by parsing the config file
-ifeq ($(USING_PROFILING),1)
-SRC += \
-    linux/mali_osk_profiling.c
 
 ifeq ($(USING_INTERNAL_PROFILING),1)
-SRC += \
-    linux/mali_profiling_internal.c \
+PROFILING_BACKEND_SOURCES = \
+    linux/mali_osk_profiling_internal.c \
     timestamp-$(TIMESTAMP)/mali_timestamp.c
 ccflags-y += -I$(TOP_KBUILD_SRC)$(DRIVER_DIR)/timestamp-$(TIMESTAMP)
+else
+ifeq ($(USING_PROFILING),1)
+PROFILING_BACKEND_SOURCES = \
+    linux/mali_osk_profiling_gator.c
 endif
 endif
+
+# Add the profiling sources
+SRC += $(PROFILING_BACKEND_SOURCES)
 
 ifeq ($(USING_MALI_PMM_TESTSUITE),1)
 ccflags-y += -I$(TOP_KBUILD_SRC)$(DRIVER_DIR)/platform/mali_pmu_testing
 endif
 
 mali-$(CONFIG_MALI400_GPU_UTILIZATION) += common/mali_kernel_utilization.o
-mali-$(CONFIG_DMA_SHARED_BUFFER) += linux/mali_dma_buf.o
 
 ifneq ($(call submodule_enabled, $(TOP_KBUILD_SRC)$(DRIVER_DIR), MALI400PP),0)
 	# Mali-400 PP in use

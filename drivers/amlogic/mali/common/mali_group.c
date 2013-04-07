@@ -536,7 +536,7 @@ static enum mali_group_activate_pd_status mali_group_activate_page_directory(str
 
 			activate_success = mali_mmu_activate_page_directory(group->mmu, mali_session_get_page_directory(session));
 			MALI_DEBUG_ASSERT(activate_success);
-			if ( MALI_FALSE== activate_success ) return MALI_GROUP_ACTIVATE_PD_STATUS_FAILED;
+			if ( MALI_FALSE== activate_success ) return MALI_FALSE;
 			group->session = session;
 			retval = MALI_GROUP_ACTIVATE_PD_STATUS_OK_SWITCHED_PD;
 		}
@@ -605,18 +605,6 @@ mali_bool mali_group_power_is_on(struct mali_group *group)
 {
 	MALI_ASSERT_GROUP_LOCKED(group);
 	return group->power_is_on;
-}
-
-inline mali_bool mali_group_power_is_on_2(struct mali_group *group)
-{
-#ifdef DEBUG
-	if(_mali_osk_lock_get_owner(group->lock) == _mali_osk_get_tid())
-		return group->power_is_on;
-	else 
-		return MALI_FALSE;
-#else
-	return group->power_is_on;
-#endif
 }
 
 void mali_group_power_off(void)

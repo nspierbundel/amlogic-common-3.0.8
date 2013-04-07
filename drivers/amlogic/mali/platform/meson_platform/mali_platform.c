@@ -30,7 +30,6 @@
 #include "mali_fix.h"
 
 static int last_power_mode = -1;
-static int mali_init_flag = 0;
 static const u32 poweron_data[] =
 {
 /* commands */
@@ -127,148 +126,243 @@ static struct clk *mali_clk = NULL;
 
 //static int mali_revb_flag = -1;
 extern int mali_revb_flag;
+static int mali_meson_rev_detect(void)
+{
+    unsigned long flags;
+    u32 p, p_aligned;
+    dma_addr_t p_phy;
+    int i;
+    unsigned int_mask;
+    int flag = 1;
+
+    if (mali_clk) {
+        mali_clk->enable(mali_clk);
+    }
+
+    /* generate IRQPPMMU0 and see if the interrupt is triggered,
+     * revA will see it but revB will not.
+     */
+
+    p = (u32)kcalloc(4096 * 2, 1, GFP_KERNEL);
+    if (!p) {
+        printk("mali_meson_rev_detect: NOMEM in mali_meson_rev_detect\n");
+        return flag;
+    }
+
+    p_aligned = __ALIGN_MASK(p, 4096);
+
+    /* DTE */
+    *(u32 *)(p_aligned) = (virt_to_phys((void *)p_aligned) + OFFSET_MMU_PTE) | MMU_FLAG_DTE_PRESENT;
+    /* PTE */
+    for (i=0; i<1024; i++) {
+        /* build a MMU page table w/o MMU_FLAG_PTE_PAGE_PRESENT
+         * to generate a page fault on purpose
+         */
+        *(u32 *)(p_aligned + OFFSET_MMU_PTE + i*4) =
+            (virt_to_phys((void *)p_aligned) + OFFSET_MMU_VIRTUAL_ZERO + 4096 * i);
+    }
+
+    p_phy = dma_map_single(NULL, (void *)p_aligned, 4096 * 1, DMA_TO_DEVICE);
+
+    /* Set up Mali PP0 MMU */
+    WRITE_MALI_REG(MALI_PP_MMU_DTE_ADDR, p_phy);
+    WRITE_MALI_REG(MALI_PP_MMU_CMD, 0);
+
+    if ((READ_MALI_REG(MALI_PP_MMU_STATUS) & 1) != 1) {
+        printk("mali_meson_rev_detect: PP0 MMU enabling failed.\n");
+    }
+
+    spin_lock_irqsave(&lock, flags);
+
+    int_mask = READ_CBUS_REG(SYS_CPU_0_IRQ_IN1_INTR_MASK);
+
+    WRITE_CBUS_REG(SYS_CPU_0_IRQ_IN1_INTR_STAT_CLR, INT_MALI_PP_MMU_BITS | INT_MALI_PP_BITS);
+    SET_CBUS_REG_MASK(SYS_CPU_0_IRQ_IN1_INTR_MASK, INT_MALI_PP_MMU_BITS);
+
+    WRITE_MALI_REG(MALI_PP_MMU_INT_CLEAR, INT_MALI_PP_MMU_PAGE_FAULT);
+    WRITE_MALI_REG(MALI_PP_MMU_INT_MASK, INT_MALI_PP_MMU_PAGE_FAULT);
+
+    /* Start PP0 */
+    WRITE_MALI_REG(MALI_PP_CTRL_MGMT, 0x00000040);
+
+    for (i = 0; i<100; i++)
+        udelay(500);
+
+    /* check Mali PP MM0 interrupt */
+    if (READ_CBUS_REG(SYS_CPU_0_IRQ_IN1_INTR_STAT) & INT_MALI_PP_MMU_BITS) {
+        printk("mali_meson_rev_detect: Interrupt received.\n");
+        flag = 0;
+    } else {
+        printk("mali_meson_rev_detect: No interrupt received.\n");
+    }
+
+    /* force reset PP */
+    WRITE_MALI_REG(MALI_PP_CTRL_MGMT, 1 << 5);
+
+    /* stop MMU paging and reset */
+    WRITE_MALI_REG(MALI_PP_MMU_CMD, 1);
+    WRITE_MALI_REG(MALI_PP_MMU_CMD, 6);
+
+    for (i = 0; i<100; i++)
+        udelay(500);
+
+    WRITE_MALI_REG(MALI_PP_INT_CLEAR, INT_ALL);
+    WRITE_MALI_REG(MALI_PP_MMU_INT_CLEAR, INT_ALL);
+    WRITE_MALI_REG(MALI_PP_MMU_INT_MASK, 0);
+
+    WRITE_CBUS_REG(SYS_CPU_0_IRQ_IN1_INTR_STAT_CLR, INT_MALI_PP_MMU_BITS);
+    WRITE_CBUS_REG(SYS_CPU_0_IRQ_IN1_INTR_MASK, int_mask);
+
+    spin_unlock_irqrestore(&lock, flags);
+
+    dma_unmap_single(NULL, p_phy, 4096 * 1, DMA_TO_DEVICE);
+
+    kfree((void *)p);
+
+    printk("mali_meson_rev_detect: Mali Rev %c detected.\n", flag ? 'B' : 'A');
+
+    return flag;
+}
+
 int mali_meson_is_revb(void)
 {
-	printk("mail version=%d\n",mali_revb_flag);
-	if (mali_revb_flag == -1)
-		mali_revb_flag = 1;
-	else if (mali_revb_flag == 0)
-	    panic("rev-a! you should neet earlier version of mali_driver.!\n");
+    ///mali_revb_flag=symbol_request(mali_revb_flag);
+    printk("mail version=%d\n",mali_revb_flag);
+    if (mali_revb_flag == -1) {
+        mali_revb_flag = mali_meson_rev_detect();
+    }
     
     return mali_revb_flag;
 }
 
-static void mali_meson_poweron(int first_poweron)
+static void mali_meson_poweron(void)
 {
-	unsigned long flags;
-	u32 p, p_aligned;
-	dma_addr_t p_phy;
-	int i;
-	unsigned int_mask;
+    unsigned long flags;
+    u32 p, p_aligned;
+    dma_addr_t p_phy;
+    int i;
+    unsigned int_mask;
 
-	if(!first_poweron) {
-		if ((last_power_mode != -1) && (last_power_mode != MALI_POWER_MODE_DEEP_SLEEP)) {
-			 MALI_DEBUG_PRINT(3, ("Maybe your system not deep sleep now.......\n"));
-			//printk("Maybe your system not deep sleep now.......\n");
-			return;
-		}
-	}
-	
-	MALI_DEBUG_PRINT(2, ("mali_meson_poweron: Mali APB bus accessing\n"));
-	if (READ_MALI_REG(MALI_PP_PP_VERSION) != MALI_PP_PP_VERSION_MAGIC) {
-	MALI_DEBUG_PRINT(3, ("mali_meson_poweron: Mali APB bus access failed\n"));
-	//printk("mali_meson_poweron: Mali APB bus access failed.");
-	return;
-	}
-	MALI_DEBUG_PRINT(2, ("..........accessing done.\n"));
-	if (READ_MALI_REG(MALI_MMU_DTE_ADDR) != 0) {
-		MALI_DEBUG_PRINT(3, ("mali_meson_poweron: Mali is not really powered off\n"));
-		//printk("mali_meson_poweron: Mali is not really powered off.");
-		return;
-	}
+    if ((last_power_mode != -1) && (last_power_mode != MALI_POWER_MODE_DEEP_SLEEP)) {
+        return;
+    }
 
-	p = (u32)kcalloc(4096 * 4, 1, GFP_KERNEL);
-	if (!p) {
-		printk("mali_meson_poweron: NOMEM in meson_poweron\n");
-		return;
-	}
+    if (READ_MALI_REG(MALI_PP_PP_VERSION) != MALI_PP_PP_VERSION_MAGIC) {
+        printk("mali_meson_poweron: Mali APB bus access failed.");
+        return;
+    }
 
-	p_aligned = __ALIGN_MASK(p, 4096);
+    if (READ_MALI_REG(MALI_MMU_DTE_ADDR) != 0) {
+        printk("mali_meson_poweron: Mali is not really powered off.");
+        return;
+    }
 
-	/* DTE */
-	*(u32 *)(p_aligned) = (virt_to_phys((void *)p_aligned) + OFFSET_MMU_PTE) | MMU_FLAG_DTE_PRESENT;
-	/* PTE */
-	for (i=0; i<1024; i++) {
-		*(u32 *)(p_aligned + OFFSET_MMU_PTE + i*4) =
-		    (virt_to_phys((void *)p_aligned) + OFFSET_MMU_VIRTUAL_ZERO + 4096 * i) |
-		    MMU_FLAG_PTE_PAGE_PRESENT |
-		    MMU_FLAG_PTE_RD_PERMISSION;
-	}
+    p = (u32)kcalloc(4096 * 4, 1, GFP_KERNEL);
+    if (!p) {
+        printk("mali_meson_poweron: NOMEM in meson_poweron\n");
+        return;
+    }
 
-	/* command & data */
-	memcpy((void *)(p_aligned + OFFSET_MMU_VIRTUAL_ZERO), poweron_data, 4096);
+    p_aligned = __ALIGN_MASK(p, 4096);
 
-	p_phy = dma_map_single(NULL, (void *)p_aligned, 4096 * 3, DMA_TO_DEVICE);
+    /* DTE */
+    *(u32 *)(p_aligned) = (virt_to_phys((void *)p_aligned) + OFFSET_MMU_PTE) | MMU_FLAG_DTE_PRESENT;
+    /* PTE */
+    for (i=0; i<1024; i++) {
+        *(u32 *)(p_aligned + OFFSET_MMU_PTE + i*4) =
+            (virt_to_phys((void *)p_aligned) + OFFSET_MMU_VIRTUAL_ZERO + 4096 * i) |
+            MMU_FLAG_PTE_PAGE_PRESENT |
+            MMU_FLAG_PTE_RD_PERMISSION;
+    }
 
-	/* Set up Mali GP MMU */
-	WRITE_MALI_REG(MALI_MMU_DTE_ADDR, p_phy);
-	WRITE_MALI_REG(MALI_MMU_CMD, 0);
+    /* command & data */
+    memcpy((void *)(p_aligned + OFFSET_MMU_VIRTUAL_ZERO), poweron_data, 4096);
 
-	if ((READ_MALI_REG(MALI_MMU_STATUS) & 1) != 1)
-		printk("mali_meson_poweron: MMU enabling failed.\n");
+    p_phy = dma_map_single(NULL, (void *)p_aligned, 4096 * 3, DMA_TO_DEVICE);
 
-	/* Set up Mali command registers */
-	WRITE_MALI_REG(MALI_APB_GP_VSCL_START, 0);
-	WRITE_MALI_REG(MALI_APB_GP_VSCL_END, 0x38);
+    /* Set up Mali GP MMU */
+    WRITE_MALI_REG(MALI_MMU_DTE_ADDR, p_phy);
+    WRITE_MALI_REG(MALI_MMU_CMD, 0);
 
-	spin_lock_irqsave(&lock, flags);
+    if ((READ_MALI_REG(MALI_MMU_STATUS) & 1) != 1) {
+        printk("mali_meson_poweron: MMU enabling failed.\n");
+    }
 
-	int_mask = READ_MALI_REG(MALI_APB_GP_INT_MASK);
-	WRITE_MALI_REG(MALI_APB_GP_INT_CLEAR, 0x707bff);
-	WRITE_MALI_REG(MALI_APB_GP_INT_MASK, 0);
+    /* Set up Mali command registers */
+    WRITE_MALI_REG(MALI_APB_GP_VSCL_START, 0);
+    WRITE_MALI_REG(MALI_APB_GP_VSCL_END, 0x38);
+    WRITE_MALI_REG(MALI_APB_GP_INT_MASK, 0x3ff);
 
-	/* Start GP */
-	WRITE_MALI_REG(MALI_APB_GP_CMD, 1);
+    spin_lock_irqsave(&lock, flags);
 
-	for (i = 0; i<100; i++)
-		udelay(500);
+    int_mask = READ_CBUS_REG(SYS_CPU_0_IRQ_IN1_INTR_MASK);
 
-	/* check Mali GP interrupt */
-	if (READ_MALI_REG(MALI_APB_GP_INT_RAWSTAT) & 0x707bff)
-		printk("mali_meson_poweron: Interrupt received.\n");
-	else
-		printk("mali_meson_poweron: No interrupt received.\n");
+    /* Set up ARM Mali interrupt */
+    WRITE_CBUS_REG(SYS_CPU_0_IRQ_IN1_INTR_STAT_CLR, INT_MALI_GP_BITS);
+    SET_CBUS_REG_MASK(SYS_CPU_0_IRQ_IN1_INTR_MASK, INT_MALI_GP_BITS);
 
-	/* force reset GP */
-	WRITE_MALI_REG(MALI_APB_GP_CMD, 1 << 5);
+    /* Start GP */
+    WRITE_MALI_REG(MALI_APB_GP_CMD, 1);
 
-	/* stop MMU paging and reset */
-	WRITE_MALI_REG(MALI_MMU_CMD, 1);
-	WRITE_MALI_REG(MALI_MMU_CMD, 6);
+    for (i = 0; i<100; i++)
+        udelay(500);
 
-	for (i = 0; i<100; i++)
-		udelay(500);
+    /* check Mali GP interrupt */
+    if (READ_CBUS_REG(SYS_CPU_0_IRQ_IN1_INTR_STAT) & INT_MALI_GP_BITS) {
+        printk("mali_meson_poweron: Interrupt received.\n");
+    } else {
+        printk("mali_meson_poweron: No interrupt received.\n");
+    }
 
-	WRITE_MALI_REG(MALI_APB_GP_INT_CLEAR, 0x3ff);
-	WRITE_MALI_REG(MALI_MMU_INT_CLEAR, INT_ALL);
-	WRITE_MALI_REG(MALI_MMU_INT_MASK, 0);
+    WRITE_CBUS_REG(SYS_CPU_0_IRQ_IN1_INTR_STAT_CLR, INT_MALI_GP_BITS);
+    CLEAR_CBUS_REG_MASK(SYS_CPU_0_IRQ_IN1_INTR_MASK, INT_MALI_GP_BITS);
 
-	WRITE_MALI_REG(MALI_APB_GP_INT_CLEAR, 0x707bff);
-	WRITE_MALI_REG(MALI_APB_GP_INT_MASK, int_mask);
+    /* force reset GP */
+    WRITE_MALI_REG(MALI_APB_GP_CMD, 1 << 5);
 
-	spin_unlock_irqrestore(&lock, flags);
+    /* stop MMU paging and reset */
+    WRITE_MALI_REG(MALI_MMU_CMD, 1);
+    WRITE_MALI_REG(MALI_MMU_CMD, 6);
 
-	dma_unmap_single(NULL, p_phy, 4096 * 3, DMA_TO_DEVICE);
+    for (i = 0; i<100; i++)
+        udelay(500);
 
-	kfree((void *)p);
+    WRITE_MALI_REG(MALI_APB_GP_INT_CLEAR, 0x3ff);
+    WRITE_MALI_REG(MALI_MMU_INT_CLEAR, INT_ALL);
+    WRITE_MALI_REG(MALI_MMU_INT_MASK, 0);
 
-	/* Mali revision detection */
-	if (last_power_mode == -1)
-		mali_revb_flag = mali_meson_is_revb();
+    WRITE_CBUS_REG(SYS_CPU_0_IRQ_IN1_INTR_MASK, int_mask);
+
+    spin_unlock_irqrestore(&lock, flags);
+
+    dma_unmap_single(NULL, p_phy, 4096 * 3, DMA_TO_DEVICE);
+
+    kfree((void *)p);
+
+    /* Mali revision detection */
+    if (last_power_mode == -1) {
+        mali_revb_flag = mali_meson_is_revb();
+    }
 }
 
 _mali_osk_errcode_t mali_platform_init(void)
 {
 	mali_clk = clk_get_sys("mali", "pll_fixed");
 
-	if (mali_clk ) {
-		if (!mali_init_flag) {
+	if (mali_clk) {
 #if defined(CONFIG_MALI_CLK_400M)
-			clk_set_rate(mali_clk, 400000000);
+		clk_set_rate(mali_clk, 400000000);
 #elif defined(CONFIG_MALI_CLK_333M)
-			clk_set_rate(mali_clk, 333000000);
+		clk_set_rate(mali_clk, 333000000);
 #else
-			clk_set_rate(mali_clk, 250000000);
+		clk_set_rate(mali_clk, 250000000);
 #endif
-			mali_clk->enable(mali_clk);
-			malifix_init();
-			mali_meson_poweron(1);
-			mali_init_flag = 1;
-		}
+        malifix_init();
+
 		MALI_SUCCESS;
 	}
 
-#if MESON_CPU_TYPE >= MESON_CPU_TYPE_MESON6
+#ifdef CONFIG_ARCH_MESON6
     MALI_PRINT_ERROR(("Failed to lookup mali clock"));
 	MALI_ERROR(_MALI_OSK_ERR_FAULT);
 #else
@@ -278,11 +372,9 @@ _mali_osk_errcode_t mali_platform_init(void)
 
 _mali_osk_errcode_t mali_platform_deinit(void)
 {
-	mali_init_flag =0;
-	printk("MALI:mali_platform_deinit\n");
-	malifix_exit();
+    malifix_exit();
 
-	MALI_SUCCESS;
+    MALI_SUCCESS;
 }
 
 _mali_osk_errcode_t mali_platform_power_mode_change(mali_power_mode power_mode)
@@ -296,12 +388,13 @@ _mali_osk_errcode_t mali_platform_power_mode_change(mali_power_mode power_mode)
 	MALI_DEBUG_PRINT(3, ( "mali_platform_power_mode_change power_mode=%d\n", power_mode));
 
 	switch (power_mode) {
-	case MALI_POWER_MODE_LIGHT_SLEEP:
-	case MALI_POWER_MODE_DEEP_SLEEP:
-		/* Turn off mali clock gating */
+		case MALI_POWER_MODE_LIGHT_SLEEP:
+	    case MALI_POWER_MODE_DEEP_SLEEP:
+		/* Turn on mali clock gating */
 		if (mali_clk) {
 			mali_clk->disable(mali_clk);
-		} else {
+		}
+		else {
 			spin_lock_irqsave(&lock, flags);
 			CLEAR_CBUS_REG_MASK(HHI_MALI_CLK_CNTL, 1 << 8);
 			spin_unlock_irqrestore(&lock, flags);
@@ -309,7 +402,7 @@ _mali_osk_errcode_t mali_platform_power_mode_change(mali_power_mode power_mode)
 		break;
 
         case MALI_POWER_MODE_ON:
-		/* Turn on MALI clock gating */
+		/* Turn off MALI clock gating */
 		if (mali_clk) {
 			mali_clk->enable(mali_clk);
 		}
@@ -344,11 +437,14 @@ _mali_osk_errcode_t mali_platform_power_mode_change(mali_power_mode power_mode)
 					MALI_DEBUG_PRINT(3, ("(CTS_MALI_CLK) = %d/%d = %dMHz --- when mali gate on\n", ddr_freq, mali_divider, ddr_freq/mali_divider));
 
 		}
-		mali_meson_poweron(0);
-		break;
-	}
-	last_power_mode = power_mode;
-	MALI_SUCCESS;
+
+        mali_meson_poweron();
+        break;
+    }
+
+    last_power_mode = power_mode;
+ 
+    MALI_SUCCESS;
 }
 
 void mali_gpu_utilization_handler(u32 utilization)

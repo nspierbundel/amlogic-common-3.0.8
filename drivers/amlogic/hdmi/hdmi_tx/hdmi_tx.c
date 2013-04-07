@@ -178,7 +178,7 @@ return value: 1, vout; 2, vout2;
 {
     int vout_index = 1;
 #ifdef CONFIG_AM_TV_OUTPUT2
-    const vinfo_t *info;
+//    const vinfo_t *info;
     if(force_vout_index){
         vout_index = force_vout_index;
     }

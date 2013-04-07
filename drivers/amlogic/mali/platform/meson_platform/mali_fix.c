@@ -61,97 +61,102 @@ static void timer_callback(ulong data)
 {
 	unsigned long mali_flags;
 
-	mali_pp1_int_count = mali_PP0_int_cnt();
-	mali_pp2_int_count = mali_PP1_int_cnt();
+    //mali_pp1_int_count = mali_PP0_int_cnt();
+    //mali_pp2_int_count = mali_PP1_int_cnt();
 
-	/* lock mali_clock_gating when access Mali registers */
-	mali_flags = mali_clock_gating_lock();
+    /* lock mali_clock_gating when access Mali registers */
+    mali_flags = mali_clock_gating_lock();
+    
+    if (READ_CBUS_REG(HHI_MALI_CLK_CNTL) & 0x100) {
+        /* polling for PP1 MMU interrupt */
+        if (mali_mmu_int_process_state[0] == MMU_INT_NONE) {
+            if (READ_MALI_MMU1_REG(MALI_MMU_REGISTER_INT_STATUS) != 0) {
+                mali_pp1_mmu_int_count++;
+                mali_mmu_int_process_state[0] = MMU_INT_HIT;
+                __raw_writel(1, P_ISA_TIMERC);
+            }
+        }
 
-	if (READ_CBUS_REG(HHI_MALI_CLK_CNTL) & 0x100) {
-		/* polling for PP1 MMU interrupt */
-		if (mali_mmu_int_process_state[0] == MMU_INT_NONE) {
-			if (READ_MALI_MMU1_REG(MALI_MMU_REGISTER_INT_STATUS) != 0) {
-				mali_pp1_mmu_int_count++;
-				MALI_DEBUG_PRINT(3, ("Mali MMU: core0 page fault emit \n"));
-				mali_mmu_int_process_state[0] = MMU_INT_HIT;
-				__raw_writel(1, P_ISA_TIMERC);
-			}
-		}
+        /* polling for PP2 MMU interrupt */
+        if (mali_mmu_int_process_state[1] == MMU_INT_NONE) {
+            if (READ_MALI_MMU2_REG(MALI_MMU_REGISTER_INT_STATUS) != 0) {
+                mali_pp2_mmu_int_count++;
+                mali_mmu_int_process_state[1] = MMU_INT_HIT;
+                __raw_writel(1, P_ISA_TIMERC);
+            }
+        }
+    }
 
-		/* polling for PP2 MMU interrupt */
-		if (mali_mmu_int_process_state[1] == MMU_INT_NONE) {
-			if (READ_MALI_MMU2_REG(MALI_MMU_REGISTER_INT_STATUS) != 0) {
-				mali_pp2_mmu_int_count++;
-				MALI_DEBUG_PRINT(3, ("Mali MMU: core1 page fault emit \n"));
-				mali_mmu_int_process_state[1] = MMU_INT_HIT;
-				__raw_writel(1, P_ISA_TIMERC);
-			}
-		}
-	}
+    mali_clock_gating_unlock(mali_flags);
 
-	mali_clock_gating_unlock(mali_flags);
+    timer.expires = jiffies + HZ/100;
 
-	timer.expires = jiffies + HZ/100;
-
-	add_timer(&timer);
+    add_timer(&timer);
 }
 
 void malifix_set_mmu_int_process_state(int index, int state)
 {
-	if (index < 2)
-		mali_mmu_int_process_state[index] = state;
+    if (index < 2) {
+        mali_mmu_int_process_state[index] = state;
+    }
 }
 
 int malifix_get_mmu_int_process_state(int index)
 {
-	if (index < 2)
-		return mali_mmu_int_process_state[index];
-	return 0;
+    if (index < 2) {
+        return mali_mmu_int_process_state[index];
+    }
+
+    return 0;
 }
 
 void malifix_init(void)
 {
-	if (!mali_meson_is_revb())
-		return;
+    if (!mali_meson_is_revb()) {
+        return;
+    }
 
-	if ((mali_mm1_regs) && (mali_mm2_regs)) return;
-	mali_mmu_int_process_state[0] = 0;
-	mali_mmu_int_process_state[1] = 0;
+    mali_mmu_int_process_state[0] = 0;
+    mali_mmu_int_process_state[1] = 0;
 
-	/* set up Timer C as a 1uS one-shot timer */
-	aml_clr_reg32_mask(P_ISA_TIMER_MUX, (1<<18)|(1<<14)|(3<<4));
-	aml_set_reg32_mask(P_ISA_TIMER_MUX,	(1<<18)|(0<<14)|(0<<4));
+    /* set up Timer C as a 1uS one-shot timer */
+    aml_clr_reg32_mask(P_ISA_TIMER_MUX, (1<<18)|(1<<14)|(3<<4));
+    aml_set_reg32_mask(P_ISA_TIMER_MUX,	(1<<18)|(0<<14)|(0<<4));
 
-	setup_timer(&timer, timer_callback, 0);
+    setup_timer(&timer, timer_callback, 0);
 
-	mali_mm1_regs = (ulong *)ioremap_nocache(MALI_MM1_REG_ADDR, MALI_MM_REG_SIZE);
-	if (mali_mm1_regs)
-		printk("Mali pp1 MMU register mapped at %p...\n", mali_mm1_regs);
+    mali_mm1_regs = (ulong *)ioremap_nocache(MALI_MM1_REG_ADDR, MALI_MM_REG_SIZE);
+    if (mali_mm1_regs) {
+        printk("Mali pp1 MMU register mapped at %p...\n", mali_mm1_regs);
+    }
 
-	mali_mm2_regs = (ulong *)ioremap_nocache(MALI_MM2_REG_ADDR, MALI_MM_REG_SIZE);
-	if (mali_mm2_regs)
-		printk("Mali pp2 MMU register mapped at %p...\n", mali_mm2_regs);
+    mali_mm2_regs = (ulong *)ioremap_nocache(MALI_MM2_REG_ADDR, MALI_MM_REG_SIZE);
+    if (mali_mm2_regs) {
+        printk("Mali pp2 MMU register mapped at %p...\n", mali_mm2_regs);
+    }
 
-	if ((mali_mm1_regs != NULL) && (mali_mm2_regs != NULL))
-		mod_timer(&timer, jiffies + HZ/100);
+    if ((mali_mm1_regs != NULL) && (mali_mm2_regs != NULL)) {
+        mod_timer(&timer, jiffies + HZ/100);
+    }
 }
 
 void malifix_exit(void)
 {
-	if (!mali_meson_is_revb())
-		return;
+    if (!mali_meson_is_revb()) {
+        return;
+    }
 
-	del_timer(&timer);
+    del_timer(&timer);
 
-	if (mali_mm1_regs != NULL)
-		iounmap(mali_mm1_regs);
-	mali_mm1_regs = NULL;
+    if (mali_mm1_regs != NULL) {
+        iounmap(mali_mm1_regs);
+    }
 
-	if (mali_mm2_regs != NULL)
-		iounmap(mali_mm2_regs);
-	mali_mm2_regs = NULL;
+    if (mali_mm2_regs != NULL) {
+        iounmap(mali_mm2_regs);
+    }
 
-	return;
+    return;
 }
 
 module_param(mali_pp1_int_count, uint, 0664);

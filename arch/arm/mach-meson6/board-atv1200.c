@@ -116,6 +116,11 @@
 #include <plat/wifi_power.h>
 #endif
 
+#ifdef CONFIG_AML_HDMI_TX
+#include <linux/hdmi/hdmi_config.h>
+#define GPIO_PWR_HDMI   GPIO_D(6)
+#endif
+
 /***********************************************************************
  * IO Mapping
  **********************************************************************/
@@ -203,6 +208,62 @@ defined in .h*/
 #define STREAMBUF_ADDR_END      (STREAMBUF_ADDR_START+STREAMBUF_MEM_SIZE-1)
 
 #define RESERVED_MEM_END    (STREAMBUF_ADDR_END)
+
+
+/* GPIO Defines */
+// LEDS
+#define GPIO_LED_STATUS	GPIO_AO(10)
+#define GPIO_LED_POWER	GPIO_AO(11)
+// ETHERNET
+#define GPIO_ETH_RESET	GPIO_D(7)
+// BUTTONS
+#define GPIO_KEY_POWER	GPIO_AO(3)
+// POWERSUPPLIES
+#define GPIO_PWR_WIFI	GPIO_C(5)
+#define GPIO_PWR_VCCIO	GPIO_AO(2)
+#define GPIO_PWR_VCCx2	GPIO_AO(6)
+#define GPIO_PWR_HDMI	GPIO_D(6)
+#define GPIO_PWR_SD	GPIO_CARD(8)
+// SD CARD
+#define GPIO_SD_WP	GPIO_CARD(6)
+#define GPIO_SD_DET	GPIO_CARD(7)
+
+#if defined(CONFIG_LEDS_GPIO_PLATFORM)
+/* LED Class Support for the leds */
+static struct gpio_led aml_led_pins[] = {
+	{	
+		.name	= "Powerled",
+		.default_trigger = "default-on",
+		.gpio	= GPIO_LED_POWER,
+		.active_low	= 0,
+	},
+	{
+		.name	= "Statusled",
+#if defined(CONFIG_LEDS_TRIGGER_REMOTE_CONTROL)
+		.default_trigger = "rc",
+#else
+		.default_trigger = "none",
+#endif
+		.gpio	= GPIO_LED_STATUS,
+		.active_low	= 1,
+	},
+};
+
+static struct gpio_led_platform_data aml_led_data = {
+	.leds	= aml_led_pins,
+	.num_leds = ARRAY_SIZE(aml_led_pins),
+};
+
+static struct platform_device aml_leds = {
+	.name	= "leds-gpio",
+	.id	= -1,
+	.dev	= {
+		.platform_data	= &aml_led_data,
+	}
+};
+#endif
+
+
 
 static struct resource meson_fb_resource[] = {
     [0] = {
@@ -2400,10 +2461,42 @@ static void power_off(void)
 }
 
 
+
+/***********************************************************************
+ *  HDMI  Section
+ **********************************************************************/
+
+#if defined(CONFIG_AML_HDMI_TX)
+static struct hdmi_phy_set_data brd_phy_data[] = {
+        {-1,   -1},         //end of phy setting
+};
+
+static struct hdmi_config_platform_data aml_hdmi_pdata ={
+        .hdmi_5v_ctrl = NULL,
+        .hdmi_3v3_ctrl = NULL,
+        .hdmi_pll_vdd_ctrl = NULL,
+        .hdmi_sspll_ctrl = NULL,
+        .phy_data = brd_phy_data,
+};
+
+static struct platform_device aml_hdmi_device = {
+        .name = "amhdmitx",
+        .id   = -1,
+        .dev  = {
+                .platform_data = &aml_hdmi_pdata,
+        }
+};
+#endif
+
+
 /***********************************************************************
  * Device Register Section
  **********************************************************************/
+
 static struct platform_device  *platform_devs[] = {
+#if defined(CONFIG_AML_HDMI_TX)
+    &aml_hdmi_device,
+#endif
 #if defined(CONFIG_I2C_AML) || defined(CONFIG_I2C_HW_AML)
     &aml_i2c_device_a,
     &aml_i2c_device_b,
@@ -2487,7 +2580,7 @@ static struct platform_device  *platform_devs[] = {
 #endif
 };
 
-static int __init get_voltage_table(char *str)
+/*static int __init get_voltage_table(char *str)
 {
 
  //   unsigned long  clk=clkparse(str, 0);
@@ -2510,10 +2603,44 @@ static int __init get_voltage_table(char *str)
 //		printk("tmpvolt4 is %d\n",tmpvolt);
     return 0;
 }
+*/
+
+static void __init power_hold(void)
+{
+	printk(KERN_INFO "power hold set high!\n");
+
+	printk(KERN_INFO "set_vccio and set_vccx2 power up\n");
+	// VCCIO +3V3 -- GPIO AO2, ACTIVE HIGH
+	gpio_direction_output( GPIO_PWR_VCCIO, 1);
+
+	// VCCx2 +5V -- GPIO AO6, ACTIVE HIGH.
+	gpio_direction_output( GPIO_PWR_VCCx2, 1);
+
+	printk(KERN_INFO "set_hdmi power up\n");
+	// HDMI Power +5V -- GPIO D6, ACTIVE HIGH
+	gpio_direction_output( GPIO_PWR_HDMI, 1);
+
+	// Turn On Wifi Power. So the wifi-module can be detected.
+	// extern_usb_wifi_power(1);
+
+	// gpio_out(PAD_GPIOD_1, gpio_status_out);
+    // gpio_out_high(PAD_GPIOD_1);
+
+	gpio_out(PAD_GPIOAO_11, gpio_status_out); // POWER
+	gpio_out_low(PAD_GPIOAO_11);
+
+	gpio_out(PAD_GPIOAO_10, gpio_status_out); // STATUS
+	gpio_out_low(PAD_GPIOAO_11);
+
+	// gpio_direction_output( GPIO_LED_POWER, 1);
+	// gpio_direction_output( GPIO_LED_STATUS, 1
+}
+
 
 static __init void meson_init_machine(void)
 {
 //    meson_cache_init();
+    power_hold();
     setup_usb_devices();
     setup_devices_resource();
 #ifdef CONFIG_AM_WIFI
@@ -2550,4 +2677,6 @@ MACHINE_START(MESON6_G02, "Amlogic Meson6 g02 reference platform")
     .timer          = &meson_sys_timer,
     .init_machine   = meson_init_machine,
     .fixup          = meson_fixup,///1
+    .video_start    = RESERVED_MEM_START,
+    .video_end      = RESERVED_MEM_END,
 MACHINE_END

@@ -627,6 +627,11 @@ static void dpm_drv_timeout(unsigned long data)
  * Execute the appropriate "resume" callback for all devices whose status
  * indicates that they are suspended.
  */
+
+#ifdef CONFIG_SUSPEND_WATCHDOG
+  extern void reset_watchdog(void);
+#endif
+
 void dpm_resume(pm_message_t state)
 {
 	struct device *dev;
@@ -655,7 +660,6 @@ void dpm_resume(pm_message_t state)
 			mutex_unlock(&dpm_list_mtx);
 			
 #ifdef CONFIG_SUSPEND_WATCHDOG
-			extern void reset_watchdog(void);
 			reset_watchdog();
 #endif
 

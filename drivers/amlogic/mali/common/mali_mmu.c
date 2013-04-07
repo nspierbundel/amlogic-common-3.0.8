@@ -7,10 +7,6 @@
  * A copy of the licence is included with the program, and can also be obtained from Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
-#if MESON_CPU_TYPE >= MESON_CPU_TYPE_MESON6
-#include "mali_platform.h"
-#include "meson_platform/mali_fix.h"
-#endif
 
 #include "mali_kernel_common.h"
 #include "mali_osk.h"
@@ -94,10 +90,6 @@ struct mali_mmu_core
 	struct mali_hw_core hw_core; /**< Common for all HW cores */
 	struct mali_group *group;    /**< Parent core group */
 	_mali_osk_irq_t *irq;        /**< IRQ handler */
-
-#if MESON_CPU_TYPE >= MESON_CPU_TYPE_MESON6
-	u32 id;
-#endif
 };
 
 /**
@@ -178,10 +170,6 @@ struct mali_mmu_core *mali_mmu_create(_mali_osk_resource_t *resource)
 	mmu = _mali_osk_calloc(1,sizeof(struct mali_mmu_core));
 	if (NULL != mmu)
 	{
-#if MESON_CPU_TYPE >= MESON_CPU_TYPE_MESON6
-		mmu->id = resource->mmu_id;
-		MALI_DEBUG_PRINT(3, ("Mali MMU: mmu_id: %d\n", resource->mmu_id));
-#endif
 		if (_MALI_OSK_ERR_OK == mali_hw_core_create(&mmu->hw_core, resource, MALI_MMU_REGISTERS_SIZE))
 		{
 			if (_MALI_OSK_ERR_OK == mali_mmu_reset(mmu))
@@ -415,7 +403,6 @@ _mali_osk_errcode_t mali_mmu_reset(struct mali_mmu_core *mmu)
 }
 
 
-extern mali_bool mali_group_power_is_on_2(struct mali_group *group);
 /* ------------- interrupt handling below ------------------ */
 
 static _mali_osk_errcode_t mali_mmu_upper_half(void * data)
@@ -424,21 +411,8 @@ static _mali_osk_errcode_t mali_mmu_upper_half(void * data)
 	u32 int_stat;
 
 	MALI_DEBUG_ASSERT_POINTER(mmu);
+
 	/* Check if it was our device which caused the interrupt (we could be sharing the IRQ line) */
-	//MALI_DEBUG_PRINT(5, ("Mali MMU: %d..\n",mmu->id));
-
-#if MESON_CPU_TYPE >= MESON_CPU_TYPE_MESON6
-	if ( MALI_FALSE == mali_group_power_is_on_2(mmu->group) )
-	{
-		if (mmu->id == 2)
-			malifix_set_mmu_int_process_state(0, MMU_INT_NONE);
-		else if (mmu->id == 3)
-			malifix_set_mmu_int_process_state(1, MMU_INT_NONE);
-		MALI_DEBUG_PRINT(4, ("Mali MMU: invalid interrupt. <<-- \n"));
-		MALI_SUCCESS;
-	}
-#endif
-
 	int_stat = mali_hw_core_register_read(&mmu->hw_core, MALI_MMU_REGISTER_INT_STATUS);
 	if (0 != int_stat)
 	{
@@ -447,13 +421,6 @@ static _mali_osk_errcode_t mali_mmu_upper_half(void * data)
 
 		if (int_stat & MALI_MMU_INTERRUPT_PAGE_FAULT)
 		{
-#if MESON_CPU_TYPE >= MESON_CPU_TYPE_MESON6 
-			MALI_DEBUG_PRINT(3, ("Mali MMU: core0 page fault reply. <<-- \n"));
-			if (mmu->id == 2)
-				malifix_set_mmu_int_process_state(0, MMU_INT_TOP);
-			else if (mmu->id == 3)
-				malifix_set_mmu_int_process_state(1, MMU_INT_TOP);
-#endif
 			_mali_osk_irq_schedulework(mmu->irq);
 		}
 
@@ -465,28 +432,9 @@ static _mali_osk_errcode_t mali_mmu_upper_half(void * data)
 			mali_hw_core_register_write(&mmu->hw_core, MALI_MMU_REGISTER_INT_MASK,
 			                            mali_hw_core_register_read(&mmu->hw_core, MALI_MMU_REGISTER_INT_MASK) | MALI_MMU_INTERRUPT_READ_BUS_ERROR);
 			MALI_PRINT_ERROR(("Mali MMU: Read bus error\n"));
-#if MESON_CPU_TYPE >= MESON_CPU_TYPE_MESON6
-			if (mmu->id == 2) {
-				if (malifix_get_mmu_int_process_state(0) == MMU_INT_TOP)
-					malifix_set_mmu_int_process_state(0, MMU_INT_NONE);
-			}
-			else if (mmu->id == 3) {
-				if (malifix_get_mmu_int_process_state(1) == MMU_INT_TOP)
-					malifix_set_mmu_int_process_state(1, MMU_INT_NONE);
-			}
-#endif
 		}
 		return _MALI_OSK_ERR_OK;
-	} 
-#if MESON_CPU_TYPE >= MESON_CPU_TYPE_MESON6
-	else { 
-
-		if (mmu->id == 2)
-			malifix_set_mmu_int_process_state(0, MMU_INT_NONE);
-		else if (mmu->id == 3)
-			malifix_set_mmu_int_process_state(1, MMU_INT_NONE);
 	}
-#endif	
 
 	return _MALI_OSK_ERR_FAULT;
 }
@@ -500,13 +448,6 @@ static void mali_mmu_bottom_half(void * data)
 
 	MALI_DEBUG_PRINT(3, ("Mali MMU: Page fault bottom half: Locking subsystems\n"));
 
-#if MESON_CPU_TYPE >= MESON_CPU_TYPE_MESON6
-	if (mmu->id == 2) {
-	    malifix_set_mmu_int_process_state(0, MMU_INT_NONE);
-	} else if (mmu->id == 3) {
-	    malifix_set_mmu_int_process_state(1, MMU_INT_NONE);
-	}
-#endif
 	mali_group_lock(mmu->group); /* Unlocked in mali_group_bottom_half */
 
 	if ( MALI_FALSE == mali_group_power_is_on(mmu->group) )

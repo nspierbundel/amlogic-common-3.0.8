@@ -28,10 +28,9 @@
 #define MALI_APB_GP_VSCL_START        0xd0060000
 #define MALI_APB_GP_VSCL_END          0xd0060004
 #define MALI_APB_GP_CMD               0xd0060020
-#define MALI_APB_GP_INT_RAWSTAT       0xd0060024
+#define MALI_APB_GP_INT_STAT          0xd0060024
 #define MALI_APB_GP_INT_CLEAR         0xd0060028
 #define MALI_APB_GP_INT_MASK          0xd006002c
-#define MALI_APB_GP_INT_STAT          0xd0060030
 
 #define MALI_MMU_DTE_ADDR             0xd0063000
 #define MALI_MMU_STATUS               0xd0063004
