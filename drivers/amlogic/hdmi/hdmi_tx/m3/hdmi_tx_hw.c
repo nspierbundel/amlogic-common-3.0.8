@@ -2093,7 +2093,8 @@ static void hdmitx_set_pll(Hdmi_tx_video_para_t *param)
     }
 }
 
-static int hdmitx_m3_set_dispmode(Hdmi_tx_video_para_t *param)
+// static int hdmitx_m3_set_dispmode(Hdmi_tx_video_para_t *param)
+static int hdmitx_m3_set_dispmode(struct hdmi_tx_dev_s* hdmitx_device, Hdmi_tx_video_para_t *param)
 {
     if(param == NULL){ //disable HDMI
         return 0;
@@ -2758,7 +2759,7 @@ static int hdmitx_m3_cntl(hdmitx_dev_t* hdmitx_device, int cmd, unsigned argv)
             return 0;
         }
     }
-                
+    return 0;
 }
 #if 0
 #include <mach/gpio.h>
