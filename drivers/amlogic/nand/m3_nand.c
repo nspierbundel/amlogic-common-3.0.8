@@ -528,10 +528,10 @@ static int m3_nand_dma_write(struct aml_nand_chip *aml_chip, unsigned char *buf,
 	NFC_SEND_CMD_AIH((aml_chip->nand_info_dma_addr));
 	
 	if(aml_chip->ran_mode){
-	      if(aml_chip->plane_num == 2)
-	        NFC_SEND_CMD_SEED((aml_chip->page_addr/(mtd->writesize >> chip->page_shift)) * (mtd->writesize >> chip->page_shift));
-	    else
-	    	NFC_SEND_CMD_SEED(aml_chip->page_addr);
+		if(aml_chip->plane_num == 2)
+		    NFC_SEND_CMD_SEED((aml_chip->page_addr/(mtd->writesize >> chip->page_shift)) * (mtd->writesize >> chip->page_shift));
+		else
+		    NFC_SEND_CMD_SEED(aml_chip->page_addr);
 	}
 	if(!bch_mode)
 		NFC_SEND_CMD_M2N_RAW(aml_chip->ran_mode, len);
@@ -578,7 +578,7 @@ static int m3_nand_dma_read(struct aml_nand_chip *aml_chip, unsigned char *buf, 
 	NFC_SEND_CMD_AIL(aml_chip->nand_info_dma_addr);
 	NFC_SEND_CMD_AIH(aml_chip->nand_info_dma_addr);
 	if(aml_chip->ran_mode){
-			if(aml_chip->plane_num == 2)
+	      if(aml_chip->plane_num == 2)
 	        NFC_SEND_CMD_SEED((aml_chip->page_addr/(mtd->writesize >> chip->page_shift)) * (mtd->writesize >> chip->page_shift));
 	    else
 	    	NFC_SEND_CMD_SEED(aml_chip->page_addr);
@@ -1222,7 +1222,7 @@ static void m3_nand_shutdown(struct platform_device *pdev)
 int  show_nand_version_info(struct class *class, 
 			struct class_attribute *attr,	char *buf)
 {
-    struct aml_nand_chip *aml_chip = container_of(class, struct aml_nand_chip, cls);
+    // struct aml_nand_chip *aml_chip = container_of(class, struct aml_nand_chip, cls);
 
     printk(KERN_INFO "kernel Version %s,uboot version %s\n", DRV_VERSION,DRV_UBOOT_VERSION);
 
