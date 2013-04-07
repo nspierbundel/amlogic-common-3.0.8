@@ -27,6 +27,10 @@
 
 #include "power.h"
 
+#ifdef CONFIG_SUSPEND_WATCHDOG
+	extern void disable_watchdog(void);
+#endif
+
 const char *const pm_states[PM_SUSPEND_MAX] = {
 #ifdef CONFIG_EARLYSUSPEND
 	[PM_SUSPEND_ON]		= "on",
@@ -299,7 +303,6 @@ int enter_state(suspend_state_t state)
  Unlock:
 	mutex_unlock(&pm_mutex);
 #ifdef CONFIG_SUSPEND_WATCHDOG
-	extern void disable_watchdog(void);
 	disable_watchdog();
 #endif   	
 	return error;
