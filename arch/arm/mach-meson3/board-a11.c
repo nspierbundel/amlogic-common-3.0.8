@@ -334,7 +334,7 @@ static struct platform_device aml_i2c_device = {
 
 static struct i2c_board_info __initdata aml_i2c_bus_info[] = {
 	{
-		I2C_BOARD_INFO("at88scxx", 0xB6),
+		I2C_BOARD_INFO("at88scxx", (0xB6>>1)),
 	},
 };
 
@@ -499,48 +499,75 @@ static struct platform_device aml_uart_device = {
 };
 
 #ifdef CONFIG_AM_ETHERNET
-//#define ETH_MODE_RGMII
-//#define ETH_MODE_RMII_INTERNAL
-#define ETH_MODE_RMII_EXTERNAL
 static void aml_eth_reset(void)
 {
-    unsigned int val = 0;
-
     printk(KERN_INFO "****** aml_eth_reset() ******\n");
-#ifdef ETH_MODE_RGMII
-    val = 0x211;
-#else
-    val = 0x241;
-#endif
-
-    /* setup ethernet mode */
-    aml_set_reg32_mask(P_PREG_ETHERNET_ADDR0, val);
-
+	
+	aml_clr_reg32_mask(P_PREG_ETHERNET_ADDR0, 1);           // Disable the Ethernet clocks
+	// ---------------------------------------------
+	// Test 50Mhz Input Divide by 2
+	// ---------------------------------------------
+	// Select divide by 2
+    aml_clr_reg32_mask(P_PREG_ETHERNET_ADDR0, (1<<3));     // desc endianess "same order" 
+	aml_clr_reg32_mask(P_PREG_ETHERNET_ADDR0, (1<<2));     // ata endianess "little"
+	aml_set_reg32_mask(P_PREG_ETHERNET_ADDR0, (1<<1));     // divide by 2 for 100M
+	aml_set_reg32_mask(P_PREG_ETHERNET_ADDR0, 1);          // enable Ethernet clocks
+	
     /* setup ethernet interrupt */
     aml_set_reg32_mask(P_A9_0_IRQ_IN0_INTR_MASK, 1 << 8);
     aml_set_reg32_mask(P_A9_0_IRQ_IN1_INTR_STAT, 1 << 8);
 
+	udelay(100);
+	
     /* hardware reset ethernet phy */
     gpio_direction_output(GPIO_ETH_RESET, 0);
     msleep(20);
     gpio_set_value(GPIO_ETH_RESET, 1);
-
 }
 
 static void aml_eth_clock_enable(void)
 {
-    unsigned int val = 0;
-
+	unsigned int n = 0;
+	unsigned int clk_invert = 0;
+/*
+	old 2.6 code -> eth_clk_set(ETH_CLKSRC_EXT_XTAL_CLK, (50 * CLK_1M), (50 * CLK_1M), 1);
+	
+	#define ETH_BANK0_GPIOY1_Y9     	0
+	#define ETH_CLK_IN_GPIOY0_REG6_18	0
+	#define ETH_BANK0_REG1          	6
+	#define PERIPHS_PIN_MUX_6  			0x 
+		
+	eth_clk_set(ETH_CLKSRC_EXT_XTAL_CLK, (50 * CLK_1M), (50 * CLK_1M), 1);
+	
+	N = (50 * CLK_1M) / (50 * CLK_1M) = 1
+	
+	               (n - 1) << 0 |
+                   selectclk << 9 |
+                   ((clk_invert == 1) ? 1 : 0) << 14 | //PAD signal invert
+                   1 << 8 //enable clk
+                  );
+	
+    bit
+    7..0: Clock Divider
+    8   : Clock Enable
+    13.9: Clock Source
+    14  : Clock Inverted
+		results as code below.
+	*/
+	
     printk(KERN_INFO "****** aml_eth_clock_enable() ******\n");
-#ifdef ETH_MODE_RGMII
-    val = 0x309;
-#elif defined(ETH_MODE_RMII_EXTERNAL)
-    val = 0x130;
-#else
-    val = 0x702;
-#endif
-    /* setup ethernet clk */
-    aml_set_reg32_mask(P_HHI_ETH_CLK_CNTL, val);
+
+	/* A11: External Clock */
+	n = 1;
+	clk_invert = 1;
+	aml_write_reg32(P_HHI_ETH_CLK_CNTL, (
+		(n - 1) << 0 |  					// Clock Divider
+        7 << 9 | 		  					// Clock Source 7 = ETH_CLKSRC_EXT_XTAL_CLK
+        ((clk_invert == 1) ? 1 : 0) << 14 | // PAD signal invert
+        1 << 8 								// enable clk
+		)
+	);
+	printk("P_HHI_ETH_CLK_CNTL = 0x%x\n", aml_read_reg32(P_HHI_ETH_CLK_CNTL));
 }
 
 static void aml_eth_clock_disable(void)
@@ -553,13 +580,9 @@ static void aml_eth_clock_disable(void)
 static pinmux_item_t aml_eth_pins[] = {
     /* RMII pin-mux */
     {
-	.reg = PINMUX_REG(6),
-	.clrmask = 0,
-#ifdef ETH_MODE_RMII_EXTERNAL
-	.setmask = 0x8007ffe0,
-#else
-	.setmask = 0x4007ffe0,
-#endif
+		.reg = PINMUX_REG(6),
+		.clrmask = (3<<17),
+		.setmask = (1<<18), //(3<<17), // bit 18 = ETH_CLK_IN_GPIOY0_REG6_18, // BIT 17 = Ethernet in???
     },
     PINMUX_END_ITEM
 };
@@ -572,7 +595,15 @@ static pinmux_set_t aml_eth_pinmux = {
 static void aml_eth_pinmux_setup(void)
 {
     printk(KERN_INFO "****** aml_eth_pinmux_setup() ******\n");
+	/* Old 2.6 old 
+		CLEAR_CBUS_REG_MASK(PERIPHS_PIN_MUX_6,(3<<17));//reg6[17/18]=0
+		eth_set_pinmux(ETH_BANK0_GPIOY1_Y9, ETH_CLK_IN_GPIOY0_REG6_18, 0);
+	
+		results in:
+	*/
+	pinmux_clr(&aml_eth_pinmux);
     pinmux_set(&aml_eth_pinmux);
+	aml_set_reg32_mask(P_PERIPHS_PIN_MUX_0, 0);
 }
 
 static void aml_eth_pinmux_cleanup(void)
@@ -586,6 +617,11 @@ static void aml_eth_init(void)
     aml_eth_pinmux_setup();
     aml_eth_clock_enable();
     aml_eth_reset();
+	
+	/* debug code */
+	printk("P_PERIPHS_PIN_MUX_0 = 0x%8x\n", aml_read_reg32(P_PERIPHS_PIN_MUX_0));
+	printk("P_PERIPHS_PIN_MUX_6 = 0x%8x\n", aml_read_reg32(P_PERIPHS_PIN_MUX_6));	
+	printk("P_PREG_ETHERNET_ADDR0 = 0x%8x\n", aml_read_reg32(P_PREG_ETHERNET_ADDR0));
 }
 
 static struct aml_eth_platdata aml_eth_pdata __initdata = {
