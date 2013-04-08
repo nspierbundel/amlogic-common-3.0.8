@@ -802,7 +802,7 @@ static void dwc_otg_driver_remove(struct lm_device *_lmdev)
  *
  * @param[in] _lmdev  lm_device definition
  */
-static int __init dwc_otg_driver_probe(struct lm_device *_lmdev)
+static int dwc_otg_driver_probe(struct lm_device *_lmdev)
 {
 	int retval = 0;
 	dwc_otg_device_t *dwc_otg_device;
