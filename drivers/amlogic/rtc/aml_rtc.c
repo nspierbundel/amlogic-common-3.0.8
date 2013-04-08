@@ -344,6 +344,8 @@ static int _ser_access_write_locked(unsigned long addr, unsigned long data)
 	rtc_send_addr_data(0,data);
 	rtc_send_addr_data(1,addr);
 	rtc_set_mode(1); //Write
+
+	return 0;
 }
 
 static unsigned int ser_access_read(unsigned long addr)
@@ -732,14 +734,13 @@ static int power_down_gpo(unsigned long data)
 	return 0;
 }
 #endif
-static int aml_rtc_shutdown(struct platform_device *pdev)
+static void aml_rtc_shutdown(struct platform_device *pdev)
 {
 #if MESON_CPU_TYPE >= MESON_CPU_TYPE_MESON6	
 	ser_access_write(RTC_GPO_COUNTER_ADDR,0x500000);
 #else	
 	ser_access_write(RTC_GPO_COUNTER_ADDR,0x100000);
 #endif    
-    return 0;
 }
 
 static int aml_rtc_remove(struct platform_device *dev)
