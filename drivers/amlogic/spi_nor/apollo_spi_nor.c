@@ -40,9 +40,9 @@ struct amlogic_spi {
 	unsigned char		*map_end;
 };
 
+#if MESON_CPU_TYPE >= MESON_CPU_TYPE_MESON6
 static bool spi_chip_select(bool flag);
 
-#if MESON_CPU_TYPE >= MESON_CPU_TYPE_MESON6
 static pinmux_item_t spi_nor_set_pins[] ={
 	{
 		.reg = PINMUX_REG(5),
@@ -98,11 +98,12 @@ static pinmux_set_t spi_nor_set = {
 };
 #endif
 
-
+#if MESON_CPU_TYPE >= MESON_CPU_TYPE_MESON6
 static bool spi_chip_select(bool flag)
 {
 	return flag;
 }
+#endif
 
 static void spi_hw_init(struct amlogic_spi	*amlogic_spi)
 {
