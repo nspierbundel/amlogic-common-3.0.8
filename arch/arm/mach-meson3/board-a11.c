@@ -1368,6 +1368,7 @@ static __init void meson_init_early(void)
 MACHINE_START(M3_REF, "Amlogic Meson3 reference development platform")
     .boot_params    = BOOT_PARAMS_OFFSET,
     .map_io         = meson_map_io,
+    .init_early     = meson_init_early
     .init_irq       = meson_irq_init,
     .timer          = &meson_sys_timer,
     .init_machine   = meson_machine_init,
@@ -1379,6 +1380,7 @@ MACHINE_END
 MACHINE_START(VMX25, "Amlogic Meson3 reference development platform (legacy)")
     .boot_params    = BOOT_PARAMS_OFFSET,
     .map_io         = meson_map_io,
+    .init_early     = meson_init_early
     .init_irq       = meson_irq_init,
     .timer          = &meson_sys_timer,
     .init_machine   = meson_machine_init,
