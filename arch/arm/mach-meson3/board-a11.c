@@ -433,21 +433,6 @@ static void disable_unused_model(void)
     CLK_GATE_OFF(BT656_IN);
 #endif    
 }
-static void __init meson_cache_init(void)
-{
-#ifdef CONFIG_CACHE_L2X0
-    /*
-     * Early BRESP, I/D prefetch enabled
-     * Non-secure enabled
-     * 128kb (16KB/way),
-     * 8-way associativity,
-     * evmon/parity/share disabled
-     * Full Line of Zero enabled
-         * Bits:  .111 .... .100 0010 0000 .... .... ...1
-     */
-    l2x0_init((void __iomem *)IO_PL310_BASE, 0x7c420001, 0xff800fff);
-#endif
-}
 
 static void  __init backup_board_pinmux(void)
 {//devices_pins in __initdata section ,it will be released .
@@ -1266,8 +1251,6 @@ static void __init power_hold(void)
 
 static __init void meson_machine_init(void)
 {
-	// backup_board_pinmux();
-	meson_cache_init();
 	setup_devices_resource();
 	power_hold();
 	platform_add_devices(platform_devs, ARRAY_SIZE(platform_devs));
@@ -1372,6 +1355,15 @@ static __init void meson_fixup(struct machine_desc *mach, struct tag *tag, char 
     m->nr_banks++;
 
 }
+
+static __init void meson_init_early(void)
+{
+    //mesonplat_register_device_early("meson_uart","AO",NULL);
+    parse_early_param();
+    /* Let earlyprintk output early console messages */
+    // early_platform_driver_probe("earlyprintk", 4, 0);
+}
+
 
 MACHINE_START(M3_REF, "Amlogic Meson3 reference development platform")
     .boot_params    = BOOT_PARAMS_OFFSET,
