@@ -865,7 +865,7 @@ static int register_remote_dev(struct remote *remote)
 	return ret;
 }
 
-static int __init remote_probe(struct platform_device *pdev)
+static int remote_probe(struct platform_device *pdev)
 {
 	struct remote *remote;
 	struct input_dev *input_dev;
