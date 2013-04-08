@@ -205,7 +205,7 @@ static unsigned long audiodsp_drop_pcm(unsigned long size)
 {
 	struct audiodsp_priv *priv = audiodsp_privdata();
 	size_t len;
-	int count;
+	int count = 0;
 	unsigned long drop_bytes = size;
 
 	mutex_lock(&priv->stream_buffer_mutex);
