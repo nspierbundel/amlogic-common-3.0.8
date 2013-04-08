@@ -1162,6 +1162,7 @@ stretchblt_noalpha(context,input_frame.frame_left,input_frame.frame_top,input_fr
 }
 
 static int ratio_value = 10; // 0~255
+#if 0
 static void process_2d_to_3d(vframe_t* vf, ge2d_context_t *context,config_para_ex_t* ge2d_config)
 {
     vframe_t* new_vf;
@@ -1374,6 +1375,7 @@ static void process_2d_to_3d(vframe_t* vf, ge2d_context_t *context,config_para_e
     vf_put(vf,RECEIVER_NAME );
     return;
 }
+#endif
 
 void process_2d_to_3d_switch(vframe_t* vf, ge2d_context_t *context,config_para_ex_t* ge2d_config)
 {

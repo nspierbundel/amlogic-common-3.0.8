@@ -82,7 +82,7 @@ extern u32 amvideo_get_scaler_para(int* x, int* y, int* w, int* h, u32* ratio);
 
 static int out_width=640;
 static int out_height=480;
-static int cur_out_format=GE2D_FORMAT_S24_BGR; 
+// static int cur_out_format=GE2D_FORMAT_S24_BGR; 
 
 static DEFINE_SPINLOCK(lock);
 static bool ppmgr_blocking = false;
@@ -2070,7 +2070,7 @@ extern int get_tv_process_type(vframe_t* vf);
 static struct task_struct *task=NULL;
 extern int video_property_notify(int flag);
 extern vframe_t* get_cur_dispbuf(void);
-extern platform_type_t get_platform_type();
+extern platform_type_t get_platform_type(void);
 static int ppmgr_task(void *data)
 {
     struct sched_param param = {.sched_priority = MAX_RT_PRIO - 1 };

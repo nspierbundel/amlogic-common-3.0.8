@@ -44,7 +44,7 @@ extern void Set3DProcessPara(unsigned mode);
 #ifdef CONFIG_POST_PROCESS_MANAGER_PPSCALER
 static bool scaler_pos_reset = false;
 #endif
-platform_type_t get_platform_type()
+platform_type_t get_platform_type(void)
 {
 	return	platform_type;
 }
@@ -467,7 +467,7 @@ static ssize_t video_out_write(struct class *cla,
 					struct class_attribute *attr,
 					const char *buf, size_t count)
 {
-	ssize_t ret = -EINVAL, size;
+	ssize_t size; //, ret = -EINVAL,;
 	char *endp;
     if(buf[0]!='0'&&buf[0]!='1') {
 		printk("device to whitch the video stream decoded\n");
