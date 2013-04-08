@@ -136,7 +136,8 @@ static int mali_meson_rev_detect(void)
     int flag = 1;
 
     if (mali_clk) {
-        mali_clk->enable(mali_clk);
+        //mali_clk->enable(mali_clk);
+	clk_enable(mali_clk);
     }
 
     /* generate IRQPPMMU0 and see if the interrupt is triggered,
@@ -392,7 +393,8 @@ _mali_osk_errcode_t mali_platform_power_mode_change(mali_power_mode power_mode)
 	    case MALI_POWER_MODE_DEEP_SLEEP:
 		/* Turn on mali clock gating */
 		if (mali_clk) {
-			mali_clk->disable(mali_clk);
+			//mali_clk->disable(mali_clk);
+			clk_disable(mali_clk);
 		}
 		else {
 			spin_lock_irqsave(&lock, flags);
@@ -404,7 +406,8 @@ _mali_osk_errcode_t mali_platform_power_mode_change(mali_power_mode power_mode)
         case MALI_POWER_MODE_ON:
 		/* Turn off MALI clock gating */
 		if (mali_clk) {
-			mali_clk->enable(mali_clk);
+			//mali_clk->enable(mali_clk);
+			clk_enable(mali_clk);
 		}
 		else {
 			spin_lock_irqsave(&lock, flags);

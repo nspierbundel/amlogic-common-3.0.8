@@ -62,7 +62,8 @@ static _mali_osk_resource_t arch_configuration [] =
 		.type = MEM_VALIDATION,
 		.description = "Framebuffer",
 		.base = 0x84000000,
-		.size = 0x128000000,
+		// .size = 0x128000000,
+		.size = 0x12800000,
 		.flags = _MALI_CPU_WRITEABLE | _MALI_CPU_READABLE | _MALI_PP_WRITEABLE | _MALI_PP_READABLE
 	},
 	{

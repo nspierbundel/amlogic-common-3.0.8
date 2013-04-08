@@ -30,10 +30,14 @@
 #include <mach/am_regs.h>
 #include <mach/clock.h>
 
+/* For Meson 3 */
+#include <plat/io.h>
+
 #include "mali_kernel_common.h"
 #include "mali_osk.h"
 #include "mali_platform.h"
 #include "mali_fix.h"
+
 
 #define MALI_MM1_REG_ADDR 0xd0064000
 #define MALI_MMU_REGISTER_INT_STATUS     0x0008
