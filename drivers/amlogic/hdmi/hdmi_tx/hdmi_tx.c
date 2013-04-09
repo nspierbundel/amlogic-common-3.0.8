@@ -1340,25 +1340,28 @@ static int __devinit amhdmitx_probe(struct platform_device *pdev)
     struct device *dev = &pdev->dev;
     int r,ret=0;
     HDMI_DEBUG();
-    pr_dbg("amhdmitx_probe\n");
+    pr_dbg("HDMI: amhdmitx_probe\n");
 
     // Get Platform data
     hdmi_pdata = dev->platform_data;
     if (!hdmi_pdata) {
-	dev_err(dev, "HDMI: platform data is missing.\n");
+	pr_error("HDMI: platform data is missing.\n");
+	dev_err(dev, "platform data is missing.\n");
 	ret = -ENODEV;
 	goto fail;
     }
+    pr_dbg("HDMI: Getting platform data.\n");
 
     r = alloc_chrdev_region(&hdmitx_id, 0, HDMI_TX_COUNT, DEVICE_NAME);
     if (r < 0) {
-        pr_error("Can't register major for amhdmitx device\n");
+        pr_error("HDMI: Can't register major for amhdmitx device.\n");
         return r;
     }
 
     hdmitx_class = class_create(THIS_MODULE, DEVICE_NAME);
     if (IS_ERR(hdmitx_class))
     {
+	pr_error("HDMI: Error in hdmi class creation: %li.\n", IS_ERR(hdmitx_class));
         unregister_chrdev_region(hdmitx_id, HDMI_TX_COUNT);
         return -1;
         //return PTR_ERR(aoe_class);
@@ -1572,7 +1575,7 @@ static void __exit amhdmitx_exit(void)
     return ;
 }
 
-//module_init(amhdmitx_init);
+module_init(amhdmitx_init);
 arch_initcall(amhdmitx_init);
 module_exit(amhdmitx_exit);
 
