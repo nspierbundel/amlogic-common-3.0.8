@@ -1176,15 +1176,12 @@ static struct platform_device aml_hdmi_device = {
 
 static struct platform_device  *platform_devs[] = {
     &aml_uart_device,
-#if defined(CONFIG_AML_HDMI_TX)
-    &aml_hdmi_device,
-#endif
     &meson_device_fb,
-    //&meson_device_codec,
+    &meson_device_codec,
 #if defined(CONFIG_SND_AML_M3)
-    //&aml_audio,
-    //&aml_dai,
-    //&aml_m3_audio,
+    &aml_audio,
+    &aml_dai,
+    &aml_m3_audio,
 #endif
 #if defined(CONFIG_KEYPADS_AM)||defined(CONFIG_VIRTUAL_REMOTE)||defined(CONFIG_KEYPADS_AM_MODULE)
     &input_device,
@@ -1216,6 +1213,9 @@ static struct platform_device  *platform_devs[] = {
 #if defined(CONFIG_AML_AUDIO_DSP)
     &audiodsp_device,
 #endif //CONFIG_AML_AUDIO_DSP
+#if defined(CONFIG_AML_HDMI_TX)
+    &aml_hdmi_device,
+#endif
 #ifdef CONFIG_POST_PROCESS_MANAGER
     &ppmgr_device,
 #endif
