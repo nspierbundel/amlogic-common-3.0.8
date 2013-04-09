@@ -2473,12 +2473,20 @@ static void power_off(void)
  **********************************************************************/
 
 #if defined(CONFIG_AML_HDMI_TX)
+
+void hdmi_5v_ctrl(unsigned int pwr) {
+	// HDMI Power +5V -- GPIO D6, ACTIVE HIGH
+	printk("HDMI: Set 5v power %s\n", (pwr != 0 ? "On" : "Off"));
+	gpio_direction_output( GPIO_PWR_HDMI, (pwr != 0 ? 1 : 0));
+}
+
+
 static struct hdmi_phy_set_data brd_phy_data[] = {
         {-1,   -1},         //end of phy setting
 };
 
 static struct hdmi_config_platform_data aml_hdmi_pdata ={
-        .hdmi_5v_ctrl = NULL,
+        .hdmi_5v_ctrl = hdmi_5v_ctrl,
         .hdmi_3v3_ctrl = NULL,
         .hdmi_pll_vdd_ctrl = NULL,
         .hdmi_sspll_ctrl = NULL,
