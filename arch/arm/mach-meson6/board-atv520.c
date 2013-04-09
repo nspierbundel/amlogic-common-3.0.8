@@ -80,7 +80,6 @@
 #include <mach/card_io.h>
 #include <mach/gpio.h>
 #endif
-
 //#include "board-m3ref-pinmux.h"
 
 #if defined(CONFIG_AML_HDMI_TX)
@@ -204,7 +203,7 @@ static int _key_code_list[] = {KEY_POWER};
 static inline int key_input_init_func(void)
 {
 	// Power Button, GPIO AO3, ACTIVE LOW
-	gpio_direction_input(GPIO_KEY_POWER);    
+	gpio_direction_input(GPIO_KEY_POWER);
 	return 0;
 }
 
@@ -334,7 +333,7 @@ static struct platform_device aml_i2c_device = {
 
 static struct i2c_board_info __initdata aml_i2c_bus_info[] = {
 	{
-		I2C_BOARD_INFO("at88scxx", 0xB6),
+		I2C_BOARD_INFO("at88scxx", (0xB6>>1)),
 	},
 };
 
@@ -499,48 +498,75 @@ static struct platform_device aml_uart_device = {
 };
 
 #ifdef CONFIG_AM_ETHERNET
-//#define ETH_MODE_RGMII
-//#define ETH_MODE_RMII_INTERNAL
-#define ETH_MODE_RMII_EXTERNAL
 static void aml_eth_reset(void)
 {
-    unsigned int val = 0;
-
     printk(KERN_INFO "****** aml_eth_reset() ******\n");
-#ifdef ETH_MODE_RGMII
-    val = 0x211;
-#else
-    val = 0x241;
-#endif
-
-    /* setup ethernet mode */
-    aml_set_reg32_mask(P_PREG_ETHERNET_ADDR0, val);
-
+	
+	aml_clr_reg32_mask(P_PREG_ETHERNET_ADDR0, 1);           // Disable the Ethernet clocks
+	// ---------------------------------------------
+	// Test 50Mhz Input Divide by 2
+	// ---------------------------------------------
+	// Select divide by 2
+    aml_clr_reg32_mask(P_PREG_ETHERNET_ADDR0, (1<<3));     // desc endianess "same order" 
+	aml_clr_reg32_mask(P_PREG_ETHERNET_ADDR0, (1<<2));     // ata endianess "little"
+	aml_set_reg32_mask(P_PREG_ETHERNET_ADDR0, (1<<1));     // divide by 2 for 100M
+	aml_set_reg32_mask(P_PREG_ETHERNET_ADDR0, 1);          // enable Ethernet clocks
+	
     /* setup ethernet interrupt */
-    aml_set_reg32_mask(P_A9_0_IRQ_IN0_INTR_MASK, 1 << 8);
-    aml_set_reg32_mask(P_A9_0_IRQ_IN1_INTR_STAT, 1 << 8);
+    aml_set_reg32_mask(P_SYS_CPU_0_IRQ_IN0_INTR_STAT, 1 << 8);
+    aml_set_reg32_mask(P_SYS_CPU_0_IRQ_IN1_INTR_STAT, 1 << 8);
 
+	udelay(100);
+	
     /* hardware reset ethernet phy */
     gpio_direction_output(GPIO_ETH_RESET, 0);
     msleep(20);
     gpio_set_value(GPIO_ETH_RESET, 1);
-
 }
 
 static void aml_eth_clock_enable(void)
 {
-    unsigned int val = 0;
-
+	unsigned int n = 0;
+	unsigned int clk_invert = 0;
+/*
+	old 2.6 code -> eth_clk_set(ETH_CLKSRC_EXT_XTAL_CLK, (50 * CLK_1M), (50 * CLK_1M), 1);
+	
+	#define ETH_BANK0_GPIOY1_Y9     	0
+	#define ETH_CLK_IN_GPIOY0_REG6_18	0
+	#define ETH_BANK0_REG1          	6
+	#define PERIPHS_PIN_MUX_6  			0x 
+		
+	eth_clk_set(ETH_CLKSRC_EXT_XTAL_CLK, (50 * CLK_1M), (50 * CLK_1M), 1);
+	
+	N = (50 * CLK_1M) / (50 * CLK_1M) = 1
+	
+	               (n - 1) << 0 |
+                   selectclk << 9 |
+                   ((clk_invert == 1) ? 1 : 0) << 14 | //PAD signal invert
+                   1 << 8 //enable clk
+                  );
+	
+    bit
+    7..0: Clock Divider
+    8   : Clock Enable
+    13.9: Clock Source
+    14  : Clock Inverted
+		results as code below.
+	*/
+	
     printk(KERN_INFO "****** aml_eth_clock_enable() ******\n");
-#ifdef ETH_MODE_RGMII
-    val = 0x309;
-#elif defined(ETH_MODE_RMII_EXTERNAL)
-    val = 0x130;
-#else
-    val = 0x702;
-#endif
-    /* setup ethernet clk */
-    aml_set_reg32_mask(P_HHI_ETH_CLK_CNTL, val);
+
+	/* A11: External Clock */
+	n = 1;
+	clk_invert = 1;
+	aml_write_reg32(P_HHI_ETH_CLK_CNTL, (
+		(n - 1) << 0 |  					// Clock Divider
+        7 << 9 | 		  					// Clock Source 7 = ETH_CLKSRC_EXT_XTAL_CLK
+        ((clk_invert == 1) ? 1 : 0) << 14 | // PAD signal invert
+        1 << 8 								// enable clk
+		)
+	);
+	printk("P_HHI_ETH_CLK_CNTL = 0x%x\n", aml_read_reg32(P_HHI_ETH_CLK_CNTL));
 }
 
 static void aml_eth_clock_disable(void)
@@ -553,13 +579,9 @@ static void aml_eth_clock_disable(void)
 static pinmux_item_t aml_eth_pins[] = {
     /* RMII pin-mux */
     {
-	.reg = PINMUX_REG(6),
-	.clrmask = 0,
-#ifdef ETH_MODE_RMII_EXTERNAL
-	.setmask = 0x8007ffe0,
-#else
-	.setmask = 0x4007ffe0,
-#endif
+		.reg = PINMUX_REG(6),
+		.clrmask = (3<<17),
+		.setmask = (1<<18), //(3<<17), // bit 18 = ETH_CLK_IN_GPIOY0_REG6_18, // BIT 17 = Ethernet in???
     },
     PINMUX_END_ITEM
 };
@@ -572,7 +594,9 @@ static pinmux_set_t aml_eth_pinmux = {
 static void aml_eth_pinmux_setup(void)
 {
     printk(KERN_INFO "****** aml_eth_pinmux_setup() ******\n");
-    pinmux_set(&aml_eth_pinmux);
+	pinmux_clr(&aml_eth_pinmux);
+ 	pinmux_set(&aml_eth_pinmux);	
+	aml_set_reg32_mask(P_PERIPHS_PIN_MUX_0, 0);
 }
 
 static void aml_eth_pinmux_cleanup(void)
@@ -586,6 +610,11 @@ static void aml_eth_init(void)
     aml_eth_pinmux_setup();
     aml_eth_clock_enable();
     aml_eth_reset();
+	
+	/* debug code */
+	printk("P_PERIPHS_PIN_MUX_0 = 0x%8x\n", aml_read_reg32(P_PERIPHS_PIN_MUX_0));
+	printk("P_PERIPHS_PIN_MUX_6 = 0x%8x\n", aml_read_reg32(P_PERIPHS_PIN_MUX_6));	
+	printk("P_PREG_ETHERNET_ADDR0 = 0x%8x\n", aml_read_reg32(P_PREG_ETHERNET_ADDR0));
 }
 
 static struct aml_eth_platdata aml_eth_pdata __initdata = {
@@ -767,7 +796,7 @@ static struct aml_card_info  amlogic_card_info[] = {
     [0] = {
         .name = "sd_card",
         .work_mode = CARD_HW_MODE,
-        .io_pad_type = SDIO_B_CARD_0_5,
+        .io_pad_type = SDXC_CARD_0_5,
         .card_ins_en_reg = CARD_GPIO_ENABLE,
         .card_ins_en_mask = PREG_IO_29_MASK,
         .card_ins_input_reg = CARD_GPIO_INPUT,
@@ -1085,11 +1114,29 @@ void m3ref_set_vccx2(int power_on)
         //restore_pinmux();
         printk(KERN_INFO "%s() Power ON\n", __FUNCTION__);
 	// TODO: Add vccx2 enable
-    }
-    else {
+
+	// VCCIO +3V3 -- GPIO AO2, ACTIVE HIGH
+	gpio_direction_output( GPIO_PWR_VCCIO, 1);
+
+	// VCCx2 +5V -- GPIO AO6, ACTIVE HIGH.
+	gpio_direction_output( GPIO_PWR_VCCx2, 1);
+
+	// HDMI Power +5V -- GPIO D6, ACTIVE HIGH
+	gpio_direction_output( GPIO_PWR_HDMI, 1);
+
+    } else {
         printk(KERN_INFO "%s() Power OFF\n", __FUNCTION__);
         //save_pinmux();
 	// TODO: Add vccx2 enable
+
+	// HDMI Power +5V -- GPIO D6, ACTIVE HIGH
+	gpio_direction_output( GPIO_PWR_HDMI, 0);
+
+	// VCCx2 +5V -- GPIO AO6, ACTIVE HIGH.
+	gpio_direction_output( GPIO_PWR_VCCx2, 0);
+
+	// VCCIO +3V3 -- GPIO AO2, ACTIVE HIGH
+	gpio_direction_output( GPIO_PWR_VCCIO, 0);
     }
 }
 
@@ -1140,27 +1187,27 @@ static struct platform_device  *platform_devs[] = {
 #if defined(CONFIG_AML_HDMI_TX)
     &aml_hdmi_device,
 #endif
-    // &meson_device_fb,
-    // &meson_device_codec,
+    &meson_device_fb,
+    //&meson_device_codec,
 #if defined(CONFIG_SND_AML_M3)
     //&aml_audio,
     //&aml_dai,
     //&aml_m3_audio,
 #endif
 #if defined(CONFIG_KEYPADS_AM)||defined(CONFIG_VIRTUAL_REMOTE)||defined(CONFIG_KEYPADS_AM_MODULE)
-    //&input_device,
+    &input_device,
 #endif
 #ifdef CONFIG_SARADC_AM
-    //&saradc_device,
+    &saradc_device,
 #endif
 #if defined(CONFIG_ADC_KEYPADS_AM)||defined(CONFIG_ADC_KEYPADS_AM_MODULE)
-    //&adc_kp_device,
+    &adc_kp_device,
 #endif
 #if defined(CONFIG_KEY_INPUT_CUSTOM_AM) || defined(CONFIG_KEY_INPUT_CUSTOM_AM_MODULE)
-    //&input_device_key,
+    &input_device_key,
 #endif
 #if defined(CONFIG_MMC_AML)
-    //&aml_mmc_device,
+    &aml_mmc_device,
 #endif
 #if defined(CONFIG_CARDREADER)
     &amlogic_card_device,
@@ -1175,10 +1222,10 @@ static struct platform_device  *platform_devs[] = {
     //&vdin_device,
 #endif
 #if defined(CONFIG_AML_AUDIO_DSP)
-    //&audiodsp_device,
+    &audiodsp_device,
 #endif //CONFIG_AML_AUDIO_DSP
 #ifdef CONFIG_POST_PROCESS_MANAGER
-    //&ppmgr_device,
+    &ppmgr_device,
 #endif
 #if defined(CONFIG_AML_RTC)
     &meson_rtc_device,
@@ -1208,51 +1255,23 @@ static void __init power_hold(void)
 
 	// Turn On Wifi Power. So the wifi-module can be detected.
 	// extern_usb_wifi_power(1);
-	
-	// gpio_out(PAD_GPIOD_1, gpio_status_out);
-    // gpio_out_high(PAD_GPIOD_1);
-	
-	gpio_out(PAD_GPIOAO_11, gpio_status_out); // POWER
-	gpio_out_low(PAD_GPIOAO_11);
-	
-	gpio_out(PAD_GPIOAO_10, gpio_status_out); // STATUS
-	gpio_out_low(PAD_GPIOAO_11);
-	
-	// gpio_direction_output( GPIO_LED_POWER, 1);
-	// gpio_direction_output( GPIO_LED_STATUS, 1
 }
 
-static __init void meson_m3ref_init(void)
+static __init void meson_machine_init(void)
 {
 	// backup_board_pinmux();
 	meson_cache_init();
 	setup_devices_resource();
-	printk("----------- POWER HOLD --------------");
 	power_hold();
 	platform_add_devices(platform_devs, ARRAY_SIZE(platform_devs));
 	
-    // setup_i2c_devices();
-
-    // setup_uart_devices();
-    // device_clk_setting();
-    // device_pinmux_init();
-
-    m3ref_set_vccx2(1);
-    //setup_usb_devices();
-
-    /*
-    printk(KERN_INFO"TEST GPIOC 4");
-    gpio_out_high(PAD_GPIOC_4);
-    gpio_out_low(PAD_GPIOC_4);
-*/
 #if defined(CONFIG_I2C_AML) || defined(CONFIG_I2C_HW_AML)
-    aml_i2c_init();
+	aml_i2c_init();
 #endif
 #ifdef CONFIG_AM_ETHERNET
-    setup_eth_device();
+	setup_eth_device();
 #endif
     disable_unused_model();
-    printk("----------- END INIT --------------");
 }
 
 
@@ -1321,12 +1340,12 @@ static  void __init meson_map_io(void)
     iotable_init(meson_io_desc, ARRAY_SIZE(meson_io_desc));
 }
 
-static __init void m3_irq_init(void)
+static __init void meson_irq_init(void)
 {
     meson_init_irq();
 }
 
-static __init void m3_fixup(struct machine_desc *mach, struct tag *tag, char **cmdline, struct meminfo *m)
+static __init void meson_fixup(struct machine_desc *mach, struct tag *tag, char **cmdline, struct meminfo *m)
 {
     struct membank *pbank;
     m->nr_banks = 0;
@@ -1347,15 +1366,20 @@ static __init void m3_fixup(struct machine_desc *mach, struct tag *tag, char **c
 
 }
 
+static __init void meson_init_early(void)
+{///boot seq 1
+
+}
+
+
 MACHINE_START(MESON6_G02, "Amlogic Meson6 g02 reference platform")
     .boot_params    = BOOT_PARAMS_OFFSET,
     .map_io         = meson_map_io,///2
-//    .init_early     = meson_init_early,///3
+    .init_early     = meson_init_early,///3
     .init_irq       = meson_init_irq,///0
     .timer          = &meson_sys_timer,
-    .init_machine   = meson_init_machine,
-    .fixup          = meson_fixup,///1 
+    .init_machine   = meson_machine_init,
+    .fixup          = meson_fixup,///1
     .video_start    = RESERVED_MEM_START,
     .video_end      = RESERVED_MEM_END,
 MACHINE_END
-

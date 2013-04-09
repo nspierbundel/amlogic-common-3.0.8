@@ -2703,6 +2703,7 @@ static void hdmitx_m3_uninit(hdmitx_dev_t* hdmitx_device)
     unmux_hpd();
 }    
 
+
 static unsigned int osd_reg_save = -1;
 static char hdcp_log_buf[HDMITX_HDCP_MONITOR_BUF_SIZE] = { 0 };
 const static hdcp_sub_t hdcp_monitor_array[] = {

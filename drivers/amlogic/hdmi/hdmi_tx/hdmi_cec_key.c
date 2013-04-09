@@ -112,7 +112,7 @@ void cec_send_event_irq(void)
     for (i = 0; i < operand_num_irq; i++ )
     {
         operands_irq[i] = cec_rx_msg_buf.cec_rx_message[cec_rx_msg_buf.rx_write_pos].content.msg.operands[i]; 
-        hdmitx_cec_dbg_print("\n--------operands_irq[%d]:0x%x---------\n", i, operands_irq[i]);       
+        hdmitx_cec_dbg_print("\n--------operands_irq[%d]:%u---------\n", i, operands_irq[i]);       
     }
     
     switch(cec_rx_msg_buf.cec_rx_message[cec_rx_msg_buf.rx_write_pos].content.msg.operands[0]){
@@ -153,18 +153,13 @@ void cec_user_control_released_irq(void)
 
 void cec_standby_irq(void)
 {
-    if((hdmi_cec_func_config >> CEC_FUNC_MSAK) & 0x1){
-        if((hdmi_cec_func_config>>ONE_TOUCH_STANDBY_MASK) & 0x1)
-        {
-            printk("CEC: System will be in standby mode\n");
-            input_event(remote_cec_dev, EV_KEY, KEY_POWER, 1);
-            input_sync(remote_cec_dev);
-            input_event(remote_cec_dev, EV_KEY, KEY_POWER, 0);
-            input_sync(remote_cec_dev);
-            
-            //cec_send_event_irq();
-        }
-    }
+    printk("CEC: System will be in standby mode\n");
+    input_event(remote_cec_dev, EV_KEY, KEY_POWER, 1);
+    input_sync(remote_cec_dev);
+    input_event(remote_cec_dev, EV_KEY, KEY_POWER, 0);
+    input_sync(remote_cec_dev);
+    
+    //cec_send_event_irq();
 }
 
 void cec_user_control_pressed(cec_rx_message_t* pcec_message)
@@ -185,16 +180,11 @@ void cec_user_control_released(cec_rx_message_t* pcec_message)
 
 void cec_standby(cec_rx_message_t* pcec_message)
 {
-    if((hdmi_cec_func_config >> CEC_FUNC_MSAK) & 0x1){
-        if((hdmi_cec_func_config>>ONE_TOUCH_STANDBY_MASK) & 0x1)
-        {
-            printk("CEC: System will be in standby mode\n");
-            input_event(remote_cec_dev, EV_KEY, KEY_POWER, 1);
-            input_sync(remote_cec_dev);
-            input_event(remote_cec_dev, EV_KEY, KEY_POWER, 0);
-            input_sync(remote_cec_dev);
-            
-            //cec_send_event(pcec_message);
-        }
-    }
+    printk("CEC: System will be in standby mode\n");
+    input_event(remote_cec_dev, EV_KEY, KEY_POWER, 1);
+    input_sync(remote_cec_dev);
+    input_event(remote_cec_dev, EV_KEY, KEY_POWER, 0);
+    input_sync(remote_cec_dev);
+    
+    //cec_send_event(pcec_message);
 }

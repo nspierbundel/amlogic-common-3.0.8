@@ -1,5 +1,4 @@
-/*
- * arch/arm/mach-meson6/board-meson6-ref.c
+/* * arch/arm/mach-meson6/board-meson6-ref.c
  *
  * Copyright (C) 2011-2012 Amlogic, Inc.
  *
