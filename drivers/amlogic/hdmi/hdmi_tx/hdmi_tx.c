@@ -1326,6 +1326,7 @@ static int amhdmitx_ioctl(struct inode *node, struct file *file, unsigned int cm
     return r;
 }
 #endif
+
 const static struct file_operations amhdmitx_fops = {
     .owner    = THIS_MODULE,
     .open     = amhdmitx_open,
@@ -1334,16 +1335,27 @@ const static struct file_operations amhdmitx_fops = {
 };
 
 
-static int amhdmitx_probe(struct platform_device *pdev)
+static int __devinit amhdmitx_probe(struct platform_device *pdev)
 {
+    struct device *dev = &pdev->dev;
     int r,ret=0;
     HDMI_DEBUG();
     pr_dbg("amhdmitx_probe\n");
+
+    // Get Platform data
+    hdmi_pdata = dev->platform_data;
+    if (!hdmi_pdata) {
+	dev_err(dev, "HDMI: platform data is missing.\n");
+	ret = -ENODEV;
+	goto fail;
+    }
+
     r = alloc_chrdev_region(&hdmitx_id, 0, HDMI_TX_COUNT, DEVICE_NAME);
     if (r < 0) {
         pr_error("Can't register major for amhdmitx device\n");
         return r;
     }
+
     hdmitx_class = class_create(THIS_MODULE, DEVICE_NAME);
     if (IS_ERR(hdmitx_class))
     {
@@ -1417,14 +1429,6 @@ static int amhdmitx_probe(struct platform_device *pdev)
     hdmitx_device.task = kthread_run(hdmi_task_handle, &hdmitx_device, "kthread_hdmi");
     hdmitx_device.task_monitor = kthread_run(hdmi_task_monitor_handle, &hdmitx_device, "kthread_hdmi_monitor");
 
-    hdmi_pdata = pdev->dev.platform_data;
-    if (!hdmi_pdata) {
-        dev_err(&pdev->dev, "HDMI: cannot get platform data\n");
-        r = -ENOENT;
-    }
-    else{
-        printk("HDMI: get hdmi platform data\n");
-    }
     //open HDMI_PWR
     if(hdmi_pdata && hdmi_pdata->hdmi_5v_ctrl)
         hdmi_pdata->hdmi_5v_ctrl(1);
@@ -1438,18 +1442,25 @@ static int amhdmitx_probe(struct platform_device *pdev)
 	}    
 
     return r;
+
+//fail_init:
+//    hdmi_resources_cleanup(hdmi_dev);
+
+fail:
+    dev_err(dev, "probe failed\n");
+return ret;
 }
 
-static int amhdmitx_remove(struct platform_device *pdev)
+static int __devexit amhdmitx_remove(struct platform_device *pdev)
 {
-	switch_dev_unregister(&sdev);
-	
+    switch_dev_unregister(&sdev);
+
     if(hdmitx_device.HWOp.UnInit){
         hdmitx_device.HWOp.UnInit(&hdmitx_device);
     }
     hdmitx_device.hpd_event = 0xff;
     kthread_stop(hdmitx_device.task);
-    
+
     vout_unregister_client(&hdmitx_notifier_nb_v);    
 #ifdef CONFIG_AM_TV_OUTPUT2
     vout2_unregister_client(&hdmitx_notifier_nb_v2);    
@@ -1517,8 +1528,8 @@ static struct platform_driver amhdmitx_driver = {
     .resume     = amhdmitx_resume,
 #endif
     .driver     = {
-        .name   = DEVICE_NAME,
-		    .owner	= THIS_MODULE,
+	.name   = DEVICE_NAME,
+	.owner	= THIS_MODULE,
     }
 };
 
