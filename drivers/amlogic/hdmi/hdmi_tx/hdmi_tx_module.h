@@ -1,7 +1,7 @@
 #ifndef _HDMI_TX_MODULE_H
 #define _HDMI_TX_MODULE_H
 #include "hdmi_info_global.h"
-#include <linux/hdmi/hdmi_config.h>
+#include <plat/hdmi_config.h>
 
 /*****************************
 *    hdmitx attr management 
@@ -49,6 +49,7 @@ typedef struct hdmi_tx_dev_s {
     struct cdev cdev;             /* The cdev structure */
     struct proc_dir_entry *proc_file;
     struct task_struct *task;
+    struct task_struct *task_monitor;
 #endif
     struct {
         void (*SetPacket)(int type, unsigned char* DB, unsigned char* HB);
@@ -61,8 +62,8 @@ typedef struct hdmi_tx_dev_s {
         void (*UnInit)(struct hdmi_tx_dev_s* hdmitx_device);
         int (*Cntl)(struct hdmi_tx_dev_s* hdmitx_device, int cmd, unsigned arg);
     }HWOp;
-    
-    struct hdmi_phy_set_data **brd_phy_data;      // board related phy setting
+
+    struct hdmi_phy_set_data *brd_phy_data;
     
     //wait_queue_head_t   wait_queue;            /* wait queues */
     /*EDID*/
@@ -169,21 +170,18 @@ extern unsigned char hdmi_audio_off_flag;
 #define HDMITX_FORCE_480P_CLK                0x8
 #define HDMITX_OUTPUT_ENABLE                 0x9
 #define HDMITX_GET_AUTHENTICATE_STATE        0xa
-#define HDMITX_HWCMD_5V_CTL                  0xb
-#define HDMITX_HWCMD_3V3_CTL                 0xc
-#define HDMITX_HWCMD_PLL_AVDD_CTL            0xd
-#define HDMITX_HWCMD_SSPLL_CTL               0xe
 #define HDMITX_SW_INTERNAL_HPD_TRIG          0xb
-#define HDMITX_HDCP_MONITOR_BUF_SIZE         1024
 #define HDMITX_HWCMD_OSD_ENABLE              0xf
 #define HDMITX_HDCP_CNTL                     0x10
     #define HDCP_OFF    0x0
     #define HDCP_ON     0x1
     #define IS_HDCP_ON  0x2
 #define HDMITX_HDCP_MONITOR                  0x11
-
-
 #define HDMITX_IP_INTR_MASN_RST              0x12
+
+#define HDMI_HDCP_DELAYTIME_AFTER_DISPLAY    20      // unit: ms
+
+#define HDMITX_HDCP_MONITOR_BUF_SIZE         1024
 typedef struct {
     char *hdcp_sub_name;
     unsigned hdcp_sub_addr_start;
@@ -191,3 +189,4 @@ typedef struct {
 }hdcp_sub_t;
 
 #endif
+

@@ -224,7 +224,6 @@
 #define CONFIG_NETFILTER_ADVANCED 1
 #define CONFIG_CRYPTO_DEFLATE 1
 #define CONFIG_IPV6_ROUTER_PREF 1
-#define CONFIG_CMDLINE_EXTEND 1
 #define CONFIG_CPU_FREQ_GOV_HOTPLUG 1
 #define CONFIG_NETFILTER_NETLINK_LOG 1
 #define CONFIG_HAVE_DYNAMIC_FTRACE 1
@@ -292,6 +291,7 @@
 #define CONFIG_EARLYSUSPEND 1
 #define CONFIG_PLAT_MESON 1
 #define CONFIG_USB_ACM 1
+#define CONFIG_CMDLINE_FORCE 1
 #define CONFIG_CRC16 1
 #define CONFIG_GENERIC_CALIBRATE_DELAY 1
 #define CONFIG_CRYPTO_GF128MUL 1
@@ -523,7 +523,7 @@
 #define CONFIG_CRYPTO 1
 #define CONFIG_DEFAULT_MMAP_MIN_ADDR 4096
 #define CONFIG_IP_NF_IPTABLES 1
-#define CONFIG_CMDLINE "root=/dev/mtdblock2 rw rootfstype=yaffs2 init=/sbin/init rootwait"
+#define CONFIG_CMDLINE "root=/dev/mtdblock2 rw rootfstype=yaffs2 init=/sbin/init rootwait console=ttyS0,115200n8 a9_clk_max=1512000000 logo=osd1,0x84100000,720p,full androidboot.resolution=720p nohlt mem=1024M vmalloc=256m mac=00:0d:fe:58:ca:6d verhw=MX_SDIO subverhw=MX0"
 #define CONFIG_MESON_SUSPEND_FIRMWARE_BASE 0x1ff00000
 #define CONFIG_HAVE_DMA_API_DEBUG 1
 #define CONFIG_USB_DWC_OTG_HCD 1

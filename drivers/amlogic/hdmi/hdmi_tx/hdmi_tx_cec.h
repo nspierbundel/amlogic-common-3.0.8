@@ -26,23 +26,22 @@
 #define CEC_VERSION     "v1.3"
 #define _RX_DATA_BUF_SIZE_ 6
 
+
 //#define _SUPPORT_CEC_TV_MASTER_
+#define _RX_CEC_DBG_ON_
+#define _TX_CEC_DBG_ON_
 
-//#define _RX_CEC_DBG_ON_
-//#define _TX_CEC_DBG_ON_
-
-#ifdef _RX_CEC_DBG_ON_
+#ifdef  _RX_CEC_DBG_ON_
 #define hdmirx_cec_dbg_print(fmt, args...) printk(KERN_WARNING fmt, ## args)//hdmi_print
 #else
 #define hdmirx_cec_dbg_print(fmt, args...)
 #endif
 
-#ifdef _TX_CEC_DBG_ON_
+#ifdef  _TX_CEC_DBG_ON_
 #define hdmitx_cec_dbg_print(fmt, args...) printk(KERN_WARNING fmt, ## args)//hdmi_print
 #else
 #define hdmitx_cec_dbg_print(fmt, args...)
 #endif
-
 
 #define MSG_P0( init, follow, opcode )	{				\
 	gbl_msg[0] = (init)<<4 | (follow);					\
@@ -343,7 +342,6 @@ typedef enum {
     OFF = 0,
     ON,
 } system_audio_status_e;
-
 typedef unsigned long cec_info_mask;
 
 #define INFO_MASK_CEC_VERSION                (1<<0)
@@ -357,6 +355,12 @@ typedef unsigned long cec_info_mask;
 #define INFO_MASK_MENU_LANGUAGE              (1<<8)
 #define INFO_MASK_DECK_INfO                  (1<<9)
 #define INFO_MASK_PLAY_MODE                  (1<<10)
+
+/*CEC UI MASK*/
+#define CEC_FUNC_MSAK                        0
+#define ONE_TOUCH_PLAY_MASK                  1
+#define ONE_TOUCH_STANDBY_MASK               2
+#define AUTO_POWER_ON_MASK                   3
 
 //typedef struct {
 //    unsigned long vendor_id;
@@ -395,7 +399,6 @@ typedef struct {
     unsigned char osd_name_def[16];
     menu_state_e menu_state;
     cec_menu_lang_e menu_lang;
-
     union {
         struct {
         } display;
@@ -418,6 +421,7 @@ typedef struct {
     }specific_info;
 } cec_node_info_t;
 
+
 typedef struct {
     unsigned short dev_mask;
     //unsigned char tv_log_addr;
@@ -425,6 +429,7 @@ typedef struct {
     unsigned char active_log_dev;
     unsigned char my_node_index;
     cec_node_info_t cec_node_info[MAX_NUM_OF_DEV];
+    hdmitx_dev_t* hdmitx_device;
 } cec_global_info_t;
 
 typedef struct {
@@ -473,8 +478,6 @@ typedef enum {
     TV_CEC_POLLING_OFF = 0,
     TV_CEC_POLLING_ON,
 } tv_cec_polling_state_e;
-
-
 typedef struct {
     cec_rx_message_t cec_rx_message[_RX_DATA_BUF_SIZE_];
     unsigned char rx_write_pos;
@@ -482,9 +485,12 @@ typedef struct {
     unsigned char rx_buf_size;
 } cec_rx_msg_buf_t;
 
+typedef enum {
+    DEVICE_MENU_ACTIVE = 0,
+    DEVICE_MENU_INACTIVE,    
+} cec_device_menu_state_e;
+
 extern cec_rx_msg_buf_t cec_rx_msg_buf;
-
-
 
 int cec_ll_tx(unsigned char *msg, unsigned char len, unsigned char *stat_header);
 
@@ -543,10 +549,17 @@ void cec_deactive_source(cec_rx_message_t* pcec_message);
 void cec_set_system_audio_mode(void);
 void cec_system_audio_mode_request(void);
 void cec_report_audio_status(void);
+void cec_get_menu_language_smp(void);
+void cec_device_vendor_id_smp(void);
+void cec_menu_status_smp(cec_rx_message_t* pcec_message);
 
+void cec_report_physical_address_smp(void);
+void cec_imageview_on_smp(void);
+void cec_active_source_smp(void);
 
 size_t cec_usrcmd_get_global_info(char * buf);
 void cec_usrcmd_set_dispatch(const char * buf, size_t count);
+void cec_usrcmd_set_config(const char * buf, size_t count);
 void cec_input_handle_message(void);
 void cec_send_event_irq(void);
 void cec_standby_irq(void);
@@ -557,12 +570,12 @@ extern struct input_dev *remote_cec_dev;
 extern __u16 cec_key_map[];
 extern unsigned int cec_key_flag;
 
+extern cec_global_info_t cec_global_info;
+extern unsigned char hdmi_cec_func_config;
 extern unsigned char check_cec_msg_valid(const cec_rx_message_t* pcec_message);
 extern void cec_send_event(cec_rx_message_t* pcec_message);
 extern void cec_user_control_pressed(cec_rx_message_t* pcec_message);
 extern void cec_user_control_released(cec_rx_message_t* pcec_message);  
 extern void cec_standby(cec_rx_message_t* pcec_message);
-
-
 #endif
 

@@ -3,7 +3,6 @@
 #include <linux/module.h>
 #include <linux/types.h>
 #include <linux/kernel.h>
-#include <linux/delay.h>
 #include <linux/interrupt.h>
 #include <linux/fs.h>
 #include <linux/init.h>
@@ -27,16 +26,9 @@
 
 #include "hdmi_tx_module.h"
 #include "hdmi_info_global.h"
-#ifdef CONFIG_ARCH_MESON
-#include "m1/hdmi_tx_reg.h"
-#endif
-#ifdef CONFIG_ARCH_MESON3
-#include "m3/hdmi_tx_reg.h"
-#endif
-
 #include "m1/hdmi_tx_reg.h"
 
-
+static unsigned char hdmi_output_rgb = 0;
 
 static Hdmi_tx_video_para_t hdmi_tx_video_params[] = 
 {
@@ -309,8 +301,6 @@ static void hdmi_tx_construct_avi_packet(Hdmi_tx_video_para_t *video_param, char
     if(video_param->cc == CC_ITU601)
         ec = 0;
     else if(video_param->cc == CC_ITU709)
-        ec = 1;
-    else
         ec = 1;    // according to CEA-861-D, all other values are reserved
     AVI_DB[2] = (sc) | (ec << 4);
     //AVI_DB[2] = 0;
@@ -359,6 +349,11 @@ static int is_dvi_device(rx_cap_t* pRXCap)
         return 0;
 }
 
+void hdmitx_output_rgb(void)
+{
+    hdmi_output_rgb = 1;
+}
+
 int hdmitx_set_display(hdmitx_dev_t* hdmitx_device, HDMI_Video_Codes_t VideoCode)
 {
     Hdmi_tx_video_para_t *param;
@@ -375,19 +370,24 @@ int hdmitx_set_display(hdmitx_dev_t* hdmitx_device, HDMI_Video_Codes_t VideoCode
     param = hdmi_get_video_param(VideoCode);
     if(param){
         param->color = param->color_prefer;
-//HDMI CT 7-24 Pixel Encoding - YCbCr to YCbCr Sink
-        switch(hdmitx_device->RXCap.native_Mode & 0x30)
-        {
-            case 0x20:    //bit5==1, then support YCBCR444 + RGB
-            case 0x30:
-                param->color = COLOR_SPACE_YUV444;
-                break;
-            case 0x10:    //bit4==1, then support YCBCR422 + RGB
-                param->color = COLOR_SPACE_YUV422;
-                break;
-            default:
-                param->color = COLOR_SPACE_RGB444;
+		if(hdmi_output_rgb){
+ 	       param->color = COLOR_SPACE_RGB444;        
         }
+        else{
+//HDMI CT 7-24 Pixel Encoding - YCbCr to YCbCr Sink
+	        switch(hdmitx_device->RXCap.native_Mode & 0x30)
+	        {
+	            case 0x20:    //bit5==1, then support YCBCR444 + RGB
+	            case 0x30:
+	                param->color = COLOR_SPACE_YUV444;
+	                break;
+	            case 0x10:    //bit4==1, then support YCBCR422 + RGB
+	                param->color = COLOR_SPACE_YUV422;
+	                break;
+	            default:
+	                param->color = COLOR_SPACE_RGB444;
+	        }
+        }  
         if(hdmitx_device->HWOp.SetDispMode(hdmitx_device, param)>=0){
 //HDMI CT 7-33 DVI Sink, no HDMI VSDB nor any other VSDB, No GB or DI expected
 //TMDS_MODE[hdmi_config]
@@ -397,14 +397,13 @@ int hdmitx_set_display(hdmitx_dev_t* hdmitx_device, HDMI_Video_Codes_t VideoCode
             {
                 hdmi_print(1,"Sink is DVI device\n");
                 hdmi_wr_reg(TX_TMDS_MODE, hdmi_rd_reg(TX_TMDS_MODE) & ~(1<<6));
-                hdmi_wr_reg_bits(TX_VIDEO_DTV_OPTION_L, 0, 6, 2);       // In DVI output mode, output color format should be RGB 4:4:4
             }
             else
             {
                 hdmi_print(1,"Sink is HDMI device\n");
                 hdmi_wr_reg(TX_TMDS_MODE, hdmi_rd_reg(TX_TMDS_MODE) |  (3<<6));
             }
-            mdelay(1);
+
 //check system status by reading EDID_STATUS
             switch(hdmi_rd_reg(TX_HDCP_ST_EDID_STATUS) >> 6)
             {
