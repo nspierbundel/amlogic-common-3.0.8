@@ -455,6 +455,8 @@ static struct ctp_platform_data gt82x_data = {
 #endif
 #ifdef CONFIG_AM_ETHERNET
 #include"includes/eth.h"
+#include <mach/am_eth_reg.h>
+#include <mach/clk_set.h>
 #endif
 
 #ifdef CONFIG_AW_AXP20

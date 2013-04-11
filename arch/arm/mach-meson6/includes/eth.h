@@ -14,18 +14,17 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-
 #ifdef CONFIG_AM_ETHERNET
 static void aml_eth_reset(void)
 {
-    printk(KERN_INFO "****** aml_eth_reset() ******\n");
+	printk(KERN_INFO "****** aml_eth_reset() ******\n");
 
 	aml_clr_reg32_mask(P_PREG_ETHERNET_ADDR0, 1);           // Disable the Ethernet clocks
 	// ---------------------------------------------
 	// Test 50Mhz Input Divide by 2
 	// ---------------------------------------------
 	// Select divide by 2
-    aml_clr_reg32_mask(P_PREG_ETHERNET_ADDR0, (1<<3));     // desc endianess "same order" 
+	aml_clr_reg32_mask(P_PREG_ETHERNET_ADDR0, (1<<3));     // desc endianess "same order" 
 	aml_clr_reg32_mask(P_PREG_ETHERNET_ADDR0, (1<<2));     // ata endianess "little"
 	aml_set_reg32_mask(P_PREG_ETHERNET_ADDR0, (1<<1));     // divide by 2 for 100M
 	aml_set_reg32_mask(P_PREG_ETHERNET_ADDR0, 1);          // enable Ethernet clocks
@@ -42,31 +41,45 @@ static void aml_eth_reset(void)
 
  #endif
 	udelay(100);
-
-    /* hardware reset ethernet phy */
-    gpio_direction_output(GPIO_ETH_RESET, 0);
-    msleep(20);
-    gpio_set_value(GPIO_ETH_RESET, 1);
+	/* hardware reset ethernet phy */
+	gpio_direction_output(GPIO_ETH_RESET, 0);
+	msleep(20);
+	gpio_set_value(GPIO_ETH_RESET, 1);
 }
 
 static void aml_eth_clock_enable(void)
 {
-	unsigned int n = 0;
+	unsigned int clk_divider = 0;
 	unsigned int clk_invert = 0;
+	unsigned int clk_source = 0;
 
-    printk(KERN_INFO "****** aml_eth_clock_enable() ******\n");
 
-	/* A11: External Clock */
-	n = 1;
-	clk_invert = 1;
+	printk(KERN_INFO "****** aml_eth_clock_enable() ******\n");
+
+#ifdef NET_EXT_CLK
+	// old: eth_clk_set(ETH_CLKSRC_EXT_XTAL_CLK, (50 * CLK_1M), (50 * CLK_1M), 1);
+
+	/* External Clock */
+	clk_divider = 1;				// Clock Divider (50 / 50 )
+	clk_invert  = 1;				// 1 = invert, 0 = non-invert clock signal
+	clk_source  = ETH_CLKSRC_EXT_XTAL_CLK;		// Source, see clk_set.h
+#else
+	// old: eth_clk_set(ETH_CLKSRC_MISC_CLK, get_misc_pll_clk(), (50 * CLK_1M), 0);
+	/* Internal Clock */
+	// get_misc_pll_clk() = 480M
+	clk_divider = (unsigned int)480/50;		// Clock Divider
+	clk_invert  = 0;				// 1 = invert, 0 = non-invert clock signal
+	clk_source  = ETH_CLKSRC_MISC_CLK;		// Source, see clk_set.h
+#endif
 	aml_write_reg32(P_HHI_ETH_CLK_CNTL, (
-		(n - 1) << 0 |  					// Clock Divider
-        7 << 9 | 		  					// Clock Source 7 = ETH_CLKSRC_EXT_XTAL_CLK
-        ((clk_invert == 1) ? 1 : 0) << 14 | // PAD signal invert
-        1 << 8 								// enable clk
+		(clk_divider - 1) << 0 |		// Clock Divider
+		clk_source << 9 |			// Clock Source ETH_CLKSRC_MISC_CLK
+		((clk_invert == 1) ? 1 : 0) << 14 |	// PAD signal invert
+		1 << 8 					// enable clk
 		)
 	);
 	printk("P_HHI_ETH_CLK_CNTL = 0x%x\n", aml_read_reg32(P_HHI_ETH_CLK_CNTL));
+
 }
 
 static void aml_eth_clock_disable(void)
@@ -81,7 +94,11 @@ static pinmux_item_t aml_eth_pins[] = {
     {
 		.reg = PINMUX_REG(6),
 		.clrmask = (3<<17),
+#ifdef NET_EXT_CLK
 		.setmask = (1<<18), //(3<<17), // bit 18 = ETH_CLK_IN_GPIOY0_REG6_18, // BIT 17 = Ethernet in???
+#else 
+		.setmask = (1<<17), //(3<<17), // bit 18 = ETH_CLK_IN_GPIOY0_REG6_18, // BIT 17 = Ethernet in???
+#endif
     },
     PINMUX_END_ITEM
 };
@@ -101,7 +118,7 @@ static void aml_eth_pinmux_setup(void)
 		results in:
 	*/
 	pinmux_clr(&aml_eth_pinmux);
-    pinmux_set(&aml_eth_pinmux);
+	pinmux_set(&aml_eth_pinmux);
 	aml_set_reg32_mask(P_PERIPHS_PIN_MUX_0, 0);
 }
 
@@ -138,3 +155,4 @@ static void __init setup_eth_device(void)
     aml_eth_init();
 }
 #endif
+
