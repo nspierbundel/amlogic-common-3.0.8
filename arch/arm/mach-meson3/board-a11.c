@@ -59,6 +59,7 @@
 #ifdef CONFIG_AM_ETHERNET
 #include <mach/am_regs.h>
 #include <mach/am_eth_reg.h>
+#include <mach/clk_set.h>
 #endif
 
 #include "board-a11.h"
@@ -379,73 +380,6 @@ static  int __init setup_devices_resource(void)
      return 0;
 }
 
-#if 0
-static  int __init setup_i2c_devices(void)
-{
-    //just a sample 
-    meson_i2c1_set_platdata(&aml_i2c_data_a,sizeof(struct aml_i2c_platform_a ));
-    meson_i2c2_set_platdata(&aml_i2c_data_b,sizeof(struct aml_i2c_platform_b ));    
-    return 0;
-}
-
-static  int __init setup_uart_devices(void)
-{
-#if 0    
-    static pinmux_set_t temp;
-//#if defined(CONFIG_AM_UART)
-    aml_uart_plat.public.pinmux_cfg.setup=NULL; //NULL repsent use defaut pinmux_set.
-    aml_uart_plat.public.pinmux_cfg.clear=NULL;
-    aml_uart_plat.public.clk_src=clk_get_sys("clk81", NULL);
-    temp.pinmux=cur_board_pinmux[DEVICE_PIN_ITEM_UART];
-    aml_uart_plat.public.pinmux_set.pinmux=cur_board_pinmux[DEVICE_PIN_ITEM_UART];
-    aml_uart_plat.pinmux_uart[0]=&temp;
-    meson_uart_set_platdata(&aml_uart_plat,sizeof(struct aml_uart_platform));
-#endif   
-    return 0;
-//#endif    
-}
-#endif
-
-static void __init device_pinmux_init(void)
-{
-	
-    // clearall_pinmux();
-    /*other deivce power on*/
-    // uart_set_pinmux(UART_PORT_AO, UART_AO_GPIO_AO0_AO1_STD);
-    /*pinmux of eth*/
-    // eth_pinmux_init();
-//    set_audio_pinmux(AUDIO_IN_JTAG); // for MIC input
-//    set_audio_pinmux(AUDIO_OUT_TEST_N); //External AUDIO DAC
-//    set_audio_pinmux(SPDIF_OUT_GPIOA); //SPDIF GPIOA_6
-}
-
-static void __init  device_clk_setting(void)
-{
-#if 0 ///@todo Jerry Yu, Compile break , enable it later	
-    /*Configurate the ethernet clock*/
-    eth_clk_set(ETH_CLKSRC_MISC_CLK, get_misc_pll_clk(), (50 * CLK_1M), 0);
-#endif    
-}
-
-static void disable_unused_model(void)
-{
-#if 0 ///@todo Jerry Yu, Compile break , enable it later	
-    CLK_GATE_OFF(VIDEO_IN);
-    CLK_GATE_OFF(BT656_IN);
-#endif    
-}
-
-static void  __init backup_board_pinmux(void)
-{//devices_pins in __initdata section ,it will be released .
-#if 0
-        cur_board_pinmux=kmemdup(devices_pins, sizeof(devices_pins), GFP_KERNEL);
-        printk(KERN_INFO " cur_board_pinmux=%p",cur_board_pinmux[0]);
-        printk(KERN_INFO " cur_board_pinmux=%p",&(cur_board_pinmux[0]));
-	printk(KERN_INFO " cur_board_pinmux=%x",cur_board_pinmux[0][0]);
-	printk(KERN_INFO " cur_board_pinmux=%x",cur_board_pinmux[0][0]->reg);
-#endif    
-}
-
 /***********************************************************************
  * UART Section
  **********************************************************************/
@@ -513,9 +447,9 @@ static void aml_eth_reset(void)
 
 static void aml_eth_clock_enable(void)
 {
-	unsigned int clock_divider = 0;
+	unsigned int clk_divider = 0;
 	unsigned int clk_invert = 0;
-	unsigned int clock_source = 0;
+	unsigned int clk_source = 0;
 
 /*
 	old 2.6 code -> eth_clk_set(ETH_CLKSRC_EXT_XTAL_CLK, (50 * CLK_1M), (50 * CLK_1M), 1);
@@ -559,15 +493,14 @@ static void aml_eth_clock_enable(void)
 	clk_divider = (unsigned int)480/50;		// Clock Divider
 	clk_invert  = 0;				// 1 = invert, 0 = non-invert clock signal
 	clk_source  = ETH_CLKSRC_MISC_CLK;		// Source, see clk_set.h
-	);
 #endif
 	aml_write_reg32(P_HHI_ETH_CLK_CNTL, (
-		(clock_divider - 1) << 0 |		// Clock Divider
-		clock_source << 9 |			// Clock Source ETH_CLKSRC_MISC_CLK
+		(clk_divider - 1) << 0 |		// Clock Divider
+		clk_source << 9 |			// Clock Source ETH_CLKSRC_MISC_CLK
 		((clk_invert == 1) ? 1 : 0) << 14 |	// PAD signal invert
 		1 << 8 					// enable clk
 		)
-	};
+	);
 	printk("P_HHI_ETH_CLK_CNTL = 0x%x\n", aml_read_reg32(P_HHI_ETH_CLK_CNTL));
 
 }
@@ -1281,7 +1214,6 @@ static __init void meson_machine_init(void)
 #ifdef CONFIG_AM_ETHERNET
 	setup_eth_device();
 #endif
-    disable_unused_model();
 }
 
 
