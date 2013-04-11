@@ -120,6 +120,8 @@
 #define GPIO_PWR_HDMI   GPIO_D(6)
 #endif
 
+#define NET_EXT_CLK
+#include <mach/clk_set.h>
 
 /***********************************************************************
  * IO Mapping
@@ -456,7 +458,6 @@ static struct ctp_platform_data gt82x_data = {
 #ifdef CONFIG_AM_ETHERNET
 #include"includes/eth.h"
 #include <mach/am_eth_reg.h>
-#include <mach/clk_set.h>
 #endif
 
 #ifdef CONFIG_AW_AXP20
