@@ -1551,6 +1551,7 @@ static int  __init amhdmitx_init(void)
             hdmi_log_buf_size=0;
         }
     }
+    return 0;
 
     if (platform_driver_register(&amhdmitx_driver)) {
         pr_error("failed to register amhdmitx module\n");
@@ -1569,15 +1570,15 @@ static int  __init amhdmitx_init(void)
 static void __exit amhdmitx_exit(void)
 {
     pr_dbg("amhdmitx_exit\n");
-    platform_driver_unregister(&amhdmitx_driver);
+//    platform_driver_unregister(&amhdmitx_driver);
 //\\    platform_device_unregister(amhdmi_tx_device); 
 //\\    amhdmi_tx_device = NULL;
     return ;
 }
 
-module_init(amhdmitx_init);
-arch_initcall(amhdmitx_init);
-module_exit(amhdmitx_exit);
+//module_init(amhdmitx_init);
+//arch_initcall(amhdmitx_init);
+//module_exit(amhdmitx_exit);
 
 MODULE_DESCRIPTION("AMLOGIC HDMI TX driver");
 MODULE_LICENSE("GPL");
