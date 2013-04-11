@@ -23,7 +23,7 @@
 #define ETH_CLKSRC_AUDIO_CLK            (4)
 #define ETH_CLKSRC_VID_CLK              (5)
 #define ETH_CLKSRC_VID2_CLK             (6)
-#define ETH_CLKSRC_SYS_DIV2_CLK         (7)
+#define ETH_CLKSRC_EXT_XTAL_CLK         (7)
 #define CLK_1M                          (1000000)
 #define ETH_VALIDE_CLKSRC(clk,out_clk)  ((clk%out_clk)==0)
 
