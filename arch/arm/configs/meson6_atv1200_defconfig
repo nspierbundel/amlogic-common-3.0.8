@@ -426,10 +426,9 @@ CONFIG_ALIGNMENT_TRAP=y
 # CONFIG_USE_OF is not set
 CONFIG_ZBOOT_ROM_TEXT=0
 CONFIG_ZBOOT_ROM_BSS=0
-#CONFIG_CMDLINE="root=/dev/mtdblock2 rw rootfstype=yaffs2 init=/sbin/init rootwait"
 CONFIG_CMDLINE="root=/dev/mtdblock2 rw rootfstype=yaffs2 init=/sbin/init rootwait console=ttyS0,115200n8 a9_clk_max=1512000000 logo=osd1,0x84100000,720p,full androidboot.resolution=720p nohlt mem=1024M vmalloc=256m mac=00:0d:fe:58:ca:6d verhw=MX_SDIO subverhw=MX0"
 # CONFIG_CMDLINE_FROM_BOOTLOADER is not set
-#CONFIG_CMDLINE_EXTEND is not set
+# CONFIG_CMDLINE_EXTEND is not set
 CONFIG_CMDLINE_FORCE=y
 # CONFIG_XIP_KERNEL is not set
 CONFIG_KEXEC=y
@@ -1152,14 +1151,12 @@ CONFIG_AML_HDMI_TX=y
 #
 # AMLOGIC Deinterlace driver
 #
-CONFIG_DEINTERLACE=y
-CONFIG_AM_DEINTERLACE_SD_ONLY=y
+# CONFIG_DEINTERLACE is not set
 
 #
 # AMLOGIC free scale driver
 #
-CONFIG_FREE_SCALE=y
-# CONFIG_MIX_FREE_SCALE is not set
+# CONFIG_FREE_SCALE is not set
 
 #
 # Amlogic MIPI Support
@@ -2541,9 +2538,7 @@ CONFIG_HAVE_ARCH_KGDB=y
 # CONFIG_STRICT_DEVMEM is not set
 CONFIG_ARM_UNWIND=y
 # CONFIG_DEBUG_USER is not set
-CONFIG_DEBUG_LL=y
-CONFIG_EARLY_PRINTK=y
-# CONFIG_DEBUG_ICEDCC is not set
+# CONFIG_DEBUG_LL is not set
 # CONFIG_OC_ETM is not set
 
 #

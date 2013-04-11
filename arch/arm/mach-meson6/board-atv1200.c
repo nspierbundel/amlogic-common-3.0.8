@@ -120,6 +120,7 @@
 #define GPIO_PWR_HDMI   GPIO_D(6)
 #endif
 
+
 /***********************************************************************
  * IO Mapping
  **********************************************************************/
@@ -451,6 +452,9 @@ static struct ctp_platform_data gt82x_data = {
     .ymin = 0,
     .ymax = GT82X_YRES,
 };
+#endif
+#ifdef CONFIG_AM_ETHERNET
+#include"includes/eth.h"
 #endif
 
 #ifdef CONFIG_AW_AXP20
@@ -2660,6 +2664,9 @@ static __init void meson_init_machine(void)
 #endif
 #ifdef CONFIG_AM_LCD_OUTPUT
     m6ref_lcd_init();
+#endif
+#ifdef CONFIG_AM_ETHERNET
+	setup_eth_device();
 #endif
 	pm_power_off = power_off;
 }

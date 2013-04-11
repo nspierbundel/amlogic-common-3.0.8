@@ -1,7 +1,7 @@
-/* This file is auto generated, version 56 */
+/* This file is auto generated, version 64 */
 /* SMP PREEMPT */
 #define UTS_MACHINE "arm"
-#define UTS_VERSION "#56 SMP PREEMPT Tue Apr 9 12:35:19 UTC 2013"
+#define UTS_VERSION "#64 SMP PREEMPT Wed Apr 10 20:32:14 UTC 2013"
 #define LINUX_COMPILE_BY "root"
 #define LINUX_COMPILE_HOST "build"
 #define LINUX_COMPILER "gcc version 4.4.1 (Sourcery G++ Lite 2010q1-202) "
