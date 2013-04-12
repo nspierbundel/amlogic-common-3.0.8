@@ -456,8 +456,8 @@ static struct ctp_platform_data gt82x_data = {
 };
 #endif
 #ifdef CONFIG_AM_ETHERNET
-#include"includes/eth.h"
-#include <mach/am_eth_reg.h>
+//#include"includes/eth.h"
+//#include <mach/am_eth_reg.h>
 #endif
 
 #ifdef CONFIG_AW_AXP20
@@ -2669,7 +2669,7 @@ static __init void meson_init_machine(void)
     m6ref_lcd_init();
 #endif
 #ifdef CONFIG_AM_ETHERNET
-	setup_eth_device();
+//	setup_eth_device();
 #endif
 	pm_power_off = power_off;
 }
