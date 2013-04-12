@@ -63,6 +63,7 @@ const vinfo_t *get_current_vinfo(void)
 	{
 		BUG_ON(vout_module.curr_vout_server->op.get_vinfo == NULL);
 		info = vout_module.curr_vout_server->op.get_vinfo();
+		printk("gcv: %s\n", info->name);
 	}
 	mutex_unlock(&vout_mutex);
 

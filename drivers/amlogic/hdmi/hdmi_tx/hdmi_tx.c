@@ -14,7 +14,9 @@
  * GNU General Public License for more details.
  *
  */
-#define HDMI_DEBUG()  printk("HDMI DEBUG: %s [%d]\n", __FUNCTION__, __LINE__)
+#define HDMI_DEBUG()           printk(KERN_ERR "HDMI-D: %s [%d]\n", __FUNCTION__, __LINE__)
+#define pr_dbg(fmt, args...)   printk(KERN_ERR "HDMI-pd: " fmt, ## args)
+#define pr_error(fmt, args...) printk(KERN_ERR "HDMI-E: " fmt, ## args)
 
 #ifndef AVOS
 
@@ -79,13 +81,6 @@ vinfo_t lvideo_info;
 #define HDMI_TX_POOL_NUM  6
 #define HDMI_TX_RESOURCE_NUM 4
 
-
-#ifdef DEBUG
-#define pr_dbg(fmt, args...) printk(KERN_DEBUG "amhdmitx: " fmt, ## args)
-#else
-#define pr_dbg(fmt, args...)
-#endif
-#define pr_error(fmt, args...) printk(KERN_ERR "amhdmitx: " fmt, ## args)
 
 
 static dev_t hdmitx_id;
@@ -271,6 +266,7 @@ static  int  set_disp_mode(const char *mode)
     return ret;
 }
 
+#define maxlen 10
 static int set_disp_mode_auto(void)
 {
     int ret=-1;
@@ -279,14 +275,15 @@ static int set_disp_mode_auto(void)
 #else
     vinfo_t* info=&lvideo_info;
 #endif    
-    unsigned char mode[10];
+    unsigned char mode[maxlen];
     HDMI_Video_Codes_t vic;     //Prevent warning
     
     if(info == NULL)
         return -1;
         
 // If info->name equals to cvbs, then set mode to I mode to hdmi
-    memset(mode, 0, 10);
+    memset(mode, 0, maxlen);
+
     if(strncmp(info->name, "480cvbs", 7) == 0) {
         memcpy(mode, "480i", 4);
     }
@@ -294,8 +291,15 @@ static int set_disp_mode_auto(void)
         memcpy(mode, "576i", 4);
     }
     else {
-        memcpy(mode, info->name, strlen(info->name));
+	if (strnlen(info->name, maxlen) < maxlen) {
+            memcpy(mode, info->name, strlen(info->name));
+	} else {
+	    printk("HDMI: Mode has no end! set mode = 720p\n");
+	    memcpy(mode, "720p", 4);
+	}
     }
+    printk("HDMI: Display Mode: %s\n", mode);
+
 
     //msleep(500);
 #ifndef HDMI_SINK_NO_EDID
@@ -405,7 +409,7 @@ static ssize_t store_disp_mode(struct device * dev, struct device_attribute *att
 /*cec attr*/
 static ssize_t show_cec(struct device * dev, struct device_attribute *attr, char * buf)
 {
-    ssize_t t = cec_usrcmd_get_global_info(buf);    
+    ssize_t t = cec_usrcmd_get_global_info(buf);
     return t;
 }
 
@@ -1429,8 +1433,6 @@ static int __devinit amhdmitx_probe(struct platform_device *pdev)
     aout_register_client(&hdmitx_notifier_nb_a);
 #endif
 #endif
-    hdmitx_device.task = kthread_run(hdmi_task_handle, &hdmitx_device, "kthread_hdmi");
-    hdmitx_device.task_monitor = kthread_run(hdmi_task_monitor_handle, &hdmitx_device, "kthread_hdmi_monitor");
 
     //open HDMI_PWR
     if(hdmi_pdata && hdmi_pdata->hdmi_5v_ctrl)
@@ -1438,11 +1440,14 @@ static int __devinit amhdmitx_probe(struct platform_device *pdev)
     if(hdmi_pdata && hdmi_pdata->phy_data)
         hdmitx_device.brd_phy_data = hdmi_pdata->phy_data;
 
-	switch_dev_register(&sdev);
+	r = switch_dev_register(&sdev);
 	if (r < 0){
 		printk(KERN_ERR "hdmitx: register switch dev failed\n");
 		return r;
-	}    
+	}
+
+    hdmitx_device.task = kthread_run(hdmi_task_handle, &hdmitx_device, "kthread_hdmi");
+    hdmitx_device.task_monitor = kthread_run(hdmi_task_monitor_handle, &hdmitx_device, "kthread_hdmi_monitor");
 
     return r;
 
@@ -1450,7 +1455,7 @@ static int __devinit amhdmitx_probe(struct platform_device *pdev)
 //    hdmi_resources_cleanup(hdmi_dev);
 
 fail:
-    dev_err(dev, "probe failed\n");
+    dev_err(dev, "HDMI: probe failed\n");
 return ret;
 }
 
@@ -1523,9 +1528,9 @@ static int amhdmitx_resume(struct platform_device *pdev)
 }
 #endif
 
-static struct platform_driver amhdmitx_driver = {
+static struct platform_driver amhdmitx_driver __refdata = {
     .probe      = amhdmitx_probe,
-    .remove     = amhdmitx_remove,
+    .remove     = __devexit_p(amhdmitx_remove),
 #ifdef CONFIG_PM
     .suspend    = amhdmitx_suspend,
     .resume     = amhdmitx_resume,
@@ -1538,47 +1543,40 @@ static struct platform_driver amhdmitx_driver = {
 
 
 
-static int  __init amhdmitx_init(void)
+static int  __devinit amhdmitx_init(void)
 {
+    int ret;
     HDMI_DEBUG();
-    if(init_flag&INIT_FLAG_NOT_LOAD)
+    if(init_flag&INIT_FLAG_NOT_LOAD) {
+	printk("HDMI: Initflag\n");
         return 0;
-        
+    }
     pr_dbg("amhdmitx_init\n");
     if(hdmi_log_buf_size>0){
         hdmi_log_buf=kmalloc(hdmi_log_buf_size, GFP_KERNEL);
-        if(hdmi_log_buf==NULL){
+        if(hdmi_log_buf==NULL) {
             hdmi_log_buf_size=0;
         }
     }
-    return 0;
 
-    if (platform_driver_register(&amhdmitx_driver)) {
-        pr_error("failed to register amhdmitx module\n");
-#if 0        
-        platform_device_del(amhdmi_tx_device);
-        platform_device_put(amhdmi_tx_device);
-#endif
-        return -ENODEV;
+    ret = platform_driver_register(&amhdmitx_driver);
+    if (ret != 0) {
+        pr_error("HDMI: failed to register amhdmitx module: %i\n", ret);
+	kfree(hdmi_log_buf);
+    } else {
+	pr_debug("HDMI: platform driver registered.\n");
     }
-    return 0;
+    return ret;
 }
 
-
-
-
-static void __exit amhdmitx_exit(void)
+static void __devexit amhdmitx_exit(void)
 {
     pr_dbg("amhdmitx_exit\n");
-//    platform_driver_unregister(&amhdmitx_driver);
-//\\    platform_device_unregister(amhdmi_tx_device); 
-//\\    amhdmi_tx_device = NULL;
-    return ;
+    platform_driver_unregister(&amhdmitx_driver);
 }
 
-//module_init(amhdmitx_init);
-//arch_initcall(amhdmitx_init);
-//module_exit(amhdmitx_exit);
+module_init(amhdmitx_init);
+module_exit(amhdmitx_exit);
 
 MODULE_DESCRIPTION("AMLOGIC HDMI TX driver");
 MODULE_LICENSE("GPL");

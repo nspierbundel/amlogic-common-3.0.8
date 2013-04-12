@@ -194,7 +194,8 @@ static DEFINE_MUTEX(video_module_mutex);
 static DEFINE_SPINLOCK(lock);
 #else
 static DEFINE_MUTEX(video_module_mutex);
-static spinlock_t lock = SPIN_LOCK_UNLOCKED;
+static DEFINE_SPINLOCK(lock);
+//static spinlock_t lock = SPIN_LOCK_UNLOCKED;
 #endif
 
 static u32 frame_par_ready_to_set, frame_par_force_to_set;
@@ -1114,6 +1115,9 @@ static irqreturn_t vsync_isr(int irq, void *dev_id)
 #endif
 {
     int hold_line;
+#if MESON_CPU_TYPE < MESON_CPU_TYPE_MESON6
+    unsigned int cur_timerb_value, last_isr_enter_time = 0, interval;
+#endif
     s32 i, vout_type;
     vframe_t *vf;
 #ifdef CONFIG_AM_VIDEO_LOG
