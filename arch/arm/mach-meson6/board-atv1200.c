@@ -120,7 +120,7 @@
 #define GPIO_PWR_HDMI   GPIO_D(6)
 #endif
 
-#define NET_EXT_CLK
+//#define NET_EXT_CLK
 #include <mach/clk_set.h>
 
 /***********************************************************************
