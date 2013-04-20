@@ -61,7 +61,7 @@ obj-$(CONFIG_GPS_POWERCTRL) += gps/
 
 obj-y += power/
 
-#obj-$(CONFIG_AM_GPIO) +=gpio/
+obj-$(CONFIG_AM_GPIO) +=gpio/
 
 #obj-$(CONFIG_TVIN) += tvin/
 obj-y += tvin_camera/

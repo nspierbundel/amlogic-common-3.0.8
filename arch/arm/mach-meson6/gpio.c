@@ -569,6 +569,7 @@ static struct gpio_addr gpio_addrs[] = {
     [PREG_PAD_GPIO3] = {P_PREG_PAD_GPIO3_EN_N, P_PREG_PAD_GPIO3_O, P_PREG_PAD_GPIO3_I},
     [PREG_PAD_GPIO4] = {P_PREG_PAD_GPIO4_EN_N, P_PREG_PAD_GPIO4_O, P_PREG_PAD_GPIO4_I},
     [PREG_PAD_GPIO5] = {P_PREG_PAD_GPIO5_EN_N, P_PREG_PAD_GPIO5_O, P_PREG_PAD_GPIO5_I},
+	[PREG_PAD_GPIO6] = {P_PREG_PAD_GPIO6_EN_N, P_PREG_PAD_GPIO6_O, P_PREG_PAD_GPIO6_I},
     [PREG_PAD_GPIOAO] = {P_AO_GPIO_O_EN_N,     P_AO_GPIO_O_EN_N,   P_AO_GPIO_I},
 };
 
@@ -631,6 +632,13 @@ int gpio_to_idx(unsigned gpio)
                 idx = GPIO_CARD_IDX + (bit - 23) ;
                 }
                 break;
+	case PREG_PAD_GPIO6:
+        if( bit < 12 ) {
+			idx = GPIOE_IDX + bit;
+        } else {
+                idx = GPIOZ_IDX + (bit +16) ;
+        }
+    break;		
     case PREG_PAD_GPIOAO:
         idx = GPIOAO_IDX + bit;
                 break;

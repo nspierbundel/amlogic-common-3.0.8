@@ -112,12 +112,13 @@ static inline int32_t gpio_irq_set(int32_t pad, uint32_t irq/*GPIO_IRQ(irq,type)
 #endif
 
 typedef enum gpio_bank {
-    PREG_PAD_GPIO0 = 0,
+   PREG_PAD_GPIO0 = 0,
     PREG_PAD_GPIO1,
     PREG_PAD_GPIO2,
     PREG_PAD_GPIO3,
     PREG_PAD_GPIO4,
     PREG_PAD_GPIO5,
+    PREG_PAD_GPIO6,
 	PREG_PAD_GPIOAO,
 #ifdef CONFIG_EXGPIO
     EXGPIO_BANK0,
@@ -148,32 +149,47 @@ unsigned long  get_gpio_val(gpio_bank_t bank, int bit);
 #define GPIOC_bank_bit0_15(bit)     (PREG_PAD_GPIO2)
 #define GPIOC_bit_bit0_15(bit)      (bit)
 
-#define GPIOAO_bank_bit0_11(bit)    (PREG_PAD_GPIOAO)
-#define GPIOAO_bit_bit0_11(bit)     (bit)
-
 #define GPIOD_bank_bit0_9(bit)      (PREG_PAD_GPIO2)
 #define GPIOD_bit_bit0_9(bit)       (bit+16)
 
-#define GPIOCARD_bank_bit0_8(bit)   (PREG_PAD_GPIO5)
-#define GPIOCARD_bit_bit0_8(bit)    (bit+23)
+#define GPIOAO_bank_bit0_11(bit)    (PREG_PAD_GPIOAO)
+#define GPIOAO_bit_bit0_11(bit)     (bit)
 
 #define GPIOBOOT_bank_bit0_17(bit)  (PREG_PAD_GPIO3)
 #define GPIOBOOT_bit_bit0_17(bit)   (bit)
 
+#define GPIOX_bank_bit32_35(bit)    (PREG_PAD_GPIO3)
+#define GPIOX_bit_bit32_35(bit)     (bit- 32 + 20)
+
 #define GPIOX_bank_bit0_31(bit)     (PREG_PAD_GPIO4)
 #define GPIOX_bit_bit0_31(bit)      (bit)
 
-#define GPIOX_bank_bit32_35(bit)    (PREG_PAD_GPIO3)
-#define GPIOX_bit_bit32_35(bit)     (bit- 32 + 20)
+#define GPIOCARD_bank_bit0_8(bit)   (PREG_PAD_GPIO5)
+#define GPIOCARD_bit_bit0_8(bit)    (bit+23)
 
 #define GPIOY_bank_bit0_22(bit)     (PREG_PAD_GPIO5)
 #define GPIOY_bit_bit0_22(bit)      (bit)
 
+#define GPIOE_bank_bit0_11(bit)     (PREG_PAD_GPIO6)
+#define GPIOE_bit_bit0_11(bit)      (bit)
 
+#define GPIOZ_bank_bit0_12(bit)     (PREG_PAD_GPIO6)
+#define GPIOZ_bit_bit0_12(bit)      (bit + 16)
 
+//        BIT 3322 2222 2222 1111 1111 1100 0000 0000
+//        BIT 1098 7654 3210 9876 5432 1098 7654 3210
 
-  
+// PREG_PAD_0 .... AAAA AAAA AAAA AAAA AAAA AAAA AAAA 
+// PREG_PAD_1 .... .... BBBB BBBB BBBB BBBB BBBB BBBB
+// PREG_PAD_2 .... ..DD DDDD DDDD CCCC CCCC CCCC CCCC
+// PREG_PAD_3 .... .... XXXX ..TT TTTT TTTT TTTT TTTT
+// PREG_PAD_4 XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX
+// PREG_PAD_5 .... .... .YYY YYYY YYYY YYYY YYYY YYYY
+// PREG_PAD_6 .... .ZZZ ZZZZ ZZZZ .... EEEE EEEE EEEE
+//PREG_PAD_AO .... .... .... .... .... OOOO OOOO OOOO
 
+// O = GPIO_AO
+// T = GPIO_BOOT
 
 /* Define GPIO */ 
 #define GPIO_AO(bit) (GPIOAO_bank_bit0_11(bit) << 16) | GPIOAO_bit_bit0_11(bit)
@@ -185,6 +201,8 @@ unsigned long  get_gpio_val(gpio_bank_t bank, int bit);
 #define GPIO_Y(bit) (GPIOY_bank_bit0_22(bit) << 16) | GPIOY_bit_bit0_22(bit) 
 #define GPIO_CARD(bit) (GPIOCARD_bank_bit0_8(bit) << 16) | GPIOCARD_bit_bit0_8(bit) 
 #define GPIO_BOOT(bit) (GPIOBOOT_bank_bit0_17(bit) << 16) | GPIOBOOT_bit_bit0_17(bit) 
+#define GPIO_E(bit) (GPIOE_bank_bit0_11(bit) << 16) | GPIOE_bit_bit0_11(bit) 
+#define GPIO_Z(bit) (GPIOZ_bank_bit0_12(bit) << 16) | GPIOZ_bit_bit0_12(bit) 
 
 
 
