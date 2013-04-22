@@ -317,11 +317,11 @@ ssize_t gpio_cmd_show(struct class *cla, struct class_attribute *attr, char *buf
 	ssize_t buflen = 0;
 	unsigned int bank;
 	struct gpio_addr gpio_address;
-	//                      12345:12345,12345,12345
-	buflen += sprintf(buf, "GPIO :   En,  Out,   In\n");
+	//                      12345: 12345678, 12345678, 12345678
+	buflen += sprintf(buf, "GPIO :       En,      Out,       In\n");
 	for (bank=0;bank < (sizeof(gpio_addrs)-1); bank++) {
 	    gpio_address = gpio_addrs[bank];
-	    buflen += sprintf(buf, " %5s: %4x, %4x, %4x\n", 
+	    buflen += sprintf(buf, " %5s: %8x, %8x, %8x\n", 
 		gpio_address.bank_name,
 		aml_read_reg32(gpio_address.mode_addr),
 		aml_read_reg32(gpio_address.out_addr),
