@@ -632,13 +632,15 @@ int gpio_to_idx(unsigned gpio)
                 idx = GPIO_CARD_IDX + (bit - 23) ;
                 }
                 break;
-	case PREG_PAD_GPIO6:
+    case PREG_PAD_GPIO6:
+	return -1;
+/* TODO: Added IDX for GPIO E and Z
         if( bit < 12 ) {
 			idx = GPIOE_IDX + bit;
         } else {
                 idx = GPIOZ_IDX + (bit +16) ;
-        }
-    break;		
+        } */
+    break;
     case PREG_PAD_GPIOAO:
         idx = GPIOAO_IDX + bit;
                 break;
