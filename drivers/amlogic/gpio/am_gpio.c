@@ -314,14 +314,16 @@ static struct gpio_addr gpio_addrs[] = {
 
 ssize_t gpio_cmd_show(struct class *cla, struct class_attribute *attr, char *buf)
 {
-	ssize_t buflen = 0;
+	int buflen = 0;
 	unsigned int bank;
 	struct gpio_addr gpio_address;
+	
 	//                      12345: 12345678, 12345678, 12345678
 	buflen += sprintf(buf, "GPIO :       En,      Out,       In\n");
-	for (bank=0;bank < (sizeof(gpio_addrs)-1); bank++) {
+	
+	for (bank=0;bank < 8; bank++) {
 	    gpio_address = gpio_addrs[bank];
-	    buflen += sprintf(buf, " %5s: %8x, %8x, %8x\n", 
+	    buflen += sprintf(buf + buflen, "%s   : %8x, %8x, %8x\n", 
 		gpio_address.bank_name,
 		aml_read_reg32(gpio_address.mode_addr),
 		aml_read_reg32(gpio_address.out_addr),
