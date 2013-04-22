@@ -32,7 +32,9 @@ static inline void arch_idle(void)
      */
     cpu_do_idle();
 }
+#ifndef WATCHDOG_ENABLE_BIT 
 #define WATCHDOG_ENABLE_BIT  (1<<22)
+#endif
 #define  DUAL_CORE_RESET		  (3<<24)
 static inline void arch_reset(char mode, const char *cmd)
 {

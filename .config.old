@@ -933,6 +933,11 @@ CONFIG_KEY_INPUT_CUSTOM_AM=y
 # CONFIG_MESON_CS_DCDC_REGULATOR is not set
 
 #
+# Amlogic GPIO Driver
+#
+# CONFIG_AM_GPIO is not set
+
+#
 # Amlogic EFUSE Support
 #
 CONFIG_EFUSE=y

@@ -709,6 +709,9 @@ static void meson_system_early_suspend(struct early_suspend *h)
         early_suspend_flag = 1;
     }
 }
+#ifdef CONFIG_SUSPEND_WATCHDOG
+extern void reset_watchdog(void);
+#endif
 
 static void meson_system_late_resume(struct early_suspend *h)
 {
@@ -723,7 +726,6 @@ static void meson_system_late_resume(struct early_suspend *h)
         printk(KERN_INFO "sys_resume\n");
     }
 #ifdef CONFIG_SUSPEND_WATCHDOG
-	extern void reset_watchdog(void);
 	reset_watchdog();
 #endif
 }
@@ -749,11 +751,15 @@ void vout_pll_resume_early(void)
 }
 EXPORT_SYMBOL(vout_pll_resume_early);
 #endif
+#ifdef CONFIG_SUSPEND_WATCHDOG
+ extern void enable_watchdog(void);
+#endif
 
 #define         MODE_DELAYED_WAKE       0
 #define         MODE_IRQ_DELAYED_WAKE   1
 #define         MODE_IRQ_ONLY_WAKE      2
 #ifndef CONFIG_MESON_SUSPEND
+
 static void auto_clk_gating_setup(
     unsigned long sleep_dly_tb, unsigned long mode, unsigned long clear_fiq, unsigned long clear_irq,
     unsigned long   start_delay, unsigned long   clock_gate_dly, unsigned long   sleep_time, unsigned long   enable_delay)
@@ -771,7 +777,6 @@ static void meson_pm_suspend(void)
 
     printk(KERN_INFO "enter meson_pm_suspend!\n");
 #ifdef CONFIG_SUSPEND_WATCHDOG
-	extern void enable_watchdog(void);
 	enable_watchdog();
 #endif
 

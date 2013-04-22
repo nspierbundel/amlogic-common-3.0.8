@@ -549,6 +549,7 @@ deps_config := \
 	drivers/amlogic/gps/Kconfig \
 	drivers/amlogic/smartcard/Kconfig \
 	drivers/amlogic/efuse/Kconfig \
+	drivers/amlogic/gpio/Kconfig \
 	drivers/amlogic/power/meson_cs_dcdc_regulator/Kconfig \
 	drivers/amlogic/power/axp_power/Kconfig \
 	drivers/amlogic/power/act8xxx_pmu/Kconfig \
