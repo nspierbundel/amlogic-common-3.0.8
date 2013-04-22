@@ -49,6 +49,8 @@
 
 MODULE_AMLOG(AMLOG_DEFAULT_LEVEL, 0xff, LOG_LEVEL_DESC, LOG_MASK_DESC);
 
+extern struct gpio_addr *gpio_addr;
+
 static inline int _gpio_setup_bank_bit(cmd_t  *op)
 {
     switch (op->bank) {
@@ -267,32 +269,7 @@ static ssize_t am_gpio_write(struct file *file, const char __user *buf,
 
 
 }
-static int am_gpio_ioctl(struct inode *inode, struct file *file,
-                         unsigned int ctl_cmd, unsigned long arg)
-{
-    cmd_t  *op = file->private_data;
-    char  cmd[10];
-    cmd_t  op_target;
-    cmd_t  ret_target;
 
-    switch (ctl_cmd) {
-    case GPIO_CMD_OP:
-        if (copy_from_user(&op_target, (cmd_t*)arg, sizeof(cmd_t))) {
-            return -EFAULT;
-        }
-        memcpy(&ret_target, &op_target, sizeof(cmd_t));
-        sprintf(cmd, "%c:%c:%d:%d", op_target.cmd, op_target.bank, op_target.bit, op_target.val);
-        _gpio_run_cmd(cmd, op);
-        ret_target.val = op_target.val;
-        if (copy_to_user((cmd_t*)arg, &ret_target, sizeof(cmd_t))) {
-            return  -EFAULT;
-        }
-        break;
-    default:
-        break;
-    }
-    return 0;
-}
 static int am_gpio_release(struct inode *inode, struct file *file)
 {
     cmd_t  *op = file->private_data;
@@ -303,10 +280,9 @@ static int am_gpio_release(struct inode *inode, struct file *file)
     return 0;
 }
 static const struct file_operations am_gpio_fops = {
-    .open   = am_gpio_open,
-    .read   = am_gpio_read,
-    .write  = am_gpio_write,
-    // .ioctl      = am_gpio_ioctl,
+    .open   	= am_gpio_open,
+    .read   	= am_gpio_read,
+    .write  	= am_gpio_write,
     .release    = am_gpio_release,
     .poll       = NULL,
 };
@@ -317,6 +293,44 @@ ssize_t gpio_cmd_restore(struct class *cla, struct class_attribute *attr, const 
     _gpio_run_cmd(buf, &op);
     return strlen(buf);
 }
+
+struct gpio_addr {
+    unsigned long mode_addr;
+    unsigned long out_addr;
+    unsigned long in_addr;
+    unsigned char bank_name[5];
+};
+
+static struct gpio_addr gpio_addrs[] = {
+    [PREG_PAD_GPIO0]  = {P_PREG_PAD_GPIO0_EN_N, P_PREG_PAD_GPIO0_O, P_PREG_PAD_GPIO0_I,"00"},
+    [PREG_PAD_GPIO1]  = {P_PREG_PAD_GPIO1_EN_N, P_PREG_PAD_GPIO1_O, P_PREG_PAD_GPIO1_I,"01"},
+    [PREG_PAD_GPIO2]  = {P_PREG_PAD_GPIO2_EN_N, P_PREG_PAD_GPIO2_O, P_PREG_PAD_GPIO2_I,"02"},
+    [PREG_PAD_GPIO3]  = {P_PREG_PAD_GPIO3_EN_N, P_PREG_PAD_GPIO3_O, P_PREG_PAD_GPIO3_I,"03"},
+    [PREG_PAD_GPIO4]  = {P_PREG_PAD_GPIO4_EN_N, P_PREG_PAD_GPIO4_O, P_PREG_PAD_GPIO4_I,"04"},
+    [PREG_PAD_GPIO5]  = {P_PREG_PAD_GPIO5_EN_N, P_PREG_PAD_GPIO5_O, P_PREG_PAD_GPIO5_I,"05"},
+    [PREG_PAD_GPIO6]  = {P_PREG_PAD_GPIO6_EN_N, P_PREG_PAD_GPIO6_O, P_PREG_PAD_GPIO6_I,"06"},
+    [PREG_PAD_GPIOAO] = {P_AO_GPIO_O_EN_N     , P_AO_GPIO_O_EN_N  , P_AO_GPIO_I       ,"AO"}
+};
+
+ssize_t gpio_cmd_show(struct class *cla, struct class_attribute *attr, char *buf)
+{
+	ssize_t buflen = 0;
+	unsigned int bank;
+	struct gpio_addr gpio_address;
+	//                      12345:12345,12345,12345
+	buflen += sprintf(buf, "GPIO :   En,  Out,   In\n");
+	for (bank=0;bank < (sizeof(gpio_addrs)-1); bank++) {
+	    gpio_address = gpio_addrs[bank];
+	    buflen += sprintf(buf, " %5s: %4x, %4x, %4x\n", 
+		gpio_address.bank_name,
+		aml_read_reg32(gpio_address.mode_addr),
+		aml_read_reg32(gpio_address.out_addr),
+		aml_read_reg32(gpio_address.in_addr)
+	    );
+	}
+	return buflen;
+}
+
 int  create_gpio_device(gpio_t *gpio)
 {
     int ret ;
@@ -365,6 +379,7 @@ static int __init gpio_init_module(void)
 
     return am_gpio.major;
 }
+
 static __exit void gpio_remove_module(void)
 {
     if (0 > am_gpio.major) {

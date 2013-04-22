@@ -21,8 +21,9 @@ typedef struct {
 } gpio_t;
 
 extern ssize_t gpio_cmd_restore(struct class *cla, struct class_attribute *attr, const char *buf, size_t count);
+extern ssize_t gpio_cmd_show(struct class *cla, struct class_attribute *attr, char *buf);
 
-static  DEFINE_MUTEX(gpio_mutex);
+static DEFINE_MUTEX(gpio_mutex);
 
 #define SHOW_INFO(name)      \
     {return snprintf(buf,40, "%s\n", name);}
@@ -47,17 +48,14 @@ static ssize_t  aml_gpio_attr_##name##_store(struct class *cla,  struct class_at
 }
 
 static struct class_attribute gpio_class_attrs[] = {
-    __ATTR(cmd,
-    S_IRUGO | S_IWUSR,
-    NULL,
-    gpio_cmd_restore),
-    __ATTR_NULL,
+	__ATTR(cmd, S_IRUGO | S_IWUSR, gpio_cmd_show, gpio_cmd_restore),
+	__ATTR_NULL,
 };
 
 static struct class gpio_class = {
         .name = GPIO_DEVCIE_NAME,
         .class_attrs = gpio_class_attrs,
-    };
+};
 
 static DEFINE_SPINLOCK(gpio_lock);
 
@@ -75,7 +73,7 @@ static struct uio_info gpio_uio_info = {
         [0] = {
             .memtype = UIO_MEM_PHYS,
             .addr = (IO_CBUS_PHY_BASE + CBUS_REG_OFFSET(PREG_PAD_GPIO0)),
-            .size = (PREG_PAD_GPIO5 - PREG_PAD_GPIO0 + 1) * 4,
+            .size = (PREG_PAD_GPIO6 - PREG_PAD_GPIO0 + 1) * 4,
         },
     },
 };
