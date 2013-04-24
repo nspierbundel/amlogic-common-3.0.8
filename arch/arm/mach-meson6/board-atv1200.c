@@ -99,14 +99,6 @@
 #include "board-m6ref-power.h"
 #endif
 
-#ifdef CONFIG_SND_SOC_RT5631
-#include <sound/rt5631.h>
-#endif
-
-#ifdef CONFIG_SND_SOC_WM8960
-#include <sound/wm8960.h>
-#endif
-
 #ifdef CONFIG_VIDEO_AMLOGIC_CAPTURE
 #include <media/amlogic/aml_camera.h>
 #endif
@@ -214,7 +206,7 @@ defined in .h*/
 
 /* GPIO Defines */
 // ETHERNET
-#define GPIO_ETH_RESET	GPIO_D(7)
+#define GPIO_ETH_RESET	GPIO_Y(15)
 // BUTTONS
 #define GPIO_KEY_POWER	GPIO_AO(3)
 // POWERSUPPLIES
@@ -1390,213 +1382,6 @@ static struct platform_device aml_uart_device = {
 #endif
 
 /***********************************************************************
- * WIFI  Section
- **********************************************************************/
-/**
-*GPIOX_0			-->WIFI_SD_D0
-*GPIOX_1			-->WIFI_SD_D1
-*GPIOX_2			-->WIFI_SD_D2
-*GPIOX_3			-->WIFI_SD_D3
-
-*GPIOX_8			-->WIFI_SD_CMD
-*GPIOX_9			-->WIFI_SD_CLK
-
-*WIFI_EN			-->GPIOC_7
-*WIFI_PWREN		-->GPIOC_8
-*BT/WLAN_RST		-->GPIOC_9
-*WIFI_WAKE		-->GPIOX_11
-*32K_CLOCK_OUT	-->GPIOX_12 (CLK_OUT3)
-*/
-#ifdef  CONFIG_AM_WIFI
-#define DBG_LINE_INFO()  printk(KERN_INFO "[%s] in\n",__func__)
-
-/* WIFI ON Flag */
-static int WIFI_ON;
-/* BT ON Flag */
-static int BT_ON;
-
-static void wifi_gpio_init(void)
-{
-//set pinmux
-	aml_clr_reg32_mask(P_PREG_PAD_GPIO2_EN_N,0x7<<7);
-//set status
-    //WIFI_EN WIFI_PWREN  WLAN_RST --->out	:0
-   	gpio_set_status(PAD_GPIOC_7,gpio_status_out);
-	gpio_set_status(PAD_GPIOC_8,gpio_status_out);
-	gpio_set_status(PAD_GPIOC_9,gpio_status_out);
-
-	//WIFI_WAKE -->1GPIOX_11   in	:
-    	gpio_set_status(PAD_GPIOX_11,gpio_status_in);
-
-	//set pull-up
-	aml_clr_reg32_mask(P_PAD_PULL_UP_REG4,0xf|1<<8|1<<9|1<<11|1<<12);
-	aml_clr_reg32_mask(P_PAD_PULL_UP_REG2,1<<7|1<<8|1<<9);
-}
-
-static void wifi_clock_enable(int is_on)
-{
-    //set clk 32k for wifi
-    //GPIOX_12 (CLK_OUT3)  //reg : 108b  sr_sl:22-25  div:13-19    enable:21
-    DBG_LINE_INFO();
-
-	gpio_set_status(PAD_GPIOX_12,gpio_status_out);			//set  GPIOX_12 out
-	aml_set_reg32_mask(P_HHI_GEN_CLK_CNTL2,1<<22);//set clk source
-	aml_clr_reg32_mask(P_HHI_GEN_CLK_CNTL2,0x3f<<13);//set div ==1
-	aml_set_reg32_mask(P_HHI_GEN_CLK_CNTL2,1<<21);//set enable clk
-	aml_set_reg32_mask(P_PERIPHS_PIN_MUX_3,0x1<<21);//set mode GPIOX_12-->CLK_OUT3
-}
-
-void extern_wifi_set_power(int is_on)
-{
-	//WIFI_POWER-->GPIOC_8
-	DBG_LINE_INFO();
-    gpio_set_status(PAD_GPIOC_8,gpio_status_out);
-    if(is_on){
-		gpio_out(PAD_GPIOC_8,1);
-		printk("BCM Module Power up!\n");
-    }
-	else{
-        /* only set power_controll  pin when wifi and bt off */
-      //  if((!WIFI_ON) && (!BT_ON)){
-		   gpio_out(PAD_GPIOC_8,0);
-            printk("BCM Module Power down!\n");
-       // }
-	}
-}
-EXPORT_SYMBOL(extern_wifi_set_power);
-
-void wifi_set_enable(int is_on)
-{
-	DBG_LINE_INFO();
-    gpio_set_status(PAD_GPIOC_7,gpio_status_out);//set wifi_en gpio mode out
-    if(is_on){
-		gpio_out(PAD_GPIOC_7,1);
-		printk("WIFI  Enable! \n");
-    		}
-	else{
-		gpio_out(PAD_GPIOC_7,0);
-            	printk("WIFI  Disenable! \n");
-	}
-}
-EXPORT_SYMBOL(wifi_set_enable);
-
-void extern_wifi_reset(int is_on)
-{
-	DBG_LINE_INFO();
-	gpio_set_status(PAD_GPIOC_9,gpio_status_out);//WIFI_RST
-	if(is_on){
-	gpio_out(PAD_GPIOC_9,1);
-	   printk("WIFI  REST Up ! \n");
-	}
-    else{
-	gpio_out(PAD_GPIOC_9,0);
-	   printk("WIFI  REST Down! \n");
-	}
-    return;
-}
-EXPORT_SYMBOL(extern_wifi_reset);
-
-static void reg_on_control(int is_on)
-{
-	DBG_LINE_INFO();
-   //set wifi_en
-    gpio_set_status(PAD_GPIOC_7,gpio_status_out);//wifi_en =
-    if(is_on){
-		gpio_out(PAD_GPIOC_7,1);
-    }
-	else{
-        /* only pull donw reg_on pin when wifi and bt off */
-        if((!WIFI_ON) && (!BT_ON)){
-		gpio_out(PAD_GPIOC_7,0);
-            	printk("WIFI BT Power down(WIFI_EN)\n");
-        }
-	}
-}
-
-void wifi_dev_init(void)
-{
-	DBG_LINE_INFO();
-	wifi_clock_enable(1);
-	udelay(200);
-	wifi_gpio_init();
-#if 1
-	extern_wifi_set_power(0);//ainou for wl_reg_on
-	udelay(200);
-	udelay(200);
-	extern_wifi_set_power(1);//ainou for wl_reg_on
-#endif
-}
-
-EXPORT_SYMBOL(wifi_dev_init);
-
-static void extern_wifi_power(int is_power)
-{
-	DBG_LINE_INFO();
-
-	WIFI_ON = is_power;
-	mdelay(200);
-	reg_on_control(is_power);
-
-}
-//EXPORT_SYMBOL(extern_wifi_power);
-
-#endif
-
-
-/*WIFI 40181*/
-
-#if defined(CONFIG_SDIO_DHD_CDC_WIFI_40181_MODULE_MODULE)
-/******************************
-*WL_REG_ON      -->GPIOC_8
-*WIFI_32K               -->GPIOC_15(CLK_OUT1)
-*WIFIWAKE(WL_HOST_WAKE)-->GPIOX_11
-*******************************/
-//#define WL_REG_ON_USE_GPIOC_6
-void extern_wifi_set_enable(int enable)
-{
-        if(enable){
-#ifdef WL_REG_ON_USE_GPIOC_6
-                SET_CBUS_REG_MASK(PREG_PAD_GPIO2_O, (1<<6));
-#else
-                SET_CBUS_REG_MASK(PREG_PAD_GPIO2_O, (1<<8));
-#endif
-                printk("Enable WIFI  Module!\n");
-        }
-        else{
-#ifdef WL_REG_ON_USE_GPIOC_6
-                CLEAR_CBUS_REG_MASK(PREG_PAD_GPIO2_O, (1<<6));
-#else
-                CLEAR_CBUS_REG_MASK(PREG_PAD_GPIO2_O, (1<<8));
-#endif
-                printk("Disable WIFI  Module!\n");
-        }
-}
-EXPORT_SYMBOL(extern_wifi_set_enable);
-
-static void wifi_set_clk_enable(int on)
-{
-    //set clk for wifi
-        printk("set WIFI CLK Pin GPIOC_15 32KHz ***%d\n",on);
-        WRITE_CBUS_REG(HHI_GEN_CLK_CNTL,(READ_CBUS_REG(HHI_GEN_CLK_CNTL)&(~(0x7f<<0)))|((0<<0)|(1<<8)|(7<<9)) );
-        CLEAR_CBUS_REG_MASK(PREG_PAD_GPIO2_EN_N, (1<<15));
-        if(on)
-                SET_CBUS_REG_MASK(PERIPHS_PIN_MUX_3, (1<<22));
-        else
-                CLEAR_CBUS_REG_MASK(PERIPHS_PIN_MUX_3, (1<<22));
-}
-
-static void aml_wifi_bcm4018x_init()
-{
-        wifi_set_clk_enable(1);
-        wifi_gpio_init();
-        extern_wifi_set_enable(0);
-        msleep(5);
-        extern_wifi_set_enable(1);
-}
-
-#endif
-
-/***********************************************************************
  * Card Reader Section
  **********************************************************************/
 #ifdef CONFIG_CARDREADER
@@ -1608,21 +1393,6 @@ static struct resource meson_card_resource[] = {
     }
 };
 
-
-static void sdio_extern_init(void)
-{
-    #if defined(CONFIG_BCM4329_HW_OOB) || defined(CONFIG_BCM4329_OOB_INTR_ONLY)/* Jone add */
-    gpio_set_status(PAD_GPIOX_11,gpio_status_in);
-    gpio_irq_set(PAD_GPIOX_11,GPIO_IRQ(4,GPIO_IRQ_RISING));
-    #endif
-   #if defined(CONFIG_BCM40181_HW_OOB) || defined(CONFIG_BCM40181_OOB_INTR_ONLY)/* Jone add */
-    gpio_set_status(PAD_GPIOX_11,gpio_status_in);
-    gpio_irq_set(PAD_GPIOX_11,GPIO_IRQ(4,GPIO_IRQ_RISING));
-    #endif
-    #ifdef CONFIG_AM_WIFI
-    extern_wifi_power(1);
-    #endif
-}
 
 static struct aml_card_info meson_card_info[] = {
     [0] = {
@@ -1644,27 +1414,6 @@ static struct aml_card_info meson_card_info[] = {
         .card_wp_input_mask = 0,
         .card_extern_init   = 0,
     },
-#if 1
-    [1] = {
-        .name           = "sdio_card",
-        .work_mode      = CARD_HW_MODE,
-        .io_pad_type        = SDHC_GPIOX_0_9,
-        .card_ins_en_reg    = 0,
-        .card_ins_en_mask   = 0,
-        .card_ins_input_reg = 0,
-        .card_ins_input_mask    = 0,
-        .card_power_en_reg  = 0,
-        .card_power_en_mask = 0,
-        .card_power_output_reg  = 0,
-        .card_power_output_mask = 0,
-        .card_power_en_lev  = 0,
-        .card_wp_en_reg     = 0,
-        .card_wp_en_mask    = 0,
-        .card_wp_input_reg  = 0,
-        .card_wp_input_mask = 0,
-        .card_extern_init   = sdio_extern_init,
-    },
-#endif
 };
 
 static struct aml_card_platform meson_card_platform = {
@@ -2017,35 +1766,12 @@ static void __init meson_fixup(struct machine_desc *mach, struct tag *tag, char 
 /***********************************************************************
  *USB Setting section
  **********************************************************************/
-static void set_usb_a_vbus_power(char is_power_on)
-{
-//M6 SKT: GPIOD_9,  OEN: 0x2012, OUT:0x2013 , Bit25
-
-#define USB_A_POW_GPIO  PREG_EGPIO
-#define USB_A_POW_GPIO_BIT  25
-#define USB_A_POW_GPIO_BIT_ON   1
-#define USB_A_POW_GPIO_BIT_OFF  0
-    if(is_power_on){
-        printk( "set usb port power on (board gpio %d)!\n",USB_A_POW_GPIO_BIT);
-
-        aml_set_reg32_bits(CBUS_REG_ADDR(0x2012),0,USB_A_POW_GPIO_BIT,1);//mode
-        aml_set_reg32_bits(CBUS_REG_ADDR(0x2013),1,USB_A_POW_GPIO_BIT,1);//out
-        //set_gpio_mode(USB_A_POW_GPIO,USB_A_POW_GPIO_BIT,GPIO_OUTPUT_MODE);
-        //set_gpio_val(USB_A_POW_GPIO,USB_A_POW_GPIO_BIT,USB_A_POW_GPIO_BIT_ON);
-    }
-    else    {
-        printk("set usb port power off (board gpio %d)!\n",USB_A_POW_GPIO_BIT);
-        aml_set_reg32_bits(CBUS_REG_ADDR(0x2012),0,USB_A_POW_GPIO_BIT,1);//mode
-        aml_set_reg32_bits(CBUS_REG_ADDR(0x2013),0,USB_A_POW_GPIO_BIT,1);//out
-    }
-}
-
 static  int __init setup_usb_devices(void)
 {
     struct lm_device * usb_ld_a, *usb_ld_b;
     usb_ld_a = alloc_usb_lm_device(USB_PORT_IDX_A);
     usb_ld_b = alloc_usb_lm_device(USB_PORT_IDX_B);
-    usb_ld_a->param.usb.set_vbus_power = set_usb_a_vbus_power;
+    // usb_ld_a->param.usb.set_vbus_power = set_usb_a_vbus_power;
     //usb_ld_a->param.usb.port_type = USB_PORT_TYPE_HOST;
     lm_device_register(usb_ld_a);
     lm_device_register(usb_ld_b);
@@ -2056,29 +1782,20 @@ static  int __init setup_usb_devices(void)
  *WiFi power section
  **********************************************************************/
 /* built-in usb wifi power ctrl, usb dongle must register NULL to power_ctrl! 1:power on  0:power off */
-#ifdef CONFIG_AM_WIFI
 #ifdef CONFIG_AM_WIFI_USB
-static void usb_wifi_power(int is_power)
+static int usb_wifi_power(int is_power)
 {
     printk(KERN_INFO "usb_wifi_power %s\n", is_power ? "On" : "Off");
-    CLEAR_CBUS_REG_MASK(PERIPHS_PIN_MUX_1,(1<<11));
-    CLEAR_CBUS_REG_MASK(PERIPHS_PIN_MUX_0,(1<<18));
-    CLEAR_CBUS_REG_MASK(PREG_PAD_GPIO2_EN_N, (1<<8));
     if (is_power)
-        CLEAR_CBUS_REG_MASK(PREG_PAD_GPIO2_O, (1<<8));
+        gpio_direction_output(GPIO_PWR_WIFI, 0);
     else
-        SET_CBUS_REG_MASK(PREG_PAD_GPIO2_O, (1<<8));
-    return ;
+        gpio_direction_output(GPIO_PWR_WIFI, 1);
+    return 0;
 }
 
 static struct wifi_power_platform_data wifi_plat_data = {
     .usb_set_power = usb_wifi_power,
 };
-#elif defined(CONFIG_AM_WIFI_SD_MMC)&&defined(CONFIG_CARDREADER)
-    wifi_plat_data = {
-
-};
-#endif
 
 static struct platform_device wifi_power_device = {
     .name       = "wifi_power",
@@ -2462,6 +2179,142 @@ static struct platform_device aml_hdmi_device = {
 };
 #endif
 
+#define NET_EXT_CLK
+
+#ifdef CONFIG_AM_ETHERNET
+static void aml_eth_reset(void)
+{
+	printk(KERN_INFO "****** aml_eth_reset() ******\n");
+
+	aml_clr_reg32_mask(P_PREG_ETHERNET_ADDR0, 1);           // Disable the Ethernet clocks
+	// ---------------------------------------------
+	// Test 50Mhz Input Divide by 2
+	// ---------------------------------------------
+	// Select divide by 2
+	aml_clr_reg32_mask(P_PREG_ETHERNET_ADDR0, (1<<3));     // desc endianess "same order" 
+	aml_clr_reg32_mask(P_PREG_ETHERNET_ADDR0, (1<<2));     // ata endianess "little"
+	aml_set_reg32_mask(P_PREG_ETHERNET_ADDR0, (1<<1));     // divide by 2 for 100M
+	aml_set_reg32_mask(P_PREG_ETHERNET_ADDR0, 1);          // enable Ethernet clocks
+
+    /* setup ethernet interrupt */
+    aml_set_reg32_mask(P_SYS_CPU_0_IRQ_IN0_INTR_MASK, 1 << 8);
+    aml_set_reg32_mask(P_SYS_CPU_0_IRQ_IN1_INTR_STAT, 1 << 8);
+
+	udelay(100);
+	/* hardware reset ethernet phy */
+	gpio_direction_output(GPIO_ETH_RESET, 0);
+	msleep(20);
+	gpio_set_value(GPIO_ETH_RESET, 1);
+}
+
+static void aml_eth_clock_enable(void)
+{
+	unsigned int clk_divider = 0;
+	unsigned int clk_invert = 0;
+	unsigned int clk_source = 0;
+
+
+	printk(KERN_INFO "****** aml_eth_clock_enable() ******\n");
+
+#ifdef NET_EXT_CLK
+	// old: eth_clk_set(ETH_CLKSRC_EXT_XTAL_CLK, (50 * CLK_1M), (50 * CLK_1M), 1);
+
+	/* External Clock */
+	clk_divider = 1;				// Clock Divider (50 / 50 )
+	clk_invert  = 1;				// 1 = invert, 0 = non-invert clock signal
+	clk_source  = ETH_CLKSRC_EXT_XTAL_CLK;		// Source, see clk_set.h
+#else
+	// old: eth_clk_set(ETH_CLKSRC_MISC_CLK, get_misc_pll_clk(), (50 * CLK_1M), 0);
+	/* Internal Clock */
+	// get_misc_pll_clk() = 480M
+	clk_divider = (unsigned int)480/50;		// Clock Divider
+	clk_invert  = 0;				// 1 = invert, 0 = non-invert clock signal
+	clk_source  = ETH_CLKSRC_MISC_CLK;		// Source, see clk_set.h
+#endif
+	aml_write_reg32(P_HHI_ETH_CLK_CNTL, (
+		(clk_divider - 1) << 0 |		// Clock Divider
+		clk_source << 9 |			// Clock Source ETH_CLKSRC_MISC_CLK
+		((clk_invert == 1) ? 1 : 0) << 14 |	// PAD signal invert
+		1 << 8 					// enable clk
+		)
+	);
+	printk("P_HHI_ETH_CLK_CNTL = 0x%x\n", aml_read_reg32(P_HHI_ETH_CLK_CNTL));
+
+}
+
+static void aml_eth_clock_disable(void)
+{
+    printk(KERN_INFO "****** aml_eth_clock_disable() ******\n");
+    /* disable ethernet clk */
+    aml_clr_reg32_mask(P_HHI_ETH_CLK_CNTL, 1 << 8);
+}
+
+static pinmux_item_t aml_eth_pins[] = {
+    /* RMII pin-mux */
+    {
+		.reg = PINMUX_REG(6),
+		.clrmask = (3<<17),
+#ifdef NET_EXT_CLK
+		.setmask = (1<<18), //(3<<17), // bit 18 = ETH_CLK_IN_GPIOY0_REG6_18, // BIT 17 = Ethernet in???
+#else 
+		.setmask = (1<<17), //(3<<17), // bit 18 = ETH_CLK_IN_GPIOY0_REG6_18, // BIT 17 = Ethernet in???
+#endif
+    },
+    PINMUX_END_ITEM
+};
+
+static pinmux_set_t aml_eth_pinmux = {
+    .chip_select = NULL,
+    .pinmux = aml_eth_pins,
+};
+
+static void aml_eth_pinmux_setup(void)
+{
+    printk(KERN_INFO "****** aml_eth_pinmux_setup() ******\n");
+	/* Old 2.6 old 
+		CLEAR_CBUS_REG_MASK(PERIPHS_PIN_MUX_6,(3<<17));//reg6[17/18]=0
+		eth_set_pinmux(ETH_BANK0_GPIOY1_Y9, ETH_CLK_IN_GPIOY0_REG6_18, 0);
+	
+		results in:
+	*/
+	pinmux_clr(&aml_eth_pinmux);
+	pinmux_set(&aml_eth_pinmux);
+	aml_set_reg32_mask(P_PERIPHS_PIN_MUX_0, 0);
+}
+
+static void aml_eth_pinmux_cleanup(void)
+{
+    printk(KERN_INFO "****** aml_eth_pinmux_cleanup() ******\n");
+    pinmux_clr(&aml_eth_pinmux);
+}
+
+static void aml_eth_init(void)
+{
+    aml_eth_pinmux_setup();
+    aml_eth_clock_enable();
+    aml_eth_reset();
+
+	/* debug code */
+	printk("P_PERIPHS_PIN_MUX_0 = 0x%8x\n", aml_read_reg32(P_PERIPHS_PIN_MUX_0));
+	printk("P_PERIPHS_PIN_MUX_6 = 0x%8x\n", aml_read_reg32(P_PERIPHS_PIN_MUX_6));	
+	printk("P_PREG_ETHERNET_ADDR0 = 0x%8x\n", aml_read_reg32(P_PREG_ETHERNET_ADDR0));
+}
+
+static struct aml_eth_platdata aml_eth_pdata __initdata = {
+    .pinmux_items = aml_eth_pins,
+    .pinmux_setup = aml_eth_pinmux_setup,
+    .pinmux_cleanup = aml_eth_pinmux_cleanup,
+    .clock_enable = aml_eth_clock_enable,
+    .clock_disable = aml_eth_clock_disable,
+    .reset = aml_eth_reset,
+};
+
+static void __init setup_eth_device(void)
+{
+    meson_eth_set_platdata(&aml_eth_pdata);
+    aml_eth_init();
+}
+#endif
 
 /***********************************************************************
  * Device Register Section
@@ -2554,31 +2407,6 @@ static struct platform_device  *platform_devs[] = {
 #endif
 };
 
-/*static int __init get_voltage_table(char *str)
-{
-
- //   unsigned long  clk=clkparse(str, 0);
-// 		char  *ptr=str;
-		printk("machineid is %s\n",str);
-//		printk("machineid2 is %s\n",ptr);
-//		printk("tmpvolt3 is %d\n",tmpvolt);
-    if(strcmp(str, "0601")==0) //if(ptr==0601)   1.36
-    {
-			meson_cs_dcdc_regulator_device.dev.platform_data = &vcck_pdata2,
-			printk("1.36 pcb11111111111111111! \n");
-			tmpvolt=1;	
-    }
-		else 
-		{
-		  meson_cs_dcdc_regulator_device.dev.platform_data = &vcck_pdata,
-			printk("1.30 pcb2222222222222222! \n");
-			tmpvolt=0;	
-		}
-//		printk("tmpvolt4 is %d\n",tmpvolt);
-    return 0;
-}
-*/
-
 static void __init power_hold(void)
 {
 	printk(KERN_INFO "power hold set high!\n");
@@ -2609,9 +2437,6 @@ static __init void meson_init_machine(void)
     power_hold();
     setup_usb_devices();
     setup_devices_resource();
-#ifdef CONFIG_AM_WIFI
-    wifi_dev_init();
-#endif
     platform_add_devices(platform_devs, ARRAY_SIZE(platform_devs));
 
 #if defined(CONFIG_I2C_AML) || defined(CONFIG_I2C_HW_AML)
@@ -2622,14 +2447,8 @@ static __init void meson_init_machine(void)
         wifi_plat_data.usb_set_power(0);//power off built-in usb wifi
 #endif
 
-#ifdef CONFIG_MPU_SENSORS_MPU3050
-    mpu3050_init_irq();
-#endif
-#ifdef CONFIG_AM_LCD_OUTPUT
-    m6ref_lcd_init();
-#endif
 #ifdef CONFIG_AM_ETHERNET
-//	setup_eth_device();
+	setup_eth_device();
 #endif
 	pm_power_off = power_off;
 }
