@@ -213,9 +213,6 @@ defined in .h*/
 
 
 /* GPIO Defines */
-// LEDS
-#define GPIO_LED_STATUS	GPIO_AO(10)
-#define GPIO_LED_POWER	GPIO_AO(11)
 // ETHERNET
 #define GPIO_ETH_RESET	GPIO_D(7)
 // BUTTONS
@@ -229,43 +226,6 @@ defined in .h*/
 // SD CARD
 #define GPIO_SD_WP	GPIO_CARD(6)
 #define GPIO_SD_DET	GPIO_CARD(7)
-
-#if defined(CONFIG_LEDS_GPIO_PLATFORM)
-/* LED Class Support for the leds */
-static struct gpio_led aml_led_pins[] = {
-	{	
-		.name	= "Powerled",
-		.default_trigger = "default-on",
-		.gpio	= GPIO_LED_POWER,
-		.active_low	= 0,
-	},
-	{
-		.name	= "Statusled",
-#if defined(CONFIG_LEDS_TRIGGER_REMOTE_CONTROL)
-		.default_trigger = "rc",
-#else
-		.default_trigger = "none",
-#endif
-		.gpio	= GPIO_LED_STATUS,
-		.active_low	= 1,
-	},
-};
-
-static struct gpio_led_platform_data aml_led_data = {
-	.leds	= aml_led_pins,
-	.num_leds = ARRAY_SIZE(aml_led_pins),
-};
-
-static struct platform_device aml_leds = {
-	.name	= "leds-gpio",
-	.id	= -1,
-	.dev	= {
-		.platform_data	= &aml_led_data,
-	}
-};
-#endif
-
-
 
 static struct resource meson_fb_resource[] = {
     [0] = {
@@ -2640,14 +2600,6 @@ static void __init power_hold(void)
 	// gpio_out(PAD_GPIOD_1, gpio_status_out);
     // gpio_out_high(PAD_GPIOD_1);
 
-	gpio_out(PAD_GPIOAO_11, gpio_status_out); // POWER
-	gpio_out_low(PAD_GPIOAO_11);
-
-	gpio_out(PAD_GPIOAO_10, gpio_status_out); // STATUS
-	gpio_out_low(PAD_GPIOAO_11);
-
-	// gpio_direction_output( GPIO_LED_POWER, 1);
-	// gpio_direction_output( GPIO_LED_STATUS, 1
 }
 
 
