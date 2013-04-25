@@ -99,6 +99,7 @@
 #include "board-m6ref-power.h"
 #endif
 
+<<<<<<< HEAD
 #ifdef CONFIG_SND_SOC_RT5631
 #include <sound/rt5631.h>
 #endif
@@ -107,6 +108,8 @@
 #include <sound/wm8960.h>
 #endif
 
+=======
+>>>>>>> a7c4440... linaro toolchain fixes
 #ifdef CONFIG_VIDEO_AMLOGIC_CAPTURE
 #include <media/amlogic/aml_camera.h>
 #endif
@@ -120,8 +123,14 @@
 #define GPIO_PWR_HDMI   GPIO_D(6)
 #endif
 
+<<<<<<< HEAD
 //#define NET_EXT_CLK
 #include <mach/clk_set.h>
+=======
+#ifdef CONFIG_AM_ETHERNET
+#include <mach/clk_set.h>
+#endif
+>>>>>>> a7c4440... linaro toolchain fixes
 
 /***********************************************************************
  * IO Mapping
@@ -213,11 +222,16 @@ defined in .h*/
 
 
 /* GPIO Defines */
+<<<<<<< HEAD
 // LEDS
 #define GPIO_LED_STATUS	GPIO_AO(10)
 #define GPIO_LED_POWER	GPIO_AO(11)
 // ETHERNET
 #define GPIO_ETH_RESET	GPIO_D(7)
+=======
+// ETHERNET
+#define GPIO_ETH_RESET	GPIO_Y(15)
+>>>>>>> a7c4440... linaro toolchain fixes
 // BUTTONS
 #define GPIO_KEY_POWER	GPIO_AO(3)
 // POWERSUPPLIES
@@ -230,6 +244,7 @@ defined in .h*/
 #define GPIO_SD_WP	GPIO_CARD(6)
 #define GPIO_SD_DET	GPIO_CARD(7)
 
+<<<<<<< HEAD
 #if defined(CONFIG_LEDS_GPIO_PLATFORM)
 /* LED Class Support for the leds */
 static struct gpio_led aml_led_pins[] = {
@@ -267,6 +282,8 @@ static struct platform_device aml_leds = {
 
 
 
+=======
+>>>>>>> a7c4440... linaro toolchain fixes
 static struct resource meson_fb_resource[] = {
     [0] = {
         .start = OSD1_ADDR_START,
@@ -455,10 +472,13 @@ static struct ctp_platform_data gt82x_data = {
     .ymax = GT82X_YRES,
 };
 #endif
+<<<<<<< HEAD
 #ifdef CONFIG_AM_ETHERNET
 //#include"includes/eth.h"
 //#include <mach/am_eth_reg.h>
 #endif
+=======
+>>>>>>> a7c4440... linaro toolchain fixes
 
 #ifdef CONFIG_AW_AXP20
 static struct i2c_board_info __initdata aml_i2c_bus_info_ao[];
@@ -950,11 +970,31 @@ static bool pinmux_dummy_share(bool select)
     return select;
 }
 
+<<<<<<< HEAD
 static pinmux_item_t aml_i2c_a_pinmux_item[] = {
     {
         .reg = 5,
         //.clrmask = (3<<24)|(3<<30),
         .setmask = 3<<26
+=======
+enum I2C_BUS { I2C_A = 0, I2C_B, I2C_AO };
+
+static pinmux_item_t aml_i2c_pinmux_item[] = {
+    [I2C_A] = {   // I2C_A
+        .reg = 5,
+        //.clrmask = (3<<24)|(3<<30),
+        .setmask = 3<<26 // GPIO_X25 (SDA) and X26 (SCK)
+    },
+    [I2C_B] = {   // I2C_B
+        .reg = 5,
+        //.clrmask = (3<<28)|(3<<26),
+        .setmask = 3<<30  // GPIO_X27 (SDA) and X28 (SCK)
+    },
+    [I2C_AO] = {   // I2C_AO
+        .reg = AO,
+        .clrmask  = (3<<1)|(3<<23),
+        .setmask = 3<<5  // GPIO_AO4 (SCK) and AO5 (SDA)
+>>>>>>> a7c4440... linaro toolchain fixes
     },
     PINMUX_END_ITEM
 };
@@ -966,6 +1006,7 @@ static struct aml_i2c_platform aml_i2c_plat_a = {
     .wait_xfer_interval   = 5,
     .master_no          = AML_I2C_MASTER_A,
     .use_pio            = 0,
+<<<<<<< HEAD
     .master_i2c_speed   = AML_I2C_SPPED_300K,
 
     .master_pinmux      = {
@@ -986,10 +1027,24 @@ static pinmux_item_t aml_i2c_b_pinmux_item[]={
 static struct aml_i2c_platform aml_i2c_plat_b = {
     .wait_count         = 50000,
     .wait_ack_interval = 5,
+=======
+    .master_i2c_speed   = AML_I2C_SPPED_100K,
+
+    .master_pinmux      = {
+        .chip_select    = pinmux_dummy_share,
+        .pinmux         = &aml_i2c_pinmux_item[I2C_A]
+    }
+};
+
+static struct aml_i2c_platform aml_i2c_plat_b = {
+    .wait_count         = 50000,
+    .wait_ack_interval  = 5,
+>>>>>>> a7c4440... linaro toolchain fixes
     .wait_read_interval = 5,
     .wait_xfer_interval = 5,
     .master_no          = AML_I2C_MASTER_B,
     .use_pio            = 0,
+<<<<<<< HEAD
     .master_i2c_speed   = AML_I2C_SPPED_300K,
 
     .master_pinmux      = {
@@ -1007,6 +1062,16 @@ static pinmux_item_t aml_i2c_ao_pinmux_item[] = {
     PINMUX_END_ITEM
 };
 
+=======
+    .master_i2c_speed   = AML_I2C_SPPED_100K,
+
+    .master_pinmux      = {
+        .chip_select    = pinmux_dummy_share,
+        .pinmux         = &aml_i2c_pinmux_item[I2C_B]
+    }
+};
+
+>>>>>>> a7c4440... linaro toolchain fixes
 static struct aml_i2c_platform aml_i2c_plat_ao = {
     .wait_count         = 50000,
     .wait_ack_interval  = 5,
@@ -1017,11 +1082,16 @@ static struct aml_i2c_platform aml_i2c_plat_ao = {
     .master_i2c_speed   = AML_I2C_SPPED_100K,
 
     .master_pinmux      = {
+<<<<<<< HEAD
         .pinmux         = &aml_i2c_ao_pinmux_item[0]
+=======
+        .pinmux         = &aml_i2c_pinmux_item[I2C_AO]
+>>>>>>> a7c4440... linaro toolchain fixes
     }
 };
 
 static struct resource aml_i2c_resource_a[] = {
+<<<<<<< HEAD
     [0] = {
         .start = MESON_I2C_MASTER_A_START,
         .end   = MESON_I2C_MASTER_A_END,
@@ -1035,6 +1105,21 @@ static struct resource aml_i2c_resource_b[] = {
         .end   = MESON_I2C_MASTER_B_END,
         .flags = IORESOURCE_MEM,
     }
+=======
+    [0]= {
+        .start = MESON_I2C_MASTER_A_START,
+        .end   = MESON_I2C_MASTER_A_END,
+        .flags = IORESOURCE_MEM,
+    },
+};
+
+static struct resource aml_i2c_resource_b[] = {
+    [0]= {
+        .start = MESON_I2C_MASTER_B_START,
+        .end   = MESON_I2C_MASTER_B_END,
+        .flags = IORESOURCE_MEM,
+    },
+>>>>>>> a7c4440... linaro toolchain fixes
 };
 
 static struct resource aml_i2c_resource_ao[] = {
@@ -1042,6 +1127,7 @@ static struct resource aml_i2c_resource_ao[] = {
         .start =    MESON_I2C_MASTER_AO_START,
         .end   =    MESON_I2C_MASTER_AO_END,
         .flags =    IORESOURCE_MEM,
+<<<<<<< HEAD
     }
 };
 
@@ -1050,26 +1136,50 @@ static struct platform_device aml_i2c_device_a = {
     .id       = 0,
     .num_resources    = ARRAY_SIZE(aml_i2c_resource_a),
     .resource     = aml_i2c_resource_a,
+=======
+    },
+};
+
+static struct platform_device aml_i2c_device_a = {
+    .name          = "aml-i2c",
+    .id            = 0,
+    .num_resources = ARRAY_SIZE(aml_i2c_resource_a),
+    .resource      = aml_i2c_resource_a,
+>>>>>>> a7c4440... linaro toolchain fixes
     .dev = {
         .platform_data = &aml_i2c_plat_a,
     },
 };
 
 static struct platform_device aml_i2c_device_b = {
+<<<<<<< HEAD
     .name         = "aml-i2c",
     .id       = 1,
     .num_resources    = ARRAY_SIZE(aml_i2c_resource_b),
     .resource     = aml_i2c_resource_b,
+=======
+    .name          = "aml-i2c",
+    .id            = 1,
+    .num_resources = ARRAY_SIZE(aml_i2c_resource_b),
+    .resource      = aml_i2c_resource_b,
+>>>>>>> a7c4440... linaro toolchain fixes
     .dev = {
         .platform_data = &aml_i2c_plat_b,
     },
 };
 
 static struct platform_device aml_i2c_device_ao = {
+<<<<<<< HEAD
     .name         = "aml-i2c",
     .id       = 2,
     .num_resources    = ARRAY_SIZE(aml_i2c_resource_ao),
     .resource     = aml_i2c_resource_ao,
+=======
+    .name          = "aml-i2c",
+    .id            = 3,
+    .num_resources = ARRAY_SIZE(aml_i2c_resource_ao),
+    .resource      = aml_i2c_resource_ao,
+>>>>>>> a7c4440... linaro toolchain fixes
     .dev = {
         .platform_data = &aml_i2c_plat_ao,
     },
@@ -1093,6 +1203,7 @@ static struct platform_device vm_device =
 };
 #endif /* AMLOGIC_VIDEOIN_MANAGER */
 
+<<<<<<< HEAD
 #ifdef CONFIG_VIDEO_AMLOGIC_CAPTURE_GT2005
 static int gt2005_have_inited = 0;
 #endif
@@ -1292,6 +1403,8 @@ static struct i2c_board_info __initdata aml_i2c_bus_info_a[] = {
 #endif
 };
 
+=======
+>>>>>>> a7c4440... linaro toolchain fixes
 static struct i2c_board_info __initdata aml_i2c_bus_info_ao[] = {
 #ifdef CONFIG_AW_AXP20
     {
@@ -1304,6 +1417,11 @@ static struct i2c_board_info __initdata aml_i2c_bus_info_ao[] = {
 
 };
 
+<<<<<<< HEAD
+=======
+static struct i2c_board_info __initdata aml_i2c_bus_info_a[] = {
+};
+>>>>>>> a7c4440... linaro toolchain fixes
 
 static struct i2c_board_info __initdata aml_i2c_bus_info_b[] = {
 #ifdef CONFIG_MPU_SENSORS_MPU3050
@@ -1313,6 +1431,7 @@ static struct i2c_board_info __initdata aml_i2c_bus_info_b[] = {
         .platform_data = (void *)&mpu3050_data,
     },
 #endif
+<<<<<<< HEAD
 #ifdef CONFIG_SND_SOC_RT5631
     {
         I2C_BOARD_INFO("rt5631", 0x1A),
@@ -1326,6 +1445,23 @@ static struct i2c_board_info __initdata aml_i2c_bus_info_b[] = {
     },
 #endif
 
+=======
+#ifdef CONFIG_AT24CXX
+    {
+	I2C_BOARD_INFO("at24cxx", 0x50),
+    },
+#endif
+#ifdef CONFIG_AT88SCXX
+    {
+	I2C_BOARD_INFO("at88scxx", 0xB6),
+    },
+#endif
+#ifdef CONFIG_IR810_POWEROFF
+    {
+	I2C_BOARD_INFO("ir810_poweroff", 0x60),
+    },
+#endif
+>>>>>>> a7c4440... linaro toolchain fixes
 };
 
 #ifdef CONFIG_EEPROM_AT24
@@ -1430,6 +1566,7 @@ static struct platform_device aml_uart_device = {
 #endif
 
 /***********************************************************************
+<<<<<<< HEAD
  * WIFI  Section
  **********************************************************************/
 /**
@@ -1637,6 +1774,8 @@ static void aml_wifi_bcm4018x_init()
 #endif
 
 /***********************************************************************
+=======
+>>>>>>> a7c4440... linaro toolchain fixes
  * Card Reader Section
  **********************************************************************/
 #ifdef CONFIG_CARDREADER
@@ -1649,6 +1788,7 @@ static struct resource meson_card_resource[] = {
 };
 
 
+<<<<<<< HEAD
 static void sdio_extern_init(void)
 {
     #if defined(CONFIG_BCM4329_HW_OOB) || defined(CONFIG_BCM4329_OOB_INTR_ONLY)/* Jone add */
@@ -1664,6 +1804,8 @@ static void sdio_extern_init(void)
     #endif
 }
 
+=======
+>>>>>>> a7c4440... linaro toolchain fixes
 static struct aml_card_info meson_card_info[] = {
     [0] = {
         .name           = "sd_card",
@@ -1684,6 +1826,7 @@ static struct aml_card_info meson_card_info[] = {
         .card_wp_input_mask = 0,
         .card_extern_init   = 0,
     },
+<<<<<<< HEAD
 #if 1
     [1] = {
         .name           = "sdio_card",
@@ -1705,6 +1848,8 @@ static struct aml_card_info meson_card_info[] = {
         .card_extern_init   = sdio_extern_init,
     },
 #endif
+=======
+>>>>>>> a7c4440... linaro toolchain fixes
 };
 
 static struct aml_card_platform meson_card_platform = {
@@ -2057,6 +2202,7 @@ static void __init meson_fixup(struct machine_desc *mach, struct tag *tag, char 
 /***********************************************************************
  *USB Setting section
  **********************************************************************/
+<<<<<<< HEAD
 static void set_usb_a_vbus_power(char is_power_on)
 {
 //M6 SKT: GPIOD_9,  OEN: 0x2012, OUT:0x2013 , Bit25
@@ -2080,12 +2226,18 @@ static void set_usb_a_vbus_power(char is_power_on)
     }
 }
 
+=======
+>>>>>>> a7c4440... linaro toolchain fixes
 static  int __init setup_usb_devices(void)
 {
     struct lm_device * usb_ld_a, *usb_ld_b;
     usb_ld_a = alloc_usb_lm_device(USB_PORT_IDX_A);
     usb_ld_b = alloc_usb_lm_device(USB_PORT_IDX_B);
+<<<<<<< HEAD
     usb_ld_a->param.usb.set_vbus_power = set_usb_a_vbus_power;
+=======
+    // usb_ld_a->param.usb.set_vbus_power = set_usb_a_vbus_power;
+>>>>>>> a7c4440... linaro toolchain fixes
     //usb_ld_a->param.usb.port_type = USB_PORT_TYPE_HOST;
     lm_device_register(usb_ld_a);
     lm_device_register(usb_ld_b);
@@ -2096,6 +2248,7 @@ static  int __init setup_usb_devices(void)
  *WiFi power section
  **********************************************************************/
 /* built-in usb wifi power ctrl, usb dongle must register NULL to power_ctrl! 1:power on  0:power off */
+<<<<<<< HEAD
 #ifdef CONFIG_AM_WIFI
 #ifdef CONFIG_AM_WIFI_USB
 static void usb_wifi_power(int is_power)
@@ -2109,16 +2262,30 @@ static void usb_wifi_power(int is_power)
     else
         SET_CBUS_REG_MASK(PREG_PAD_GPIO2_O, (1<<8));
     return ;
+=======
+#ifdef CONFIG_AM_WIFI_USB
+static int usb_wifi_power(int is_power)
+{
+    printk(KERN_INFO "usb_wifi_power %s\n", is_power ? "On" : "Off");
+    if (is_power)
+        gpio_direction_output(GPIO_PWR_WIFI, 0);
+    else
+        gpio_direction_output(GPIO_PWR_WIFI, 1);
+    return 0;
+>>>>>>> a7c4440... linaro toolchain fixes
 }
 
 static struct wifi_power_platform_data wifi_plat_data = {
     .usb_set_power = usb_wifi_power,
 };
+<<<<<<< HEAD
 #elif defined(CONFIG_AM_WIFI_SD_MMC)&&defined(CONFIG_CARDREADER)
     wifi_plat_data = {
 
 };
 #endif
+=======
+>>>>>>> a7c4440... linaro toolchain fixes
 
 static struct platform_device wifi_power_device = {
     .name       = "wifi_power",
@@ -2502,6 +2669,150 @@ static struct platform_device aml_hdmi_device = {
 };
 #endif
 
+<<<<<<< HEAD
+=======
+/***********************************************************************
+ *  Ethernet  Section
+ **********************************************************************/
+
+#ifdef CONFIG_AM_ETHERNET
+
+static void aml_eth_reset(void)
+{
+	printk(KERN_INFO "****** aml_eth_reset() ******\n");
+
+	aml_clr_reg32_mask(P_PREG_ETHERNET_ADDR0, 1);           // Disable the Ethernet clocks
+	// ---------------------------------------------
+	// Test 50Mhz Input Divide by 2
+	// ---------------------------------------------
+	// Select divide by 2
+	aml_clr_reg32_mask(P_PREG_ETHERNET_ADDR0, (1<<3));     // desc endianess "same order" 
+	aml_clr_reg32_mask(P_PREG_ETHERNET_ADDR0, (1<<2));     // ata endianess "little"
+	aml_set_reg32_mask(P_PREG_ETHERNET_ADDR0, (1<<1));     // divide by 2 for 100M
+	aml_set_reg32_mask(P_PREG_ETHERNET_ADDR0, 1);          // enable Ethernet clocks
+
+    /* setup ethernet interrupt */
+    aml_set_reg32_mask(P_SYS_CPU_0_IRQ_IN0_INTR_MASK, 1 << 8);
+    aml_set_reg32_mask(P_SYS_CPU_0_IRQ_IN1_INTR_STAT, 1 << 8);
+
+	udelay(100);
+	/* hardware reset ethernet phy */
+	gpio_direction_output(GPIO_ETH_RESET, 0);
+	msleep(20);
+	gpio_set_value(GPIO_ETH_RESET, 1);
+}
+
+static void aml_eth_clock_enable(void)
+{
+	unsigned int clk_divider = 0;
+	unsigned int clk_invert = 0;
+	unsigned int clk_source = 0;
+
+
+	printk(KERN_INFO "****** aml_eth_clock_enable() ******\n");
+
+#ifdef CONFIG_AM_ETHERNET_EXT_CLK
+	printk(KERN_INFO "AML_ETH_CLOCK: External.\n");
+	// old: eth_clk_set(ETH_CLKSRC_EXT_XTAL_CLK, (50 * CLK_1M), (50 * CLK_1M), 1);
+
+	/* External Clock */
+	clk_divider = 1;				// Clock Divider (50 / 50 )
+	clk_invert  = 1;				// 1 = invert, 0 = non-invert clock signal
+	clk_source  = ETH_CLKSRC_EXT_XTAL_CLK;		// Source, see clk_set.h
+#else
+	printk(KERN_INFO "AML_ETH_CLOCK: Internal.\n");
+	// old: eth_clk_set(ETH_CLKSRC_MISC_CLK, get_misc_pll_clk(), (50 * CLK_1M), 0);
+	/* Internal Clock */
+	// get_misc_pll_clk() = 480M
+	clk_divider = (unsigned int)480/50;		// Clock Divider
+	clk_invert  = 0;				// 1 = invert, 0 = non-invert clock signal
+	clk_source  = ETH_CLKSRC_MISC_CLK;		// Source, see clk_set.h
+#endif
+	aml_write_reg32(P_HHI_ETH_CLK_CNTL, (
+		(clk_divider - 1) << 0 |		// Clock Divider
+		clk_source << 9 |			// Clock Source ETH_CLKSRC_MISC_CLK
+		((clk_invert == 1) ? 1 : 0) << 14 |	// PAD signal invert
+		1 << 8 					// enable clk
+		)
+	);
+	printk("P_HHI_ETH_CLK_CNTL = 0x%x\n", aml_read_reg32(P_HHI_ETH_CLK_CNTL));
+
+}
+
+static void aml_eth_clock_disable(void)
+{
+    printk(KERN_INFO "****** aml_eth_clock_disable() ******\n");
+    /* disable ethernet clk */
+    aml_clr_reg32_mask(P_HHI_ETH_CLK_CNTL, 1 << 8);
+}
+
+static pinmux_item_t aml_eth_pins[] = {
+    /* RMII pin-mux */
+    {
+		.reg = PINMUX_REG(6),
+		.clrmask = (3<<17),
+#ifdef CONFIG_AM_ETHERNET_EXT_CLK
+		.setmask = (1<<18), //(3<<17), // bit 18 = ETH_CLK_IN_GPIOY0_REG6_18, // BIT 17 = Ethernet in???
+#else 
+		.setmask = (1<<17), //(3<<17), // bit 18 = ETH_CLK_IN_GPIOY0_REG6_18, // BIT 17 = Ethernet in???
+#endif
+    },
+    PINMUX_END_ITEM
+};
+
+static pinmux_set_t aml_eth_pinmux = {
+    .chip_select = NULL,
+    .pinmux = aml_eth_pins,
+};
+
+static void aml_eth_pinmux_setup(void)
+{
+    printk(KERN_INFO "****** aml_eth_pinmux_setup() ******\n");
+	/* Old 2.6 old 
+		CLEAR_CBUS_REG_MASK(PERIPHS_PIN_MUX_6,(3<<17));//reg6[17/18]=0
+		eth_set_pinmux(ETH_BANK0_GPIOY1_Y9, ETH_CLK_IN_GPIOY0_REG6_18, 0);
+	
+		results in:
+	*/
+	pinmux_clr(&aml_eth_pinmux);
+	pinmux_set(&aml_eth_pinmux);
+	aml_set_reg32_mask(P_PERIPHS_PIN_MUX_0, 0);
+}
+
+static void aml_eth_pinmux_cleanup(void)
+{
+    printk(KERN_INFO "****** aml_eth_pinmux_cleanup() ******\n");
+    pinmux_clr(&aml_eth_pinmux);
+}
+
+static void aml_eth_init(void)
+{
+    aml_eth_pinmux_setup();
+    aml_eth_clock_enable();
+    aml_eth_reset();
+
+	/* debug code */
+	printk("P_PERIPHS_PIN_MUX_0 = 0x%8x\n", aml_read_reg32(P_PERIPHS_PIN_MUX_0));
+	printk("P_PERIPHS_PIN_MUX_6 = 0x%8x\n", aml_read_reg32(P_PERIPHS_PIN_MUX_6));	
+	printk("P_PREG_ETHERNET_ADDR0 = 0x%8x\n", aml_read_reg32(P_PREG_ETHERNET_ADDR0));
+}
+
+static struct aml_eth_platdata aml_eth_pdata __initdata = {
+    .pinmux_items = aml_eth_pins,
+    .pinmux_setup = aml_eth_pinmux_setup,
+    .pinmux_cleanup = aml_eth_pinmux_cleanup,
+    .clock_enable = aml_eth_clock_enable,
+    .clock_disable = aml_eth_clock_disable,
+    .reset = aml_eth_reset,
+};
+
+static void __init setup_eth_device(void)
+{
+    meson_eth_set_platdata(&aml_eth_pdata);
+    aml_eth_init();
+}
+#endif
+>>>>>>> a7c4440... linaro toolchain fixes
 
 /***********************************************************************
  * Device Register Section
@@ -2594,6 +2905,7 @@ static struct platform_device  *platform_devs[] = {
 #endif
 };
 
+<<<<<<< HEAD
 /*static int __init get_voltage_table(char *str)
 {
 
@@ -2619,6 +2931,8 @@ static struct platform_device  *platform_devs[] = {
 }
 */
 
+=======
+>>>>>>> a7c4440... linaro toolchain fixes
 static void __init power_hold(void)
 {
 	printk(KERN_INFO "power hold set high!\n");
@@ -2640,6 +2954,7 @@ static void __init power_hold(void)
 	// gpio_out(PAD_GPIOD_1, gpio_status_out);
     // gpio_out_high(PAD_GPIOD_1);
 
+<<<<<<< HEAD
 	gpio_out(PAD_GPIOAO_11, gpio_status_out); // POWER
 	gpio_out_low(PAD_GPIOAO_11);
 
@@ -2648,6 +2963,8 @@ static void __init power_hold(void)
 
 	// gpio_direction_output( GPIO_LED_POWER, 1);
 	// gpio_direction_output( GPIO_LED_STATUS, 1
+=======
+>>>>>>> a7c4440... linaro toolchain fixes
 }
 
 
@@ -2657,9 +2974,12 @@ static __init void meson_init_machine(void)
     power_hold();
     setup_usb_devices();
     setup_devices_resource();
+<<<<<<< HEAD
 #ifdef CONFIG_AM_WIFI
     wifi_dev_init();
 #endif
+=======
+>>>>>>> a7c4440... linaro toolchain fixes
     platform_add_devices(platform_devs, ARRAY_SIZE(platform_devs));
 
 #if defined(CONFIG_I2C_AML) || defined(CONFIG_I2C_HW_AML)
@@ -2670,6 +2990,7 @@ static __init void meson_init_machine(void)
         wifi_plat_data.usb_set_power(0);//power off built-in usb wifi
 #endif
 
+<<<<<<< HEAD
 #ifdef CONFIG_MPU_SENSORS_MPU3050
     mpu3050_init_irq();
 #endif
@@ -2678,6 +2999,10 @@ static __init void meson_init_machine(void)
 #endif
 #ifdef CONFIG_AM_ETHERNET
 //	setup_eth_device();
+=======
+#ifdef CONFIG_AM_ETHERNET
+	setup_eth_device();
+>>>>>>> a7c4440... linaro toolchain fixes
 #endif
 	pm_power_off = power_off;
 }
