@@ -112,8 +112,9 @@
 #define GPIO_PWR_HDMI   GPIO_D(6)
 #endif
 
-//#define NET_EXT_CLK
+#ifdef CONFIG_AM_ETHERNET
 #include <mach/clk_set.h>
+#endif
 
 /***********************************************************************
  * IO Mapping
@@ -406,10 +407,6 @@ static struct ctp_platform_data gt82x_data = {
     .ymin = 0,
     .ymax = GT82X_YRES,
 };
-#endif
-#ifdef CONFIG_AM_ETHERNET
-//#include"includes/eth.h"
-//#include <mach/am_eth_reg.h>
 #endif
 
 #ifdef CONFIG_AW_AXP20
@@ -1978,9 +1975,12 @@ static struct platform_device aml_hdmi_device = {
 };
 #endif
 
-#define NET_EXT_CLK
+/***********************************************************************
+ *  Ethernet  Section
+ **********************************************************************/
 
 #ifdef CONFIG_AM_ETHERNET
+
 static void aml_eth_reset(void)
 {
 	printk(KERN_INFO "****** aml_eth_reset() ******\n");
@@ -2015,7 +2015,8 @@ static void aml_eth_clock_enable(void)
 
 	printk(KERN_INFO "****** aml_eth_clock_enable() ******\n");
 
-#ifdef NET_EXT_CLK
+#ifdef CONFIG_AM_ETHERNET_EXT_CLK
+	printk(KERN_INFO "AML_ETH_CLOCK: External.\n");
 	// old: eth_clk_set(ETH_CLKSRC_EXT_XTAL_CLK, (50 * CLK_1M), (50 * CLK_1M), 1);
 
 	/* External Clock */
@@ -2023,6 +2024,7 @@ static void aml_eth_clock_enable(void)
 	clk_invert  = 1;				// 1 = invert, 0 = non-invert clock signal
 	clk_source  = ETH_CLKSRC_EXT_XTAL_CLK;		// Source, see clk_set.h
 #else
+	printk(KERN_INFO "AML_ETH_CLOCK: Internal.\n");
 	// old: eth_clk_set(ETH_CLKSRC_MISC_CLK, get_misc_pll_clk(), (50 * CLK_1M), 0);
 	/* Internal Clock */
 	// get_misc_pll_clk() = 480M
@@ -2053,7 +2055,7 @@ static pinmux_item_t aml_eth_pins[] = {
     {
 		.reg = PINMUX_REG(6),
 		.clrmask = (3<<17),
-#ifdef NET_EXT_CLK
+#ifdef CONFIG_AM_ETHERNET_EXT_CLK
 		.setmask = (1<<18), //(3<<17), // bit 18 = ETH_CLK_IN_GPIOY0_REG6_18, // BIT 17 = Ethernet in???
 #else 
 		.setmask = (1<<17), //(3<<17), // bit 18 = ETH_CLK_IN_GPIOY0_REG6_18, // BIT 17 = Ethernet in???
