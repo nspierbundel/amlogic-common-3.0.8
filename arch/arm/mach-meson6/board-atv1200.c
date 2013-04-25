@@ -1065,8 +1065,23 @@ static struct i2c_board_info __initdata aml_i2c_bus_info_b[] = {
     },
 #endif
 #ifdef CONFIG_AT88SCXX
-    {
-	I2C_BOARD_INFO("at88scxx", 0xB6),
+/*
+    {   // AT88SCxx uses 8-bit address range: 0xB0 to 0xBA 
+	//               7-bit address range: 0x58 to 0x5D
+8-Bit  Bin        7-Bit
+B0     1011 0000  58
+B2     1011 0010  59
+B4     1011 0100  5A
+B6     1011 0110  5B
+B8     1011 1000  5C
+BA     1011 1010  5D
+*/
+	I2C_BOARD_INFO("at88scxx_B0", 0x58),
+	I2C_BOARD_INFO("at88scxx_B2", 0x59),
+	I2C_BOARD_INFO("at88scxx_B4", 0x5a),
+	I2C_BOARD_INFO("at88scxx_B6", 0x5b),
+	I2C_BOARD_INFO("at88scxx_B8", 0x5c),
+	I2C_BOARD_INFO("at88scxx_BA", 0x5d),
     },
 #endif
 #ifdef CONFIG_IR810_POWEROFF
