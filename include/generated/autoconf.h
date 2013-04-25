@@ -127,7 +127,6 @@
 #define CONFIG_NF_CT_PROTO_DCCP 1
 #define CONFIG_ZLIB_INFLATE 1
 #define CONFIG_CRC_T10DIF 1
-#define CONFIG_DEBUG_LL 1
 #define CONFIG_HWMON 1
 #define CONFIG_USB_G_ANDROID 1
 #define CONFIG_ARM_ERRATA_764369 1
@@ -521,7 +520,7 @@
 #define CONFIG_CRYPTO 1
 #define CONFIG_DEFAULT_MMAP_MIN_ADDR 4096
 #define CONFIG_IP_NF_IPTABLES 1
-#define CONFIG_CMDLINE "root=/dev/mtdblock2 rw rootfstype=yaffs2 init=/sbin/init rootwait console=ttyS0,115200n8 a9_clk_max=1512000000 logo=osd1,0x84100000,720p,full androidboot.resolution=720p nohlt mem=1024M vmalloc=256m mac=00:0d:fe:58:ca:6d verhw=MX_SDIO subverhw=MX0"
+#define CONFIG_CMDLINE "root=/dev/mmcblk0p2 rw rootfstype=ext3 init=/sbin/init rootwait console=ttyS0,115200n8 a9_clk_max=1512000000 logo=osd1,0x84100000,720p,full androidboot.resolution=720p nohlt mem=1024M vmalloc=256m mac=00:0d:fe:58:ca:6d verhw=MX_SDIO subverhw=MX0"
 #define CONFIG_MESON_SUSPEND_FIRMWARE_BASE 0x1ff00000
 #define CONFIG_HAVE_DMA_API_DEBUG 1
 #define CONFIG_USB_DWC_OTG_HCD 1
@@ -666,7 +665,7 @@
 #define CONFIG_MUTEX_SPIN_ON_OWNER 1
 #define CONFIG_RWSEM_GENERIC_SPINLOCK 1
 #define CONFIG_AMIGA_PARTITION 1
-#define CONFIG_EARLY_PRINTK 1
+#define CONFIG_AM_ETHERNET_EXT_CLK 1
 #define CONFIG_HAVE_FUNCTION_GRAPH_TRACER 1
 #define CONFIG_NTFS_FS 1
 #define CONFIG_BASE_SMALL 0
