@@ -899,40 +899,13 @@ static bool pinmux_dummy_share(bool select)
     return select;
 }
 
-enum I2C_BUS { I2C_A = 0, I2C_B, I2C_AO };
-
 static pinmux_item_t aml_i2c_pinmux_item[] = {
-    [I2C_A] = {   // I2C_A
-        .reg = 5,
-        //.clrmask = (3<<24)|(3<<30),
-        .setmask = 3<<26 // GPIO_X25 (SDA) and X26 (SCK)
-    },
-    [I2C_B] = {   // I2C_B
+    [0] = {   // I2C_B
         .reg = 5,
         //.clrmask = (3<<28)|(3<<26),
         .setmask = 3<<30  // GPIO_X27 (SDA) and X28 (SCK)
     },
-    [I2C_AO] = {   // I2C_AO
-        .reg = AO,
-        .clrmask  = (3<<1)|(3<<23),
-        .setmask = 3<<5  // GPIO_AO4 (SCK) and AO5 (SDA)
-    },
     PINMUX_END_ITEM
-};
-
-static struct aml_i2c_platform aml_i2c_plat_a = {
-    .wait_count             = 50000,
-    .wait_ack_interval   = 5,
-    .wait_read_interval  = 5,
-    .wait_xfer_interval   = 5,
-    .master_no          = AML_I2C_MASTER_A,
-    .use_pio            = 0,
-    .master_i2c_speed   = AML_I2C_SPPED_100K,
-
-    .master_pinmux      = {
-        .chip_select    = pinmux_dummy_share,
-        .pinmux         = &aml_i2c_pinmux_item[I2C_A]
-    }
 };
 
 static struct aml_i2c_platform aml_i2c_plat_b = {
@@ -946,30 +919,8 @@ static struct aml_i2c_platform aml_i2c_plat_b = {
 
     .master_pinmux      = {
         .chip_select    = pinmux_dummy_share,
-        .pinmux         = &aml_i2c_pinmux_item[I2C_B]
+        .pinmux         = &aml_i2c_pinmux_item[0]
     }
-};
-
-static struct aml_i2c_platform aml_i2c_plat_ao = {
-    .wait_count         = 50000,
-    .wait_ack_interval  = 5,
-    .wait_read_interval = 5,
-    .wait_xfer_interval = 5,
-    .master_no          = AML_I2C_MASTER_AO,
-    .use_pio            = 0,
-    .master_i2c_speed   = AML_I2C_SPPED_100K,
-
-    .master_pinmux      = {
-        .pinmux         = &aml_i2c_pinmux_item[I2C_AO]
-    }
-};
-
-static struct resource aml_i2c_resource_a[] = {
-    [0]= {
-        .start = MESON_I2C_MASTER_A_START,
-        .end   = MESON_I2C_MASTER_A_END,
-        .flags = IORESOURCE_MEM,
-    },
 };
 
 static struct resource aml_i2c_resource_b[] = {
@@ -980,41 +931,13 @@ static struct resource aml_i2c_resource_b[] = {
     },
 };
 
-static struct resource aml_i2c_resource_ao[] = {
-    [0]= {
-        .start =    MESON_I2C_MASTER_AO_START,
-        .end   =    MESON_I2C_MASTER_AO_END,
-        .flags =    IORESOURCE_MEM,
-    },
-};
-
-static struct platform_device aml_i2c_device_a = {
-    .name          = "aml-i2c",
-    .id            = 0,
-    .num_resources = ARRAY_SIZE(aml_i2c_resource_a),
-    .resource      = aml_i2c_resource_a,
-    .dev = {
-        .platform_data = &aml_i2c_plat_a,
-    },
-};
-
 static struct platform_device aml_i2c_device_b = {
     .name          = "aml-i2c",
-    .id            = 1,
+    .id            = 0,
     .num_resources = ARRAY_SIZE(aml_i2c_resource_b),
     .resource      = aml_i2c_resource_b,
     .dev = {
         .platform_data = &aml_i2c_plat_b,
-    },
-};
-
-static struct platform_device aml_i2c_device_ao = {
-    .name          = "aml-i2c",
-    .id            = 3,
-    .num_resources = ARRAY_SIZE(aml_i2c_resource_ao),
-    .resource      = aml_i2c_resource_ao,
-    .dev = {
-        .platform_data = &aml_i2c_plat_ao,
     },
 };
 
@@ -1036,21 +959,6 @@ static struct platform_device vm_device =
 };
 #endif /* AMLOGIC_VIDEOIN_MANAGER */
 
-static struct i2c_board_info __initdata aml_i2c_bus_info_ao[] = {
-#ifdef CONFIG_AW_AXP20
-    {
-        I2C_BOARD_INFO("axp20_mfd", AXP20_ADDR),
-        .platform_data = &axp_pdata,
-        .addr = AXP20_ADDR, //axp_cfg.pmu_twi_addr,
-        .irq = AXP20_IRQNO, //axp_cfg.pmu_irq_id,
-    },
-#endif
-
-};
-
-static struct i2c_board_info __initdata aml_i2c_bus_info_a[] = {
-};
-
 static struct i2c_board_info __initdata aml_i2c_bus_info_b[] = {
 #ifdef CONFIG_MPU_SENSORS_MPU3050
     {
@@ -1066,8 +974,8 @@ static struct i2c_board_info __initdata aml_i2c_bus_info_b[] = {
 #endif
 #ifdef CONFIG_AT88SCXX
 /*
-    {   // AT88SCxx uses 8-bit address range: 0xB0 to 0xBA 
-	//               7-bit address range: 0x58 to 0x5D
+        // AT88SCxx uses 8-bit address range: 0xB0 to 0xBE 
+	//               7-bit address range: 0x58 to 0x5F
 8-Bit  Bin        7-Bit
 B0     1011 0000  58
 B2     1011 0010  59
@@ -1075,6 +983,9 @@ B4     1011 0100  5A
 B6     1011 0110  5B
 B8     1011 1000  5C
 BA     1011 1010  5D
+BC     1011 1100  5E
+BE     1011 1110  5F
+
 */
 	I2C_BOARD_INFO("at88scxx_B0", 0x58),
 	I2C_BOARD_INFO("at88scxx_B2", 0x59),
@@ -1082,6 +993,8 @@ BA     1011 1010  5D
 	I2C_BOARD_INFO("at88scxx_B6", 0x5b),
 	I2C_BOARD_INFO("at88scxx_B8", 0x5c),
 	I2C_BOARD_INFO("at88scxx_BA", 0x5d),
+	I2C_BOARD_INFO("at88scxx_BC", 0x5e),
+	I2C_BOARD_INFO("at88scxx_BE", 0x5f),
     },
 #endif
 #ifdef CONFIG_IR810_POWEROFF
@@ -1132,13 +1045,9 @@ static struct i2c_board_info __initdata aml_i2c_eeprom_info[] = {
 
 static int __init aml_i2c_init(void)
 {
-	i2c_register_board_info(0, aml_i2c_bus_info_a,
-		ARRAY_SIZE(aml_i2c_bus_info_a));
 	i2c_register_board_info(1, aml_i2c_bus_info_b,
 		ARRAY_SIZE(aml_i2c_bus_info_b));
-	i2c_register_board_info(2, aml_i2c_bus_info_ao,
-		ARRAY_SIZE(aml_i2c_bus_info_ao));
-	i2c_register_board_info(0, aml_i2c_eeprom_info,
+	i2c_register_board_info(1, aml_i2c_eeprom_info,
 		ARRAY_SIZE(aml_i2c_eeprom_info));
 	return 0;
 }
@@ -1203,7 +1112,6 @@ static struct resource meson_card_resource[] = {
         .flags = 0x200,
     }
 };
-
 
 static struct aml_card_info meson_card_info[] = {
     [0] = {
