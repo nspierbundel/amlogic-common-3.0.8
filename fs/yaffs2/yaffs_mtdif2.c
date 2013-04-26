@@ -150,8 +150,8 @@ int nandmtd2_read_chunk_tags(struct yaffs_dev *dev, int nand_chunk,
 		yaffs_release_temp_buffer(dev, data, __LINE__);
 		
 	//EUCLEAN is data corrected by ecc so needn`t return error
-	if (retval == -EUCLEAN)
-		retval = 0;	
+	//if (retval == -EUCLEAN)
+	//	retval = 0;	
 		
 	if (tags && retval == -EBADMSG
 	    && tags->ecc_result == YAFFS_ECC_RESULT_NO_ERROR) {

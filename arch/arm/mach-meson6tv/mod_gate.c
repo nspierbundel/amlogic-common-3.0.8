@@ -225,6 +225,18 @@ static mod_record_t mod_records[MOD_MAX_NUM + 1] = {
         .flag = 1,
         .dc_en = 0,
     },{
+        .name = "usb2",
+        .type = MOD_USB2,
+        .ref = 0,
+        .flag = 1,
+        .dc_en = 0,
+    },{
+        .name = "usb3",
+        .type = MOD_USB3,
+        .ref = 0,
+        .flag = 1,
+        .dc_en = 0,
+    },{
         .name = "sdio",
         .type = MOD_SDIO,
         .ref = 0,
@@ -307,11 +319,13 @@ static int _switch_gate(mod_type_t type, int flag)
             if (flag) {
                 GATE_ON(HDMI_INTR_SYNC);
                 GATE_ON(HDMI_PCLK);
-                GATE_ON(VCLK1_HDMI);
+                //GATE_ON(VCLK1_HDMI);
+                GATE_ON(HDMI_RX);
             } else {
                 GATE_OFF(HDMI_INTR_SYNC);
                 GATE_OFF(HDMI_PCLK);
-                GATE_OFF(VCLK1_HDMI);
+		GATE_OFF(HDMI_RX);
+                //GATE_OFF(VCLK1_HDMI);
             }            
             break;
         case MOD_VENC:
@@ -380,6 +394,7 @@ static int _switch_gate(mod_type_t type, int flag)
             break;
         case MOD_MIPI:
             PRINT_INFO("turn %s mipi module\n", flag?"on":"off");
+#if 0
             if (flag) {
                 GATE_ON(MIPI_APB_CLK);
                 GATE_ON(MIPI_SYS_CLK);
@@ -389,6 +404,7 @@ static int _switch_gate(mod_type_t type, int flag)
                 GATE_OFF(MIPI_SYS_CLK);
                 GATE_OFF(MIPI_PHY);
             }
+#endif
             break;
         case MOD_BT656:
             PRINT_INFO("turn %s bt656 module\n", flag?"on":"off");
@@ -461,9 +477,9 @@ static int _switch_gate(mod_type_t type, int flag)
         case MOD_RANDOM_NUM_GEN:
             PRINT_INFO("turn %s random_num_gen module\n", flag?"on":"off");
             if (flag) {
-                GATE_ON(RANDOM_NUM_GEN);
+                GATE_ON(RAND_NUM_GEN);
             } else {
-                GATE_OFF(RANDOM_NUM_GEN);
+                GATE_OFF(RAND_NUM_GEN);
             }
             break;
         case MOD_ETHERNET:
@@ -597,7 +613,7 @@ static int _switch_gate(mod_type_t type, int flag)
             }
             break;
         case MOD_USB0:
-            PRINT_INFO("trun %s rdma\n", flag? " on" : "off");
+            PRINT_INFO("trun %s usb0\n", flag? " on" : "off");
             if(flag){
                 GATE_ON(USB0);
                 GATE_ON(MISC_USB0_TO_DDR);
@@ -607,7 +623,7 @@ static int _switch_gate(mod_type_t type, int flag)
             }
             break;
         case MOD_USB1:
-            PRINT_INFO("trun %s rdma\n", flag? " on" : "off");
+            PRINT_INFO("trun %s usb1\n", flag? " on" : "off");
             if(flag){
                 GATE_ON(USB1);
                 GATE_ON(MISC_USB1_TO_DDR);
@@ -616,8 +632,28 @@ static int _switch_gate(mod_type_t type, int flag)
                 GATE_ON(MISC_USB1_TO_DDR);
             }
             break;
+	case MOD_USB2:
+            PRINT_INFO("trun %s usb2\n", flag? " on" : "off");
+            if(flag){
+                GATE_ON(USB2_OTG_CON);
+                GATE_ON(USB2_TO_DDR);
+            }else{
+                GATE_OFF(USB2_OTG_CON);
+                GATE_ON(USB2_TO_DDR);
+            }
+            break;
+	case MOD_USB3:
+            PRINT_INFO("trun %s usb3\n", flag? " on" : "off");
+            if(flag){
+                GATE_ON(USB3_OTG_CON);
+                GATE_ON(USB3_TO_DDR);
+            }else{
+                GATE_OFF(USB3_OTG_CON);
+                GATE_ON(USB3_TO_DDR);
+            }
+            break;
         case MOD_SDIO:
-            PRINT_INFO("trun %s rdma\n", flag? " on" : "off");
+            PRINT_INFO("trun %s sdio\n", flag? " on" : "off");
             if(flag){
                 GATE_ON(SDIO);
             }else{
@@ -634,11 +670,13 @@ static int _switch_gate(mod_type_t type, int flag)
             break;
         case MOD_LED_PWM:
             PRINT_INFO("trun %s led pwm\n", flag? " on" : "off");
+#if 0
             if(flag){
                 GATE_ON(LED_PWM);
             }else{
                 GATE_OFF(LED_PWM);
             }
+#endif		
             break;
         default:
             PRINT_INFO("mod type not support\n");

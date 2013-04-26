@@ -767,6 +767,10 @@ typedef __u64 v4l2_std_id;
 #define V4L2_STD_ATSC_8_VSB     ((v4l2_std_id)0x01000000)
 #define V4L2_STD_ATSC_16_VSB    ((v4l2_std_id)0x02000000)
 
+/*COLOR MODULATION TYPE*/
+#define V4L2_COLOR_STD_PAL 			((v4l2_std_id)0x04000000)
+#define V4L2_COLOR_STD_NTSC		((v4l2_std_id)0x08000000)
+#define V4L2_COLOR_STD_SECAM 		((v4l2_std_id)0x10000000)
 /* FIXME:
    Although std_id is 64 bits, there is an issue on PPC32 architecture that
    makes switch(__u64) to break. So, there's a hack on v4l2-common.c rounding
@@ -1075,6 +1079,7 @@ struct v4l2_querymenu {
 #define V4L2_CTRL_FLAG_NEXT_CTRL	0x80000000
 
 /*  User-class control IDs defined by V4L2 */
+#define V4L2_CID_MAX_CTRLS		1024
 #define V4L2_CID_BASE			(V4L2_CTRL_CLASS_USER | 0x900)
 #define V4L2_CID_USER_BASE 		V4L2_CID_BASE
 /*  IDs reserved for driver specific controls */
@@ -1474,12 +1479,28 @@ struct v4l2_modulator {
 #define V4L2_TUNER_SUB_RDS		0x0010
 
 /*  Values for the 'audmode' field */
-#define V4L2_TUNER_MODE_MONO		0x0000
-#define V4L2_TUNER_MODE_STEREO		0x0001
-#define V4L2_TUNER_MODE_LANG2		0x0002
-#define V4L2_TUNER_MODE_SAP		0x0002
-#define V4L2_TUNER_MODE_LANG1		0x0003
-#define V4L2_TUNER_MODE_LANG1_LANG2	0x0004
+#define V4L2_TUNER_AUDMODE_NULL		0x0000
+#define V4L2_TUNER_MODE_MONO		0x0001
+#define V4L2_TUNER_MODE_STEREO		0x0002
+#define V4L2_TUNER_MODE_LANG2		0x0003
+#define V4L2_TUNER_MODE_SAP			0x0004
+#define V4L2_TUNER_MODE_LANG1		0x0005
+#define V4L2_TUNER_MODE_LANG1_LANG2	0x0006
+
+/*Values for the 'soundsys' field */
+#define V4L2_TUNER_SYS_A2_BG		0x0000
+#define V4L2_TUNER_SYS_A2_DK1		0x0001
+#define V4L2_TUNER_SYS_A2_DK2		0x0002
+#define V4L2_TUNER_SYS_A2_DK3		0x0003
+#define V4L2_TUNER_SYS_A2_M 		0x0004
+#define V4L2_TUNER_SYS_NICAM_BG	0x0005
+#define V4L2_TUNER_SYS_NICAM_I		0x0006
+#define V4L2_TUNER_SYS_NICAM_DK	0x0007
+#define V4L2_TUNER_SYS_NICAM_L		0x0008
+#define V4L2_TUNER_SYS_EIAJ			0x0009
+#define V4L2_TUNER_SYS_BTSC			0x000A
+#define V4L2_TUNER_SYS_FM_RADIO	0x000B
+#define V4L2_TUNER_SYS_NULL			0x000C
 
 struct v4l2_frequency {
 	__u32		      tuner;

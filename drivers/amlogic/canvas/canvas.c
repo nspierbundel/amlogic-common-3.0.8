@@ -38,7 +38,7 @@
 #define pr_dbg(fmt, args...) printk(KERN_DEBUG "Canvas: " fmt, ## args)
 #define pr_error(fmt, args...) printk(KERN_ERR "Canvas: " fmt, ## args)
 
-#define CANVAS_NUM	192
+#define CANVAS_NUM	256
 
 static struct platform_device *canvas_dev;
 static DEFINE_SPINLOCK(lock);

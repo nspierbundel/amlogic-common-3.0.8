@@ -23,8 +23,11 @@ typedef  enum{
 	OSD_COLOR_KEY_ENABLE,
 	OSD_GBL_ALPHA,
 	OSD_CHANGE_ORDER,
+	OSD_FREESCALE_COEF,
 	DISP_GEOMETRY,
 	DISP_SCALE_ENABLE,
+	DISP_FREESCALE_ENABLE,
+	DISP_OSD_REVERSE,
 	HW_REG_INDEX_MAX
 }hw_reg_index;
 
@@ -75,6 +78,8 @@ extern void osd_change_osd_order_hw(u32 index,u32 order);
 extern u32 osd_get_osd_order_hw(u32 index);
 extern void osd_free_scale_enable_hw(u32 index,u32 enable);
 extern void osd_get_free_scale_enable_hw(u32 index, u32 * free_scale_enable);
+extern void osd_free_scale_mode_hw(u32 index,u32 freescale_mode);
+extern void osd_get_free_scale_mode_hw(u32 index, u32 *freescale_mode);
 extern void osd_free_scale_width_hw(u32 index,u32 width) ;
 extern void osd_get_free_scale_width_hw(u32 index, u32 * free_scale_width);
 extern void osd_free_scale_height_hw(u32 index,u32 height);
@@ -82,6 +87,8 @@ extern void osd_get_free_scale_height_hw(u32 index, u32 * free_scale_height);
 extern void osd_get_free_scale_axis_hw(u32 index, s32 *x0, s32 *y0, s32 *x1, s32 *y1);
 extern void osd_set_free_scale_axis_hw(u32 index, s32 x0, s32 y0, s32 x1, s32 y1);
 extern void osd_get_scale_axis_hw(u32 index, s32 *x0, s32 *y0, s32 *x1, s32 *y1);
+extern void osd_get_window_axis_hw(u32 index, s32 *x0, s32 *y0, s32 *x1, s32 *y1);
+extern void osd_set_window_axis_hw(u32 index, s32 x0, s32 y0, s32 x1, s32 y1);
 extern void osd_set_scale_axis_hw(u32 index, s32 x0, s32 y0, s32 x1, s32 y1);
 extern void osd_get_osd_info_hw(u32 index, s32 (*posdval)[4], u32 (*posdreg)[5], s32 info_flag);
 extern void osd_get_block_windows_hw(u32 index, u32 *windows);
@@ -90,6 +97,9 @@ extern void osd_get_block_mode_hw(u32 index, u32 *mode);
 extern void osd_set_block_mode_hw(u32 index, u32 mode);
 extern void osd_enable_3d_mode_hw(int index,int enable);
 extern void osd_set_2x_scale_hw(u32 index,u16 h_scale_enable,u16 v_scale_enable);
+extern void osd_get_flush_rate(u32 *break_rate);
+extern void osd_set_osd_reverse_hw(u32 index, u32 reverse);
+extern void osd_get_osd_reverse_hw(u32 index, u32 *reverse);
 extern void osd_setpal_hw(unsigned regno, unsigned red, unsigned green, unsigned blue, unsigned transp,int index);
 extern void osd_enable_hw(int enable,int index );
 extern void osd_pan_display_hw(unsigned int xoffset, unsigned int yoffset,int index );

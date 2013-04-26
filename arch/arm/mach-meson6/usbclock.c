@@ -80,10 +80,9 @@ int set_usb_phy_clk(struct lm_device * plmdev,int is_enable)
 	if(is_enable){
 		if(!init_count){
 			init_count++;
-			//here is not useful
-			//aml_set_reg32_bits(P_RESET1_REGISTER, 1, 2, 1);
-			//for(i = 0; i < 1000; i++)
-			//	udelay(time_dly);
+			aml_set_reg32_bits(P_RESET1_REGISTER, 1, 2, 1);
+			for(i = 0; i < 1000; i++)
+				udelay(time_dly);
 
 			clk_sel = plmdev->clock.sel;
 			clk_div = plmdev->clock.div;

@@ -24,8 +24,9 @@
 #include <basic_types.h>
 //#include <rtl871x_byteorder.h>
 
-#define _SUCCESS	1
 #define _FAIL		0
+#define _SUCCESS	1
+#define RTW_RX_HANDLED 2
 //#define RTW_STATUS_TIMEDOUT -110
 
 #undef _TRUE
@@ -619,10 +620,6 @@ typedef unsigned gfp_t;
 	#define DMA_BIT_MASK(n) (((n) == 64) ? ~0ULL : ((1ULL<<(n))-1))
 #endif
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,22))
-	#define skb_tail_pointer(skb)	skb->tail
-#endif
-
 __inline static _list *get_next(_list	*list)
 {
 	return list->next;
@@ -786,7 +783,9 @@ __inline static void _set_workitem(_workitem *pwork)
 	#include <linux/rtnetlink.h>
 	#include <linux/delay.h>
 	#include <linux/proc_fs.h>	// Necessary because we use the proc fs
+	#include <linux/interrupt.h>	// for struct tasklet_struct
 	#include <linux/ip.h>
+	#include <linux/kthread.h>
 
 #ifdef CONFIG_IOCTL_CFG80211	
 //	#include <linux/ieee80211.h>        
@@ -846,7 +845,7 @@ __inline static void _set_workitem(_workitem *pwork)
 	typedef unsigned long _irqL;
 	typedef	struct	net_device * _nic_hdl;
 	
-	typedef pid_t		_thread_hdl_;
+	typedef void*		_thread_hdl_;
 	typedef int		thread_return;
 	typedef void*	thread_context;
 
@@ -861,7 +860,26 @@ __inline static void _set_workitem(_workitem *pwork)
 #endif
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,22))
-	#define skb_tail_pointer(skb)	skb->tail
+// Porting from linux kernel, for compatible with old kernel.
+static inline unsigned char *skb_tail_pointer(const struct sk_buff *skb)
+{
+	return skb->tail;
+}
+
+static inline void skb_reset_tail_pointer(struct sk_buff *skb)
+{
+	skb->tail = skb->data;
+}
+
+static inline void skb_set_tail_pointer(struct sk_buff *skb, const int offset)
+{
+	skb->tail = skb->data + offset;
+}
+
+static inline unsigned char *skb_end_pointer(const struct sk_buff *skb)
+{
+	return skb->end;
+}
 #endif
 
 __inline static _list *get_next(_list	*list)
@@ -974,6 +992,15 @@ __inline static void _init_workitem(_workitem *pwork, void *pfunc, PVOID cntx)
 __inline static void _set_workitem(_workitem *pwork)
 {
 	schedule_work(pwork);
+}
+
+__inline static void _cancel_workitem_sync(_workitem *pwork)
+{
+#if (LINUX_VERSION_CODE>=KERNEL_VERSION(2,6,22))
+	cancel_work_sync(pwork);
+#else
+	flush_scheduled_work();
+#endif
 }
 
 //
@@ -1307,6 +1334,7 @@ extern u32	rtw_end_of_queue_search(_list *queue, _list *pelement);
 
 extern u32	rtw_get_current_time(void);
 extern u32	rtw_systime_to_ms(u32 systime);
+extern u32	rtw_ms_to_systime(u32 ms);
 extern s32	rtw_get_passing_time_ms(u32 start);
 extern s32	rtw_get_time_interval_ms(u32 start, u32 end);
 
@@ -1350,12 +1378,10 @@ __inline static unsigned char _cancel_timer_ex(_timer *ptimer)
 #ifdef PLATFORM_FREEBSD
 static __inline void thread_enter(void *context);
 #endif //PLATFORM_FREEBSD
-static __inline void thread_enter(void *context)
+static __inline void thread_enter(char *name)
 {
 #ifdef PLATFORM_LINUX
-	//struct net_device *pnetdev = (struct net_device *)context;
-	//daemonize("%s", pnetdev->name);
-	daemonize("%s", "RTKTHREAD");
+	daemonize("%s", name);
 	allow_signal(SIGTERM);
 #endif
 #ifdef PLATFORM_FREEBSD
@@ -1558,11 +1584,23 @@ extern void rtw_free_netdev(struct net_device * netdev);
 #endif
 
 #ifdef PLATFORM_LINUX
+#define NDEV_FMT "%s"
+#define NDEV_ARG(ndev) ndev->name
+#define ADPT_FMT "%s"
+#define ADPT_ARG(adapter) adapter->pnetdev->name
 #define FUNC_NDEV_FMT "%s(%s)"
 #define FUNC_NDEV_ARG(ndev) __func__, ndev->name
+#define FUNC_ADPT_FMT "%s(%s)"
+#define FUNC_ADPT_ARG(adapter) __func__, adapter->pnetdev->name
 #else
+#define NDEV_FMT "%s"
+#define NDEV_ARG(ndev) ""
+#define ADPT_FMT "%s"
+#define ADPT_ARG(adapter) ""
 #define FUNC_NDEV_FMT "%s"
 #define FUNC_NDEV_ARG(ndev) __func__
+#define FUNC_ADPT_FMT "%s"
+#define FUNC_ADPT_ARG(adapter) __func__
 #endif
 
 #ifdef PLATFORM_LINUX
@@ -1642,6 +1680,23 @@ extern u64 rtw_division64(u64 x, u64 y);
 			 (((u64) (a)[5]) << 40) | (((u64) (a)[4]) << 32) | \
 			 (((u64) (a)[3]) << 24) | (((u64) (a)[2]) << 16) | \
 			 (((u64) (a)[1]) << 8) | ((u64) (a)[0]))
+
+void rtw_buf_free(u8 **buf, u32 *buf_len);
+void rtw_buf_update(u8 **buf, u32 *buf_len, u8 *src, u32 src_len);
+
+struct rtw_cbuf {
+	u32 write;
+	u32 read;
+	u32 size;
+	void *bufs[0];
+};
+
+bool rtw_cbuf_full(struct rtw_cbuf *cbuf);
+bool rtw_cbuf_empty(struct rtw_cbuf *cbuf);
+bool rtw_cbuf_push(struct rtw_cbuf *cbuf, void *buf);
+void *rtw_cbuf_pop(struct rtw_cbuf *cbuf);
+struct rtw_cbuf *rtw_cbuf_alloc(u32 size);
+void rtw_cbuf_free(struct rtw_cbuf *cbuf);
 
 #endif
 

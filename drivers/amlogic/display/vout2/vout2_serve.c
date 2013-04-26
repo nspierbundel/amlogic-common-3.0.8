@@ -171,7 +171,8 @@ static void  set_vout_window(char *para)
 static const char *venc_mux_help = {
 	"venc_mux:\n"
 	"    0. single display, viu1->panel, viu2->null\n"
-	"    2. dual display, viu1->hdmi, viu1->panel\n"
+	"    2. dual display, viu1->hdmi, viu2->panel\n"
+	"    8. dual display, viu1->panel, viu2->hdmi\n"
 };
 
 static ssize_t venc_mux_show(struct class *class, struct class_attribute *attr, char *buf)
@@ -181,22 +182,29 @@ static ssize_t venc_mux_show(struct class *class, struct class_attribute *attr, 
 
 static ssize_t venc_mux_store(struct class *class, struct class_attribute *attr, const char *buf, size_t count)
 {
+	unsigned int mux_type = 0;
 	unsigned int mux = 0;
 
 	mux = simple_strtoul(buf, NULL, 0);
-	printk("set venc_mux: %d->%d\n", s_venc_mux, mux);
 	switch (mux) {
 	case 0x0:
+		mux_type = s_venc_mux;
+		aml_set_reg32_bits(P_VPU_VIU_VENC_MUX_CTRL, mux_type, 0, 4);
+		break;
 	case 0x2:
+		mux_type = mux |(s_venc_mux<<2);
+		aml_set_reg32_bits(P_VPU_VIU_VENC_MUX_CTRL, mux_type, 0, 4);
+		break;
 	case 0x8:
-	case 0xa:
-		s_venc_mux = mux;
-		aml_set_reg32_bits(P_VPU_VIU_VENC_MUX_CTRL, mux, 0, 4);
+		mux_type = (0x2<<2) |s_venc_mux;
+		aml_set_reg32_bits(P_VPU_VIU_VENC_MUX_CTRL, mux_type, 0, 4);
 		break;
 	default:
 		printk("set venc_mux error\n");
+		break;
 	}
 
+	printk("set venc_mux mux_type is %d\n", mux_type);
 	return count;
 }
 
@@ -293,6 +301,8 @@ static int __init
 #endif
 
 	ret =create_vout_attr();
+	s_venc_mux = aml_read_reg32(P_VPU_VIU_VENC_MUX_CTRL) & 0x3;
+
 	if(ret==0)
 	{
 		amlog_mask_level(LOG_MASK_INIT,LOG_LEVEL_HIGH,"create  vout2 attribute ok \r\n");

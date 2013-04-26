@@ -44,10 +44,6 @@
 #include "common/plat_ctrl.h"
 #include "common/vmapi.h"
 #include <mach/mod_gate.h>
-#ifdef CONFIG_HAS_EARLYSUSPEND
-#include <linux/earlysuspend.h>
-static struct early_suspend gc2035_early_suspend;
-#endif
 
 #define gc2035_CAMERA_MODULE_NAME "gc2035"
 
@@ -208,6 +204,11 @@ static struct gc2035_fmt formats[] = {
 	{
 		.name     = "YUV420P",
 		.fourcc   = V4L2_PIX_FMT_YUV420,
+		.depth    = 12,
+	},
+	{
+		.name     = "YVU420P",
+		.fourcc   = V4L2_PIX_FMT_YVU420,
 		.depth    = 12,
 	}
 };
@@ -2407,8 +2408,8 @@ static void gc2035_thread_tick(struct gc2035_fh *fh)
 
 	buf = list_entry(dma_q->active.next,
 			 struct gc2035_buffer, vb.queue);
-    dprintk(dev, 1, "%s\n", __func__);
-    dprintk(dev, 1, "list entry get buf is %x\n",(unsigned)buf);
+	dprintk(dev, 1, "%s\n", __func__);
+	dprintk(dev, 1, "list entry get buf is %x\n",(unsigned)buf);
 
 	/* Nobody is waiting on this buffer, return */
 	if (!waitqueue_active(&buf->vb.done))
@@ -2564,7 +2565,7 @@ static void free_buffer(struct videobuf_queue *vq, struct gc2035_buffer *buf)
 }
 
 #define norm_maxw() 1920
-#define norm_maxh() 1200
+#define norm_maxh() 1600
 static int
 buffer_prepare(struct videobuf_queue *vq, struct videobuf_buffer *vb,
 						enum v4l2_field field)
@@ -2781,18 +2782,6 @@ static int vidioc_s_fmt_vid_cap(struct file *file, void *priv,
 		gc2035_set_resolution(dev,fh->height,fh->width);
 		}
 	#endif
-#ifdef CONFIG_VIDEO_AMLOGIC_FLASHLIGHT	
-	if(f->fmt.pix.pixelformat == V4L2_PIX_FMT_RGB24){
-		if(get_flashlightflag() == FLASHLIGHT_ON){
-			set_flashlight(true);
-		}
-	}
-	else if(f->fmt.pix.pixelformat == V4L2_PIX_FMT_NV21){
-		if(get_flashlightflag() != FLASHLIGHT_TORCH){
-			set_flashlight(false);
-		}		
-	}
-#endif	
 	
 	ret = 0;
 out:
@@ -2868,8 +2857,8 @@ static int vidioc_streamon(struct file *file, void *priv, enum v4l2_buf_type i)
 	para.fmt_info.vsync_phase  = 1;
 	ret =  videobuf_streamon(&fh->vb_vidq);
 	if(ret == 0){
-    start_tvin_service(0,&para);
-	    fh->stream_on        = 1;
+		start_tvin_service(0,&para);
+		fh->stream_on        = 1;
 	}
 	return ret;
 }
@@ -2878,7 +2867,7 @@ static int vidioc_streamoff(struct file *file, void *priv, enum v4l2_buf_type i)
 {
 	struct gc2035_fh  *fh = priv;
 
-    int ret = 0 ;
+	int ret = 0 ;
 	printk(KERN_INFO " vidioc_streamoff+++ \n ");
 	if (fh->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
 		return -EINVAL;
@@ -2886,7 +2875,7 @@ static int vidioc_streamoff(struct file *file, void *priv, enum v4l2_buf_type i)
 		return -EINVAL;
 	ret = videobuf_streamoff(&fh->vb_vidq);
 	if(ret == 0 ){
-    stop_tvin_service(0);
+	stop_tvin_service(0);
 	    fh->stream_on        = 0;
 	}
 	return ret;
@@ -2907,7 +2896,11 @@ static int vidioc_enum_framesizes(struct file *file, void *fh,struct v4l2_frmsiz
 	}
 	if (fmt == NULL)
 		return -EINVAL;
-	if (fmt->fourcc == V4L2_PIX_FMT_NV21){
+	if ((fmt->fourcc == V4L2_PIX_FMT_NV21)
+		||(fmt->fourcc == V4L2_PIX_FMT_NV12)
+		||(fmt->fourcc == V4L2_PIX_FMT_YUV420)
+		||(fmt->fourcc == V4L2_PIX_FMT_YVU420)
+		){
 		if (fsize->index >= ARRAY_SIZE(gc2035_prev_resolution))
 			return -EINVAL;
 		frmsize = &gc2035_prev_resolution[fsize->index];
@@ -3064,7 +3057,7 @@ static int gc2035_open(struct file *file)
     	/* init video dma queues */
 	INIT_LIST_HEAD(&dev->vidq.active);
 	init_waitqueue_head(&dev->vidq.wq);
-    spin_lock_init(&dev->slock);
+	spin_lock_init(&dev->slock);
 	/* allocate + initialize per filehandle data */
 	fh = kzalloc(sizeof(*fh), GFP_KERNEL);
 	if (NULL == fh) {
@@ -3268,82 +3261,6 @@ static const struct v4l2_subdev_ops gc2035_ops = {
 	.core = &gc2035_core_ops,
 };
 
-#ifdef CONFIG_HAS_EARLYSUSPEND
-static void aml_gc2035_early_suspend(struct early_suspend *h)
-{
-	printk("enter -----> %s \n",__FUNCTION__);
-	if(h && h->param) {
-		aml_plat_cam_data_t* plat_dat= (aml_plat_cam_data_t*)h->param;
-		if (plat_dat && plat_dat->early_suspend) {
-			plat_dat->early_suspend();
-		}
-	}
-
-	
-}
-
-static void aml_gc2035_late_resume(struct early_suspend *h)
-{
-	printk("enter -----> %s \n",__FUNCTION__);
-	if(h && h->param) {
-		aml_plat_cam_data_t* plat_dat= (aml_plat_cam_data_t*)h->param;
-		if (plat_dat && plat_dat->late_resume) {
-			plat_dat->late_resume();
-		}
-	}
-}
-#endif
-
-#define  EMDOOR_DEBUG_GC2035	1  
-#ifdef EMDOOR_DEBUG_GC2035
-unsigned int GC2035_reg_addr;
-static struct i2c_client *GC2035_client;
-
-static ssize_t GC2035_show(struct kobject *kobj, struct kobj_attribute *attr,			
-	       char *buf)
-{	
-	unsigned  char dat;
-	dat = i2c_get_byte_add8(GC2035_client, GC2035_reg_addr);
-	return sprintf(buf, "REG[0x%x]=0x%x\n", GC2035_reg_addr, dat);
-}
-
-static ssize_t GC2035_store(struct kobject *kobj, struct kobj_attribute *attr,			 
-	      const char *buf, size_t count)
-{	
-	int tmp;
-	unsigned short reg;
-	unsigned char val;
-	tmp = simple_strtoul(buf, NULL, 16);
-	//sscanf(buf, "%du", &tmp);
-	if(tmp < 0xff){
-		GC2035_reg_addr = tmp;
-	}
-	else {
-		reg = (tmp >> 8) & 0xFFFF; //reg
-		GC2035_reg_addr = reg;
-		val = tmp & 0xFF;        //val
-		i2c_put_byte_add8_new(GC2035_client, reg, val);
-	}
-	
-	return count;
-}
-
-
-static struct kobj_attribute GC2035_attribute =	__ATTR(GC2035, 0666, GC2035_show, GC2035_store);
-
-
-static struct attribute *GC2035_attrs[] = {	
-	&GC2035_attribute.attr,	
-	NULL,	
-};
-
-
-static const struct attribute_group GC2035_group =
-{
-	.attrs = GC2035_attrs,
-};
-#endif	
-
 static int gc2035_probe(struct i2c_client *client,
 			const struct i2c_device_id *id)
 {
@@ -3387,20 +3304,6 @@ static int gc2035_probe(struct i2c_client *client,
 		return err;
 	}
 
-#ifdef CONFIG_HAS_EARLYSUSPEND
-    printk("******* enter itk early suspend register *******\n");
-    gc2035_early_suspend.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN;
-    gc2035_early_suspend.suspend = aml_gc2035_early_suspend;
-    gc2035_early_suspend.resume = aml_gc2035_late_resume;
-    gc2035_early_suspend.param = plat_dat;
-	register_early_suspend(&gc2035_early_suspend);
-#endif
-
-#ifdef EMDOOR_DEBUG_GC2035
-		GC2035_client = client;
-		sysfs_create_group(&client->dev.kobj, &GC2035_group);
-#endif	
-
 	return 0;
 }
 
@@ -3416,34 +3319,6 @@ static int gc2035_remove(struct i2c_client *client)
 	return 0;
 }
 
-static int gc2035_suspend(struct i2c_client *client, pm_message_t state)
-{
-	struct v4l2_subdev *sd = i2c_get_clientdata(client);
-	struct gc2035_device *t = to_dev(sd);
-	struct gc2035_fh  *fh = to_fh(t);
-	if(fh->stream_on == 1){
-		stop_tvin_service(0);
-	}
-	power_down_gc2035(t);
-	return 0;
-}
-
-static int gc2035_resume(struct i2c_client *client)
-{
-	struct v4l2_subdev *sd = i2c_get_clientdata(client);
-	struct gc2035_device *t = to_dev(sd);
-    struct gc2035_fh  *fh = to_fh(t);
-    tvin_parm_t para;
-    para.port  = TVIN_PORT_CAMERA;
-    para.fmt_info.fmt = TVIN_SIG_FMT_CAMERA_1280X720P_30Hz;
-    gc2035_init_regs(t);
-	if(fh->stream_on == 1){
-        start_tvin_service(0,&para);
-	}
-	return 0;
-}
-
-
 static const struct i2c_device_id gc2035_id[] = {
 	{ "gc2035_i2c", 0 },
 	{ }
@@ -3454,8 +3329,6 @@ static struct v4l2_i2c_driver_data v4l2_i2c_data = {
 	.name = "gc2035_i2c",
 	.probe = gc2035_probe,
 	.remove = gc2035_remove,
-	.suspend = gc2035_suspend,
-	.resume = gc2035_resume,
 	.id_table = gc2035_id,
 };
 

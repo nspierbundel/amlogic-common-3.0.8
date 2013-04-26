@@ -43,6 +43,7 @@ static int set_voltage(int from, int to)
 		else
 			aml_set_reg32_bits(P_VGHL_PWM_REG0, to, 0, 4);
 		udelay(200);
+
 	}
 	else if(to < from)
 	{
@@ -78,7 +79,7 @@ static int set_voltage(int from, int to)
 				aml_set_reg32_bits(P_VGHL_PWM_REG0, to - 3, 0, 4);
 			udelay(100);
 		}
-		if (from - to > 1) {
+		if (to - from > 1) {
 			if(g_vcck_voltage && (g_vcck_voltage->set_voltage))
 				g_vcck_voltage->set_voltage(to-1);
 			else
@@ -118,6 +119,7 @@ static int meson_cs_dcdc_get_voltage(struct regulator_dev *dev)
 			data = -1;
 			goto out;
 		}
+
 	}
 	/* Convert the data from table & step to microvolts */
 	data = meson_cs_regulator->voltage_step_table[reg_val & 0xf];

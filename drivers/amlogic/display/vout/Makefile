@@ -1,5 +1,5 @@
 obj-y 	+=display.o
-display-objs=vout_notify.o  vout_serve.o
+display-objs=vout_notify.o  vout_serve.o vdac_switch.o
 
 
 

@@ -893,7 +893,7 @@ static int urb_enqueue(struct usb_hcd *hcd,
 	}
 	urb->hcpriv = dwc_otg_urb;
 	retval = dwc_otg_hcd_urb_enqueue(dwc_otg_hcd, dwc_otg_urb, &ep->hcpriv,
-					 mem_flags == GFP_ATOMIC ? 1 : 0);
+					/* mem_flags == GFP_ATOMIC ? 1 : 0*/1);
 	if (!retval) {
 		if (alloc_bandwidth) {
 			allocate_bus_bandwidth(hcd,
@@ -940,6 +940,11 @@ static int urb_dequeue(struct usb_hcd *hcd, struct urb *urb, int status)
 	if(unlikely(retval))
 		goto EXIT;
 #endif
+	if(usb_pipeint(urb->pipe) && (dwc_otg_hcd->ssplit_lock == usb_pipedevice(urb->pipe))){
+		DWC_DEBUGPL(DBG_HCD, "addr=%d(%p)\n",usb_pipedevice(urb->pipe),urb->hcpriv);
+		dwc_otg_hcd->ssplit_lock = 0;	
+	}
+		
 	if(urb->hcpriv == NULL){
 		DWC_WARN("urb->hcpriv == NULL! urb = %p status=%d\n",urb,status);
 		goto EXIT;
@@ -978,8 +983,11 @@ static void endpoint_disable(struct usb_hcd *hcd, struct usb_host_endpoint *ep)
 
 	DWC_DEBUGPL(DBG_HCD,
 		    "DWC OTG HCD EP DISABLE: _bEndpointAddress=0x%02x, "
-		    "endpoint=%d\n", ep->desc.bEndpointAddress,
-		    dwc_ep_addr_to_endpoint(ep->desc.bEndpointAddress));
+		    "endpoint=%d,is_intr=%d\n", ep->desc.bEndpointAddress,
+		    dwc_ep_addr_to_endpoint(ep->desc.bEndpointAddress),
+			usb_endpoint_xfer_int(&ep->desc));
+	if(usb_endpoint_xfer_int(&ep->desc))
+		dwc_otg_hcd->ssplit_lock = 0;
 	dwc_otg_hcd_endpoint_disable(dwc_otg_hcd, ep->hcpriv, 250);
 	ep->hcpriv = NULL;
 }
@@ -1009,6 +1017,10 @@ static void endpoint_reset(struct usb_hcd *hcd, struct usb_host_endpoint *ep)
 	DWC_DEBUGPL(DBG_HCD, "DWC OTG HCD EP RESET: Endpoint Num=0x%02d\n", epnum);
 
 	DWC_SPINLOCK_IRQSAVE(dwc_otg_hcd->lock, &flags);
+	
+	if(usb_endpoint_xfer_int(&ep->desc))
+		dwc_otg_hcd->ssplit_lock = 0;
+		
 	usb_settoggle(udev, epnum, is_out, 0);
 	if (is_control)
 		usb_settoggle(udev, epnum, !is_out, 0);

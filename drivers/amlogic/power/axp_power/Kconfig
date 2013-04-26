@@ -36,19 +36,4 @@ config AXP_CHARGEINIT
 config AXP_CHGCHANGE
 	bool "AXP charging current set when suspend\resume\shutdown"
 	default y
-
-
-# //add OCV Measurement by wch
-config AXP_USE_OCV
-	bool "AXP use ocv measure battery cap"
-	help
-		"If you choose this way, you should not use axp KULUNJI measure battery cap."	
-	default n	
-	
-config UBOOT_BATTERY_PARAMETERS
-    bool "BATTERY PARAMETERS FROM UBOOT" 
-    help 
-        select this option when your battery parameters is passed from uboot
-    default n
-
 endif # !AW_AXP

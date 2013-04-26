@@ -24,6 +24,7 @@
 #include <linux/spinlock.h>
 #include <linux/interrupt.h>
 //#include <linux/fiq_bridge.h>
+#include <plat/fiq_bridge.h>
 #include <linux/fs.h>
 #include <mach/am_regs.h>
 
@@ -48,6 +49,7 @@
 #include <linux/poll.h>
 #include <linux/clk.h>
 #include <linux/logo/logo.h>
+#include <media/amlogic/656in.h>
 
 #ifdef CONFIG_PM
 #include <linux/delay.h>
@@ -56,10 +58,9 @@
 
 //#include <asm/fiq.h>
 #include <asm/uaccess.h>
-
-#ifdef CONFIG_TVIN_VIUIN
-#include <media/amlogic/656in.h>
-#endif
+//#ifdef CONFIG_TVIN_VIUIN
+//#include <linux/tvin/tvin_v4l2.h>
+//#endif
 
 #include "videolog.h"
 
@@ -82,6 +83,54 @@ MODULE_AMLOG(LOG_LEVEL_ERROR, 0, LOG_DEFAULT_LEVEL_DESC, LOG_MASK_DESC);
 #include "cm_regs.h"
 #include "amcm.h"
 
+
+//*************************************************
+#if 0
+typedef enum tvin_color_fmt_e {
+        TVIN_RGB444 = 0,
+        TVIN_YUV422,
+        TVIN_YUV444,
+        TVIN_YUYV422,
+        TVIN_YVYU422,
+        TVIN_UYVY422,
+        TVIN_VYUY422,
+        TVIN_NV12,
+        TVIN_NV21,
+        TVIN_COLOR_FMT_MAX,
+}tvin_color_fmt_t;
+
+const char *tvin_color_fmt_str(enum tvin_color_fmt_e color_fmt);
+typedef enum tvin_scan_mode_e {
+        TVIN_SCAN_MODE_NULL = 0,
+        TVIN_SCAN_MODE_PROGRESSIVE,
+        TVIN_SCAN_MODE_INTERLACED,
+} tvin_scan_mode_t;
+
+typedef struct fmt_info_s {
+    enum tvin_sig_fmt_e     fmt; // signal format of format
+    unsigned short			frame_rate;//rate of frame 
+    unsigned short			h_active;  //camera in the unit of pixel
+    unsigned short          hsync_phase;
+    unsigned short          vsync_phase;
+    unsigned short			v_active;  //camera in the unit of line
+    unsigned int			reserved;  // reserved
+} fmt_info_t;
+
+typedef struct tvin_parm_s {
+    enum tvin_port_e        port;     // must set port in IOCTL
+    struct fmt_info_s		fmt_info;//camera's format
+    enum tvin_sig_status_e  status;   // signal status of decoder
+    unsigned int            cap_addr; // start address of captured frame data [8 bits] in memory
+                                      // for Component input, frame data [8 bits] order is Y0Cb0Y1Cr0¡­Y2nCb2nY2n+1Cr2n¡­
+                                      // for VGA       input, frame data [8 bits] order is R0G0B0¡­RnGnBn¡­
+    unsigned int            cap_size;
+    unsigned int            flag;     // bit0 TVIN_PARM_FLAG_CAP
+                                      //bit31: TVIN_PARM_FLAG_WORK_ON
+    unsigned int            canvas_index; // reserved
+    void*                   data; //private data
+} tvin_parm_t;
+#endif
+//*************************************************
 #define VIDEO2_GET_VFRAME_DIRECTLY
 
 static u32 debug = 0;
@@ -119,7 +168,11 @@ static int debug_flag = DEBUG_FLAG_BLACKOUT;
 #define MODULE_NAME "amvideo2"
 #define DEVICE_NAME "amvideo2"
 
+#ifdef CONFIG_AML_VSYNC_FIQ_ENABLE
+#define FIQ_VSYNC
+#else
 #undef FIQ_VSYNC
+#endif
 
 //#define SLOW_SYNC_REPEAT
 //#define INTERLACE_FIELD_MATCH_PROCESS
@@ -137,8 +190,8 @@ void vdin0_set_hscale(
 
 
 #ifdef FIQ_VSYNC
-#define BRIDGE_IRQ  INT_TIMER_D
-#define BRIDGE_IRQ_SET() WRITE_CBUS_REG(ISA_TIMERD, 1)
+#define BRIDGE_IRQ INT_TIMER_C
+#define BRIDGE_IRQ_SET() WRITE_CBUS_REG(ISA_TIMERC, 1)
 #endif
 
 #define RESERVE_CLR_FRAME
@@ -194,8 +247,7 @@ static DEFINE_MUTEX(video_module_mutex);
 static DEFINE_SPINLOCK(lock);
 #else
 static DEFINE_MUTEX(video_module_mutex);
-static DEFINE_SPINLOCK(lock);
-//static spinlock_t lock = SPIN_LOCK_UNLOCKED;
+static spinlock_t lock = SPIN_LOCK_UNLOCKED;
 #endif
 
 static u32 frame_par_ready_to_set, frame_par_force_to_set;
@@ -311,7 +363,7 @@ static int clone_frame_rate_delay = 0;
 static int clone_frame_rate_set_value = 0;
 static int clone_frame_rate_force = 0;
 static int clone_frame_rate = 30; 
-static int clone_frame_scale_width = 0;
+static int clone_frame_scale_width = 960;
 static int throw_frame = 0;
 /* vout */
 
@@ -482,11 +534,11 @@ static void vpp_settings_h(vpp_frame_par_t *framePtr)
                    ((framePtr->VPP_hsc_startp & VPP_VD_SIZE_MASK) << VPP_VD1_START_BIT) |
                    ((framePtr->VPP_hsc_endp   & VPP_VD_SIZE_MASK) << VPP_VD1_END_BIT));
 
-    //WRITE_MPEG_REG(VPP_BLEND_VD2_H_START_END,
+    //WRITE_MPEG_REG(VPP2_BLEND_VD2_H_START_END,
     //               ((framePtr->VPP_hsc_startp & VPP_VD_SIZE_MASK) << VPP_VD1_START_BIT) |
     //               ((framePtr->VPP_hsc_endp   & VPP_VD_SIZE_MASK) << VPP_VD1_END_BIT));
 
-    WRITE_MPEG_REG(VPP2_HSC_REGION12_STARTP,
+    WRITE_MPEG_REG(VPP_HSC_REGION12_STARTP,
                    (0 << VPP_REGION1_BIT) |
                    ((r1 & VPP_REGION_MASK) << VPP_REGION2_BIT));
 
@@ -497,6 +549,12 @@ static void vpp_settings_h(vpp_frame_par_t *framePtr)
 
     WRITE_MPEG_REG(VPP2_HSC_START_PHASE_STEP,
                    vpp_filter->vpp_hf_start_phase_step);
+
+    WRITE_MPEG_REG(VPP2_HSC_REGION1_PHASE_SLOPE,
+                   vpp_filter->vpp_hf_start_phase_slope);
+
+    WRITE_MPEG_REG(VPP2_HSC_REGION3_PHASE_SLOPE,
+                   vpp_filter->vpp_hf_end_phase_slope);
 
     WRITE_MPEG_REG(VPP2_LINE_IN_LENGTH, framePtr->VPP_line_in_length_);
     WRITE_MPEG_REG(VPP2_PREBLEND_H_SIZE, framePtr->VPP_line_in_length_);
@@ -513,6 +571,15 @@ static void vpp_settings_v(vpp_frame_par_t *framePtr)
                    ((framePtr->VPP_vsc_startp & VPP_VD_SIZE_MASK) << VPP_VD1_START_BIT) |
                    ((framePtr->VPP_vsc_endp   & VPP_VD_SIZE_MASK) << VPP_VD1_END_BIT));
 
+    if((framePtr->VPP_post_blend_vd_v_end_ - framePtr->VPP_post_blend_vd_v_start_+1)>1080){
+        WRITE_MPEG_REG(VPP2_PREBLEND_VD1_V_START_END,
+                   ((framePtr->VPP_post_blend_vd_v_start_ & VPP_VD_SIZE_MASK) << VPP_VD1_START_BIT) |
+                   ((framePtr->VPP_post_blend_vd_v_end_   & VPP_VD_SIZE_MASK) << VPP_VD1_END_BIT));
+    }else{
+        WRITE_MPEG_REG(VPP2_PREBLEND_VD1_V_START_END,
+                   ((0 & VPP_VD_SIZE_MASK) << VPP_VD1_START_BIT) |
+                   ((1079 & VPP_VD_SIZE_MASK) << VPP_VD1_END_BIT));
+    }
     //WRITE_MPEG_REG(VPP2_BLEND_VD2_V_START_END,
     //               (((framePtr->VPP_vsc_endp / 2) & VPP_VD_SIZE_MASK) << VPP_VD1_START_BIT) |
     //               (((framePtr->VPP_vsc_endp) & VPP_VD_SIZE_MASK) << VPP_VD1_END_BIT));
@@ -788,6 +855,13 @@ static void viu_set_dcu(vpp_frame_par_t *frame_par, vframe_t *vf)
 
     WRITE_MPEG_REG(VIU2_VD1_IF0_GEN_REG, r);
     //WRITE_MPEG_REG(VD2_IF0_GEN_REG, r);
+#if MESON_CPU_TYPE >= MESON_CPU_TYPE_MESON6
+    if (vf->type & VIDTYPE_VIU_NV21) {
+        WRITE_MPEG_REG_BITS(VIU2_VD1_IF0_GEN_REG2, 1,0,1);
+    } else {
+        WRITE_MPEG_REG_BITS(VIU2_VD1_IF0_GEN_REG2, 0,0,1);
+    }
+#endif
 
     /* chroma formatter */
     if (vf->type & VIDTYPE_VIU_444) {
@@ -861,7 +935,7 @@ static void viu_set_dcu(vpp_frame_par_t *frame_par, vframe_t *vf)
         loop = 0;
 
         if (vf->type & VIDTYPE_INTERLACE) {
-            pat = vpat[frame_par->vscale_skip_count - 1];
+            pat = vpat[frame_par->vscale_skip_count >> 1];
         }
     } else if (vf->type & VIDTYPE_MVC) {
         loop = 0x11;
@@ -921,6 +995,37 @@ static void viu_set_dcu(vpp_frame_par_t *frame_par, vframe_t *vf)
     }
 }
 
+#if MESON_CPU_TYPE >= MESON_CPU_TYPE_MESON6
+static int detect_vout_type(void)
+{
+    int vout_type = VOUT_TYPE_PROG;
+
+    if ((vinfo) && (vinfo->field_height != vinfo->height)) {
+        switch (vinfo->mode) {
+            case VMODE_480I:
+            case VMODE_480CVBS:
+            case VMODE_576I:
+            case VMODE_576CVBS:
+                vout_type = (READ_CBUS_REG(ENCI_INFO_READ) & (1<<29)) ?
+                             VOUT_TYPE_BOT_FIELD : VOUT_TYPE_TOP_FIELD;
+                break;
+
+            case VMODE_1080I:
+            case VMODE_1080I_50HZ:
+                //vout_type = (((READ_CBUS_REG(ENCI_INFO_READ) >> 16) & 0x1fff) < 562) ?
+                vout_type = (((READ_CBUS_REG(ENCP_INFO_READ) >> 16) & 0x1fff) < 562) ?
+                             VOUT_TYPE_TOP_FIELD : VOUT_TYPE_BOT_FIELD;
+                break;
+
+            default:
+                break;
+        }
+    }
+
+    return vout_type;
+}
+
+#else
 static int detect_vout_type(void)
 {
 #if defined(CONFIG_AM_TCON_OUTPUT)
@@ -951,6 +1056,7 @@ static int detect_vout_type(void)
     return vout_type;
 #endif
 }
+#endif
 
 #ifdef INTERLACE_FIELD_MATCH_PROCESS
 static inline bool interlace_field_type_match(int vout_type, vframe_t *vf)
@@ -1042,7 +1148,7 @@ static inline bool vpts_expire(vframe_t *cur_vf, vframe_t *next_vf)
         if ((systime - pts) >= 0) {
             tsync_avevent_locked(VIDEO_TSTAMP_DISCONTINUITY, next_vf->pts);
 			printk("video discontinue, system=0x%x vpts=0x%x\n", systime, pts);
-            return true;
+            return false;
         }
     }
 
@@ -1115,9 +1221,6 @@ static irqreturn_t vsync_isr(int irq, void *dev_id)
 #endif
 {
     int hold_line;
-#if MESON_CPU_TYPE < MESON_CPU_TYPE_MESON6
-    unsigned int cur_timerb_value, last_isr_enter_time = 0, interval;
-#endif
     s32 i, vout_type;
     vframe_t *vf;
 #ifdef CONFIG_AM_VIDEO_LOG
@@ -1240,36 +1343,18 @@ static irqreturn_t vsync_isr(int irq, void *dev_id)
         if(clone == 1){
             if(throw_frame){
                 vf = video_vf_get();
-#ifdef CONFIG_TVIN_VIUIN
-				if(vf->width >= 1280){
-					if(clone_frame_scale_width != 0){
-						vdin0_set_hscale(
-							vf->width, //int src_w, 
-							clone_frame_scale_width, //int dst_w, 
-							1, //int hsc_en, 
-							0, //int prehsc_en, 
-							4, //int hsc_bank_length,
-							1, //int hsc_rpt_p0_num,
-							4, //int hsc_ini_rcv_num,
-							0, //int hsc_ini_phase,
-							1  //int short_lineo_en
-						); 
-						vf->width = clone_frame_scale_width;
-					}
-				}else{
-/*
-   the vframe is  freescale processed , so nothing to change
-   freescale width&height is less than 800*600
-*/					
-				}
-#endif                
                 video_vf_put(vf);
 				throw_frame--;
+            }
+            else if((clone_frame_rate_force < 0)||
+                    (clone_frame_rate_force == 0 && clone_frame_rate < 0)){
+                vf = video_vf_get();
+                vsync_toggle_frame(vf);
             }
             else if(clone_vpts_remainder < vsync_pts_inc){
                 vf = video_vf_get();
 #ifdef CONFIG_TVIN_VIUIN
-				if(vf->width >= 1280){
+				if(vf->width > 1280){
 					if(clone_frame_scale_width != 0){
 						vdin0_set_hscale(
 							vf->width, //int src_w, 
@@ -1495,6 +1580,15 @@ SET_FILTER:
                        ((cur_frame_par->VPP_post_blend_vd_v_start_ & VPP_VD_SIZE_MASK) << VPP_VD1_START_BIT) |
                        ((cur_frame_par->VPP_post_blend_vd_v_end_   & VPP_VD_SIZE_MASK) << VPP_VD1_END_BIT));
         WRITE_MPEG_REG(VPP2_POSTBLEND_H_SIZE, cur_frame_par->VPP_post_blend_h_size_);
+        if((cur_frame_par->VPP_post_blend_vd_v_end_ - cur_frame_par->VPP_post_blend_vd_v_start_+1)>1080){
+            WRITE_MPEG_REG(VPP2_PREBLEND_VD1_V_START_END,
+                       ((cur_frame_par->VPP_post_blend_vd_v_start_ & VPP_VD_SIZE_MASK) << VPP_VD1_START_BIT) |
+                       ((cur_frame_par->VPP_post_blend_vd_v_end_ & VPP_VD_SIZE_MASK) << VPP_VD1_END_BIT));
+        }else{
+            WRITE_MPEG_REG(VPP2_PREBLEND_VD1_V_START_END,
+                       ((0 & VPP_VD_SIZE_MASK) << VPP_VD1_START_BIT) |
+                       ((1079 & VPP_VD_SIZE_MASK) << VPP_VD1_END_BIT));
+        }
 
         vpp_settings_h(cur_frame_par);
         vpp_settings_v(cur_frame_par);
@@ -2352,7 +2446,7 @@ static ssize_t video_disable_store(struct class *cla, struct class_attribute *at
     return count;
 }
 
-//static int tvin_started = 0;
+static int tvin_started = 0;
 static void stop_clone(void)
 {
 #ifdef CONFIG_TVIN_VIUIN
@@ -2383,14 +2477,23 @@ static int start_clone(void)
     }
     if(info){
         printk("%s source is %s\n", __func__, info->name);
+        if(strcmp(info->name, "panel")==0){
+            WRITE_CBUS_REG_BITS(VPU_VIU_VENC_MUX_CTRL, 4, 4, 4); //reg0x271a, Select encT clock to VDIN            
+            WRITE_CBUS_REG_BITS(VPU_VIU_VENC_MUX_CTRL, 4, 8, 4); //reg0x271a,Enable VIU of ENC_T domain to VDIN;
+        }
+        else{
+            WRITE_CBUS_REG_BITS(VPU_VIU_VENC_MUX_CTRL, 2, 4, 4); //reg0x271a, Select encP clock to VDIN            
+            WRITE_CBUS_REG_BITS(VPU_VIU_VENC_MUX_CTRL, 2, 8, 4); //reg0x271a,Enable VIU of ENC_P domain to VDIN;
+        }
         clone_vpts_remainder = 0;
+        memset(&para,0,sizeof(tvin_parm_t));
         para.fmt_info.h_active = info->width;
         para.fmt_info.v_active = info->height;
         para.port  = TVIN_PORT_VIU_ENCT;
-        para.fmt_info.fmt = TVIN_SIG_FMT_MAX+1;//TVIN_SIG_FMT_MAX+1;TVIN_SIG_FMT_CAMERA_1280X720P_30Hz
+        para.fmt_info.fmt = info->mode; //TVIN_SIG_FMT_MAX+1;//TVIN_SIG_FMT_MAX+1;TVIN_SIG_FMT_CAMERA_1280X720P_30Hz
         para.fmt_info.frame_rate = clone_frame_rate*10;
         para.fmt_info.hsync_phase = 1;
-      	para.fmt_info.vsync_phase  = 0;	
+        para.fmt_info.vsync_phase  = 0;
         start_tvin_service(0,&para);
         tvin_started = 1;
         printk("%s: source %dx%d\n", __func__,info->width, info->height);
@@ -2697,6 +2800,9 @@ static int vout_notify_callback(struct notifier_block *block, unsigned long cmd 
 			start_clone();
 		}
 	}
+    else{
+		stop_clone();
+    }
     return 0;
 }
 
@@ -2743,6 +2849,7 @@ static int __init video2_early_init(void)
 {
     logo_object_t  *init_logo_obj=NULL;
     init_logo_obj = NULL; //get_current_logo_obj();
+    printk("%s enter\n", __func__);
 
     if(NULL==init_logo_obj || !init_logo_obj->para.loaded)
     {
@@ -2758,6 +2865,8 @@ static int __init video2_early_init(void)
                         
    	//WRITE_MPEG_REG_BITS(VPU_OSD3_MMC_CTRL, 1, 12, 2); //select vdisp_mmc_arb for VIU2_OSD1 request
    	WRITE_MPEG_REG_BITS(VPU_OSD3_MMC_CTRL, 2, 12, 2); // select vdin_mmc_arb for VIU2_OSD1 request
+
+    printk("%s exit\n", __func__);
 
     return 0;
 }
@@ -2846,6 +2955,8 @@ static int __init video2_init(void)
 
     vf_receiver_init(&video4osd_vf_recv, RECEIVER4OSD_NAME, &video4osd_vf_receiver, NULL);
     vf_reg_receiver(&video4osd_vf_recv);
+
+    printk("%s exit\n", __func__);
 
     return (0);
 

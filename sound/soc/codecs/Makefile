@@ -82,6 +82,9 @@ snd-soc-wm9712-objs := wm9712.o
 snd-soc-wm9713-objs := wm9713.o
 snd-soc-wm-hubs-objs := wm_hubs.o
 snd-soc-jz4740-codec-objs := jz4740.o
+snd-soc-sta380x-objs := sta380x.o
+snd-soc-tas5711-objs := tas5711.o
+snd-soc-tas5707-objs := tas5707.o
 snd-soc-dummy_codec-objs := dummy_codec.o
 
 # Amp
@@ -119,6 +122,7 @@ obj-$(CONFIG_SND_SOC_MAX98095)	+= snd-soc-max98095.o
 obj-$(CONFIG_SND_SOC_MAX9850)	+= snd-soc-max9850.o
 obj-$(CONFIG_SND_SOC_PCM3008)	+= snd-soc-pcm3008.o
 obj-$(CONFIG_SND_SOC_RT5631)	+= snd-soc-rt5631.o
+obj-$(CONFIG_SND_SOC_RT3261)	+= rt3261/
 obj-$(CONFIG_SND_SOC_SGTL5000)  += snd-soc-sgtl5000.o
 obj-$(CONFIG_SND_SOC_SN95031)	+=snd-soc-sn95031.o
 obj-$(CONFIG_SND_SOC_SPDIF)	+= snd-soc-spdif.o
@@ -176,6 +180,9 @@ obj-$(CONFIG_SND_SOC_WM9712)	+= snd-soc-wm9712.o
 obj-$(CONFIG_SND_SOC_WM9713)	+= snd-soc-wm9713.o
 obj-$(CONFIG_SND_SOC_WM_HUBS)	+= snd-soc-wm-hubs.o
 obj-$(CONFIG_SND_SOC_DUMMY_CODEC)   += snd-soc-dummy_codec.o
+obj-$(CONFIG_SND_SOC_STA380)    += snd-soc-sta380x.o
+obj-$(CONFIG_SND_SOC_TAS5711)   += snd-soc-tas5711.o
+obj-$(CONFIG_SND_SOC_TAS5707)   += snd-soc-tas5707.o
 
 # Amp
 obj-$(CONFIG_SND_SOC_LM4857)	+= snd-soc-lm4857.o

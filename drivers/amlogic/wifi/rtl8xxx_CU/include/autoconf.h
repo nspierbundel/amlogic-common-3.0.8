@@ -32,10 +32,17 @@
 #define PLATFORM_LINUX	1
 
 #define CONFIG_IOCTL_CFG80211 1
+#ifdef CONFIG_PLATFORM_ARM_SUNxI
+	#ifndef CONFIG_IOCTL_CFG80211 
+		#define CONFIG_IOCTL_CFG80211 1
+	#endif
+#endif
 #ifdef CONFIG_IOCTL_CFG80211
-	#define RTW_USE_CFG80211_STA_EVENT /* Open this for Android 4.1's wpa_supplicant */
+	#define RTW_USE_CFG80211_STA_EVENT /* Opne this for Android 4.1's wpa_supplicant */
 	#define CONFIG_CFG80211_FORCE_COMPATIBLE_2_6_37_UNDER
-	#define CONFIG_DEBUG_CFG80211 1
+	//#define CONFIG_DEBUG_CFG80211 1
+	//#define CONFIG_DRV_ISSUE_PROV_REQ // IOT FOR S2
+	#define CONFIG_SET_SCAN_DENY_TIMER
 #endif
 
 /*
@@ -52,6 +59,12 @@
 #endif //CONFIG_WAKE_ON_WLAN
 
 #define CONFIG_R871X_TEST	1
+
+#define CONFIG_XMIT_ACK
+#ifdef CONFIG_XMIT_ACK
+	#define CONFIG_XMIT_ACK_POLLING
+	#define CONFIG_ACTIVE_KEEP_ALIVE_CHECK
+#endif
 
 #define CONFIG_80211N_HT	1
 
@@ -102,13 +115,15 @@
 #ifdef CONFIG_P2P
 	//Added by Albert 20110812
 	//The CONFIG_WFD is for supporting the Wi-Fi display
-	//#define CONFIG_WFD	1
-
-	//Unmarked if there is low p2p scanned ratio; Kurt
-	#define CONFIG_P2P_AGAINST_NOISE	1
+	#define CONFIG_WFD	1
 	
-	#define CONFIG_P2P_REMOVE_GROUP_INFO
+	#ifndef CONFIG_WIFI_TEST
+		#define CONFIG_P2P_REMOVE_GROUP_INFO
+	#endif
 	//#define CONFIG_DBG_P2P
+
+	//#define CONFIG_P2P_PS
+	#define CONFIG_P2P_IPS
 #endif
 
 //	Added by Kurt 20110511
@@ -144,6 +159,7 @@
 #define CONFIG_LONG_DELAY_ISSUE
 #define CONFIG_NEW_SIGNAL_STAT_PROCESS
 //#define CONFIG_SIGNAL_DISPLAY_DBM //display RX signal with dbm
+#define RTW_NOTCH_FILTER 0 /* 0:Disable, 1:Enable */
 
 #ifdef CONFIG_IOL
 	#define CONFIG_IOL_LLT
@@ -165,7 +181,10 @@
 #define CONFIG_CONCURRENT_MODE 1
 #ifdef CONFIG_CONCURRENT_MODE
 	#define CONFIG_TSF_RESET_OFFLOAD 1			// For 2 PORT TSF SYNC.
+	//#define CONFIG_HWPORT_SWAP				//Port0->Sec , Port1 -> Pri
 #endif	// CONFIG_CONCURRENT_MODE
+
+#define CONFIG_80211D
 
 /*
  * Interface  Related Config
@@ -184,9 +203,13 @@
 /* 
  * CONFIG_USE_USB_BUFFER_ALLOC_XX uses Linux USB Buffer alloc API and is for Linux platform only now!
  */
-#define CONFIG_USE_USB_BUFFER_ALLOC_TX 1	// Trade-off: For TX path, improve stability on some platforms, but may cause performance degrade on other platforms.
+//#define CONFIG_USE_USB_BUFFER_ALLOC_TX 1	// Trade-off: For TX path, improve stability on some platforms, but may cause performance degrade on other platforms.
 #define CONFIG_USE_USB_BUFFER_ALLOC_RX 1	// For RX path
-
+#ifdef CONFIG_PLATFORM_ARM_SUNxI
+	#ifndef 	CONFIG_USE_USB_BUFFER_ALLOC_TX 
+		#define CONFIG_USE_USB_BUFFER_ALLOC_TX
+	#endif
+#endif
 /* 
  * USB VENDOR REQ BUFFER ALLOCATION METHOD
  * if not set we'll use function local variable (stack memory)
@@ -294,3 +317,10 @@
 #define DBG_CONFIG_ERROR_DETECT
 //#define DBG_CONFIG_ERROR_RESET
 
+//TX use 1 urb
+//#define CONFIG_SINGLE_XMIT_BUF
+//RX use 1 urb
+//#define CONFIG_SINGLE_RECV_BUF
+
+//turn off power tracking when traffic is busy
+//#define CONFIG_BUSY_TRAFFIC_SKIP_PWR_TRACK

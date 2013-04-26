@@ -1280,7 +1280,11 @@ static int amaudio_open(struct inode *inode, struct file *file)
     init_timer(&amaudio_in.timer);
     mod_timer(&amaudio_in.timer, jiffies + 1);
 #else
-    WRITE_MPEG_REG_BITS(AUDIN_FIFO0_CTRL, 0, 18, 1);
+#if ((defined CONFIG_SND_AML_M6)||(defined CONFIG_SND_AML_M3))
+	WRITE_MPEG_REG_BITS(AUDIN_INT_CTRL, 0, 1, 1);
+#else
+	WRITE_MPEG_REG_BITS(AUDIN_FIFO0_CTRL, 0, 18, 1);
+#endif
     tmp = get_audin_ptr();
     tmp =  READ_MPEG_REG(AUDIN_FIFO0_START)+ tmp + 1920;
     if(tmp >= READ_MPEG_REG(AUDIN_FIFO0_END))tmp -= amaudio->in_size;
@@ -1301,7 +1305,7 @@ static int amaudio_open(struct inode *inode, struct file *file)
   	aprint("open audio control\n");
 	amaudio->type = 2;
   }else if(iminor(inode) == 3){						// audio effect control
-  	printk("open audio effect control\n");
+  	//printk("open audio effect control\n");
 	amaudio->type = 3;
   } 
   else if(iminor(inode) == 4){			//audio utils
@@ -1572,7 +1576,15 @@ static long amaudio_utils_ioctl(struct file *file,
             WRITE_MPEG_REG(AUDIN_SOURCE_SEL, (1<<0)); // select audio codec output as I2S source
             break;
 #endif			
-            
+        case AMAUDIO_IOC_GET_RESAMPLE_ENA:
+            *((u32 *)arg) = enable_resample_flag;
+            break;
+        case AMAUDIO_IOC_SET_RESAMPLE_ENA:
+            enable_resample_flag = arg;
+            break;
+        case AMAUDIO_IOC_SET_RESAMPLE_TYPE:
+            resample_type_flag = arg;
+            break;    
         default:
         	break;
     };
@@ -1678,27 +1690,33 @@ static ssize_t show_enable_dump(struct class* class, struct class_attribute* att
   int i, j;
   printk("AMAUDIO DUMP HardWBuf Start: in hwptr=%d, in rd=%d, out hwptr=%d, out wr=%d\n", get_audin_ptr(), amaudio_in.in_rd_ptr, get_audout_ptr(), amaudio_out.out_wr_ptr);
   audio_in_i2s_enable(0);
-  for(i=0; i< dump_size; i+=8){
-    for(j=0; j<8; j++){
-      printk("%04x,",dump_buf[i+j]);
-    }
-    printk("\n");
+  if (dump_buf) {
+      for(i=0; i< dump_size; i+=8){
+        for(j=0; j<8; j++){
+          printk("%04x,",dump_buf[i+j]);
+        }
+        printk("\n");
+      }
   }
-  
   printk("AMAUDIo DUMp FINISHED\n\n\n");
-  for(i=0; i< amaudio_in.in_size/4; i+=8){
-    for(j=0; j<8; j++){
-      printk("%08x,", *((unsigned *)(amaudio_in.in_start) + i + j));
-    }
-    printk("\n");
+
+  if (amaudio_in.in_start) {
+      for(i=0; i< amaudio_in.in_size/4; i+=8){
+        for(j=0; j<8; j++){
+          printk("%08x,", *((unsigned *)(amaudio_in.in_start) + i + j));
+        }
+        printk("\n");
+      }
   }
 
   printk("OUTPUT\n");
-  for(i=0; i<amaudio_out.out_size/4; i+= 8){
-    for(j=0; j< 8; j++){
-      printk("%08x,", *((unsigned*)(amaudio_out.out_start) + i + j));
-    }
-    printk("\n");
+  if (amaudio_in.out_start) {
+      for(i=0; i<amaudio_out.out_size/4; i+= 8){
+        for(j=0; j< 8; j++){
+          printk("%08x,", *((unsigned*)(amaudio_out.out_start) + i + j));
+        }
+        printk("\n");
+      }
   }
   printk("Hardware Buf finished: audio in error: %d, error flag = %d\n", in_error, in_error_flag);
   audio_in_i2s_enable(1);

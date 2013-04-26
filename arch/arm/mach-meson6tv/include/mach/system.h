@@ -23,6 +23,7 @@
 #include <linux/io.h>
 #include <plat/io.h>
 #include <mach/hardware.h>
+#include <mach/panel.h>
 
 static inline void arch_idle(void)
 {
@@ -32,10 +33,13 @@ static inline void arch_idle(void)
      */
     cpu_do_idle();
 }
-#define WATCHDOG_ENABLE_BIT  (1<<22)
-#define  DUAL_CORE_RESET		  (3<<24)
+#define WATCHDOG_ENABLE_BIT (1<<22)
+#define  DUAL_CORE_RESET    (3<<24)
 static inline void arch_reset(char mode, const char *cmd)
 {
+    #ifndef CONFIG_BOARD_MESON6TV_REF
+    WRITE_AOBUS_REG(0, 0x6b730000);
+    #endif
     WRITE_MPEG_REG(WATCHDOG_RESET, 0);
     WRITE_MPEG_REG(WATCHDOG_TC, DUAL_CORE_RESET| WATCHDOG_ENABLE_BIT | 1000);
     WRITE_MPEG_REG(VENC_VDAC_SETTING, 0xf);

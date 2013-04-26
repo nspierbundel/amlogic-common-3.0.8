@@ -13,6 +13,8 @@
 #ifndef HDMI_RX_REG_H_
 #define HDMI_RX_REG_H_ 
 
+#define HDMIRX_IRQ                              24
+
 /**
  * Bit field mask
  * @param m	width
@@ -34,6 +36,7 @@
 #define REG_HDMI_PHY_MAINFSM_STATUS1	(0x09UL)
 /** PHY Gen3 Clock measurement lock threshold - default 8*/
 #define LOCK_THRES						(0x08UL)
+#define OVL_PROT_CTRL			(0x0DUL)
 
 //------------------------------------------------------------------------------
 // TOP-level wrapper registers addresses
@@ -280,6 +283,10 @@
 #define RA_AUD_PAO_CTRL         (0x264UL)
 /** Register address: audio FIFO status */
 #define RA_AUD_FIFO_STS         (0x27CUL)
+
+#define RA_AUDPLL_GEN_CTS       (0x280UL)
+#define RA_AUDPLL_GEN_N         (0x284UL)
+
 /** Register address: lock detector threshold */
 #define RA_CI_PLLAUDIO_5        (0x28CUL)
 /** Register address: test mode selection */
@@ -441,6 +448,17 @@
 #define RA_PDEC_GMD_HB         	(0x3D0UL)
 /** Register address: gamut meta data */
 #define RA_PDEC_GMD_PB         	(0x3D4UL)
+
+/*
+* Vendor Specific Info Frame */
+#define RA_PDEC_VSI_ST0         (0x3E0UL)
+#define IEEE_REG_ID         MSK(24,0)
+
+#define RA_PDEC_VSI_ST1         (0x3E4UL)
+#define H3D_STRUCTURE       MSK(4,16)
+#define H3D_EXT_DATA        MSK(4,20)
+#define HDMI_VIDEO_FORMAT   MSK(3,5)
+
 /*
  * DTL Interface registers
  */
@@ -467,6 +485,8 @@
 #define		AIF_CKS_CHG				_BIT(25)
 /** AVI checksum changed */
 #define		AVI_CKS_CHG				_BIT(24)
+/** Vendor Specific Info frame changed */
+#define		VSI_CKS_CHG				_BIT(15)
 /** Packet FIFO new entry */
 #define		PD_FIFO_NEW_ENTRY		_BIT(8)
 /** Packet FIFO overflow */
@@ -621,5 +641,49 @@
 /** Register address: repeater KSV FIFO */
 #define	RA_HDCP_RPT_KSVFIFO0	(0x610UL)
 
+// CEC Controller registers addresses
+#define HDMIRX_DWC_CEC_CTRL                     0x1F00
+#define HDMIRX_DWC_CEC_STAT                     0x1F04
+#define HDMIRX_DWC_CEC_MASK                     0x1F08
+#define HDMIRX_DWC_CEC_POLARITY                 0x1F0C
+#define HDMIRX_DWC_CEC_INT                      0x1F10
+#define HDMIRX_DWC_CEC_ADDR_L                   0x1F14
+#define HDMIRX_DWC_CEC_ADDR_H                   0x1F18
+#define HDMIRX_DWC_CEC_TX_CNT                   0x1F1C
+#define HDMIRX_DWC_CEC_RX_CNT                   0x1F20
+#define HDMIRX_DWC_CEC_TX_DATA0                 0x1F40
+#define HDMIRX_DWC_CEC_TX_DATA1                 0x1F44
+#define HDMIRX_DWC_CEC_TX_DATA2                 0x1F48
+#define HDMIRX_DWC_CEC_TX_DATA3                 0x1F4C
+#define HDMIRX_DWC_CEC_TX_DATA4                 0x1F50
+#define HDMIRX_DWC_CEC_TX_DATA5                 0x1F54
+#define HDMIRX_DWC_CEC_TX_DATA6                 0x1F58
+#define HDMIRX_DWC_CEC_TX_DATA7                 0x1F5C
+#define HDMIRX_DWC_CEC_TX_DATA8                 0x1F60
+#define HDMIRX_DWC_CEC_TX_DATA9                 0x1F64
+#define HDMIRX_DWC_CEC_TX_DATA10                0x1F68
+#define HDMIRX_DWC_CEC_TX_DATA11                0x1F6C
+#define HDMIRX_DWC_CEC_TX_DATA12                0x1F70
+#define HDMIRX_DWC_CEC_TX_DATA13                0x1F74
+#define HDMIRX_DWC_CEC_TX_DATA14                0x1F78
+#define HDMIRX_DWC_CEC_TX_DATA15                0x1F7C
+#define HDMIRX_DWC_CEC_RX_DATA0                 0x1F80
+#define HDMIRX_DWC_CEC_RX_DATA1                 0x1F84
+#define HDMIRX_DWC_CEC_RX_DATA2                 0x1F88
+#define HDMIRX_DWC_CEC_RX_DATA3                 0x1F8C
+#define HDMIRX_DWC_CEC_RX_DATA4                 0x1F90
+#define HDMIRX_DWC_CEC_RX_DATA5                 0x1F94
+#define HDMIRX_DWC_CEC_RX_DATA6                 0x1F98
+#define HDMIRX_DWC_CEC_RX_DATA7                 0x1F9C
+#define HDMIRX_DWC_CEC_RX_DATA8                 0x1FA0
+#define HDMIRX_DWC_CEC_RX_DATA9                 0x1FA4
+#define HDMIRX_DWC_CEC_RX_DATA10                0x1FA8
+#define HDMIRX_DWC_CEC_RX_DATA11                0x1FAC
+#define HDMIRX_DWC_CEC_RX_DATA12                0x1FB0
+#define HDMIRX_DWC_CEC_RX_DATA13                0x1FB4
+#define HDMIRX_DWC_CEC_RX_DATA14                0x1FB8
+#define HDMIRX_DWC_CEC_RX_DATA15                0x1FBC
+#define HDMIRX_DWC_CEC_LOCK                     0x1FC0
+#define HDMIRX_DWC_CEC_WKUPCTRL                 0x1FC4
 
 #endif

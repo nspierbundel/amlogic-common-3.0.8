@@ -140,7 +140,8 @@ static u32 parser_process(s32 type, s32 packet_len)
     s16 temp, header_len, misc_flags, i;
     u32 pts = 0, dts = 0;
     u32 pts_dts_flag = 0;
-
+	u16 invalid_pts = 0;
+	
     temp = PARSER_POP;
     packet_len--;
 
@@ -300,11 +301,18 @@ static u32 parser_process(s32 type, s32 packet_len)
         }
     }
 
+	if ((pts==0) && (dts==0xffffffff)){
+		invalid_pts = 1;
+		printk("invalid pts \n");
+	}
+
+	
+
     if (!packet_len) {
         return SEARCH_START_CODE;
 
     } else if (type == 0) {
-        if (pts_dts_flag) {
+        if ((pts_dts_flag) && (!invalid_pts)) {
 #if TIMESTAMP_IONLY
             if (!ptsmgr_first_vpts_ready()) {
                 if (pts_dts_flag & 2) {
@@ -338,7 +346,7 @@ static u32 parser_process(s32 type, s32 packet_len)
 #endif
         }
 
-        if (ptsmgr_first_vpts_ready()) {
+        if (ptsmgr_first_vpts_ready() || invalid_pts) {
             SET_BLOCK(packet_len);
             video_data_parsed += packet_len;
             return SEND_VIDEO_SEARCH;

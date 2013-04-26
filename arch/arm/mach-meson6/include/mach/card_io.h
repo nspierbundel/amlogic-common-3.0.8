@@ -50,6 +50,19 @@ typedef enum _Card_Work_Mode {
     CARD_SW_MODE
 } Card_Work_Mode_t;
 
+
+/*clock = clk81(200M) / 2 / (card_clock_mode(divide)+1)
+*    default max 50M
+*/
+enum card_clock_mode {
+    CARD_CLOCK_50M = 1,   /*100M / (1+1) = 50M*/
+    CARD_CLOCK_33M,       /*100M / (2+1) = 33M*/
+    CARD_CLOCK_25M,       /*100M / (3+1) = 25M*/
+    CARD_CLOCK_20M,       /*100M / (4+1) = 20M*/
+    CARD_CLOCK_16M,       /*100M / (5+1) = 16M*/
+    CARD_CLOCK_LIMITED,
+};
+
 struct aml_card_info {
     char *name;         /* card name  */
     Card_Work_Mode_t work_mode; /* work mode select*/
@@ -71,6 +84,7 @@ struct aml_card_info {
     /*for inand partition: struct mtd_partition, easy porting from nand*/
     struct mtd_partition    *partitions;
     unsigned int           nr_partitions;
+    enum card_clock_mode  max_clock;
 };
 
 struct aml_card_platform {

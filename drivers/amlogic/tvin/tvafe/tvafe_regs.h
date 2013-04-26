@@ -17,7 +17,7 @@
 // ******** ACD REGISTERS ********
 // *****************************************************************************
 
-#define ACD_BASE_ADD                                    0x1900
+#define ACD_BASE_ADD                                    0x3100//0x1900
 
 #define ACD_REG_00                                      ((ACD_BASE_ADD+0x00)<<2)
 #define MD_LUT_STEP06_BIT              28
@@ -1126,7 +1126,7 @@
 // ******** ADC REGISTERS ********
 // ****************************************************************************
 
-#define ADC_BASE_ADD                                    0x1A00
+#define ADC_BASE_ADD                                    0x3200//0x1A00
 
 #define ADC_REG_00                                      ((ADC_BASE_ADD+0x00)<<2)
 #define CHIPREV_BIT                    0
@@ -1652,7 +1652,7 @@
 // ******** TOP REGISTERS ********
 // **************************************************** ************************
 
-#define TOP_BASE_ADD                                    0x1B00
+#define TOP_BASE_ADD                                    0x3300//0x1B00
 
 // ******** DVSS -- YPBPR & RGB *********************** ************************
 
@@ -2540,14 +2540,6 @@
 #define ADC_READBACK_VCNT_BIT           0
 #define ADC_READBACK_VCNT_WID           13
 
-#define TVFE_ADC_READBACK_INDICATOR                     ((TOP_BASE_ADD+0x87)<<2)
-#define ADC_READBACK_DA_BIT             20
-#define ADC_READBACK_DA_WID             10
-#define ADC_READBACK_DB_BIT             10
-#define ADC_READBACK_DB_WID             10
-#define ADC_READBACK_DC_BIT             0
-#define ADC_READBACK_DC_WID             10
-
 #define TVFE_INT_CLR                                    ((TOP_BASE_ADD+0x8A)<<2)
 #define INT_CLR_BIT                     0
 #define INT_CLR_WID                     17
@@ -2683,13 +2675,13 @@
 #define SOG_VTOTAL_BIT                         0
 #define SOG_VTOTAL_WID                   16
 // ********TVFE_READBACK_INDICATOR*********************************************
-#define TVFE_READBACK_INDICATOR                 ((TOP_BASE_ADD+0x9A)<<2)
-#define INDICATOR_READBACK_DA_BIT           20
-#define INDICATOR_READBACK_DA_WID     10
-#define INDICATOR_READBACK_DB_BIT           10
-#define INDICATOR_READBACK_DB_WID     10
-#define INDICATOR_READBACK_DC_BIT           0
-#define INDICATOR_READBACK_DC_WID     10
+#define TVFE_ADC_READBACK_INDICATOR             ((TOP_BASE_ADD+0x9A)<<2)
+#define ADC_READBACK_DA_BIT               20
+#define ADC_READBACK_DA_WID               10
+#define ADC_READBACK_DB_BIT               10
+#define ADC_READBACK_DB_WID               10
+#define ADC_READBACK_DC_BIT                0
+#define ADC_READBACK_DC_WID               10
 
 #define TVFE_READBACK_INDICATOR1                ((TOP_BASE_ADD+0x9B)<<2)
 #define INDICATOR_RB_DA_AREA_BIT               0
@@ -2754,7 +2746,7 @@
 // ******** CVD2 REGISTERS ********
 // **************************************************** *************************
 
-#define CVD_BASE_ADD                                    0x1800
+#define CVD_BASE_ADD                                    0x3000//0x1800
 
 #define CVD2_CONTROL0                                   ((CVD_BASE_ADD+0x00)<<2)
 #define HV_DLY_BIT                      7

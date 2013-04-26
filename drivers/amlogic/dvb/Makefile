@@ -6,6 +6,8 @@ obj-$(CONFIG_AM_DVB) += aml.o
 
 aml-objs=aml_dvb.o aml_dmx.o
 
+obj-$(CONFIG_AM_CI) += amlci/
+
 obj-$(CONFIG_AM_GX1001) += gx1001/
 
 obj-$(CONFIG_AM_MXL101) += mxl101/
@@ -18,3 +20,4 @@ obj-$(CONFIG_AM_ITE9133) += ite9133/
 
 obj-$(CONFIG_AM_DIB7090P) += dib7090/
 
+obj-$(CONFIG_AM_LGS9XB1) += lgs9xb1/

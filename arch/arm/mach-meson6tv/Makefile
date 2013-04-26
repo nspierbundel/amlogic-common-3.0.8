@@ -17,9 +17,11 @@ plat-api:=$(plat-api:$(srctree)/$(src)/%.c=%.o)
 obj-y +=$(plat-api)
 else
 obj-$(CONFIG_BOARD_MESON6TV_REF)	+= board-m6tv-ref.o
-obj-$(CONFIG_BOARD_MESON6TV_REF)	+= board-m6tvref-panel.o
+obj-$(CONFIG_BOARD_MESON6TV_REF)	+= board-m6tv-ref-panel.o
+obj-$(CONFIG_BOARD_MESON6TV_REF)	+= board-m6tv-ref-tvin.o
 obj-$(CONFIG_BOARD_MESON6TV_SKT)	+= board-m6tv-skt.o
-obj-$(CONFIG_BOARD_MESON6TV_SKT)	+= board-m6tvskt-panel.o
+obj-$(CONFIG_BOARD_MESON6TV_SKT)	+= board-m6tv-skt-panel.o
+obj-$(CONFIG_BOARD_MESON6TV_SKT)	+= board-m6tv-skt-tvin.o
 endif
 obj-$(CONFIG_HOTPLUG_CPU) += hotplug.o
 obj-$(CONFIG_SMP) += headsmp.o platsmp.o

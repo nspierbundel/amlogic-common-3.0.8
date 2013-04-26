@@ -47,11 +47,11 @@ static void meson_gic_unmask(struct irq_data *data)
     if(irq<32)
         return;
 
-    /**
-      * USBA/USBB controller need level trig, This is temp code.
+    /** 
+      * USB A/B/C/D controller need level trig, This is temp code.
       *
       */
-    if(irq == 62 || irq == 63 || irq == 100)
+    if(irq == 62 || irq == 63 || irq == 100 || irq == 163 || irq == 164)
 	edge = 0x1;//level
 
     /**
@@ -76,7 +76,13 @@ void __init meson_init_irq(void)
 #ifndef CONFIG_MESON6_SMP_HOTPLUG
     aml_write_reg32(IO_PERIPH_BASE+0x100 +GIC_CPU_PRIMASK,0xff);
 #endif
+#ifdef CONFIG_MESON_ARM_GIC_FIQ
+extern void init_fiq(void)	;
+	init_fiq();
+#endif
 }
+
+#ifndef CONFIG_MESON_ARM_GIC_FIQ
 static void (*fiq_isr[NR_IRQS])(void);
 
 static irqreturn_t
@@ -123,4 +129,4 @@ void free_fiq(unsigned fiq, void (*isr)(void))
     spin_unlock_irqrestore(&lock, flags);
 }
 EXPORT_SYMBOL(free_fiq);
-
+#endif  // end of CONFIG_MESON_ARM_GIC_FIQ

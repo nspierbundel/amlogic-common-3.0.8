@@ -46,10 +46,6 @@
 #if MESON_CPU_TYPE >= MESON_CPU_TYPE_MESON6
 #include <mach/mod_gate.h>
 #endif
-#ifdef CONFIG_HAS_EARLYSUSPEND
-#include <linux/earlysuspend.h>
-static struct early_suspend gc0308_early_suspend;
-#endif
 
 #define GC0308_CAMERA_MODULE_NAME "gc0308"
 
@@ -82,7 +78,11 @@ static int gc0308_have_open=0;
 
 static int gc0308_h_active=320;
 static int gc0308_v_active=240;
-static int gc0308_frame_rate = 150;
+static struct v4l2_fract gc0308_frmintervals_active = {
+    .numerator = 1,
+    .denominator = 15,
+};
+
 
 /* supported controls */
 static struct v4l2_queryctrl gc0308_qctrl[] = {
@@ -195,6 +195,34 @@ static struct v4l2_queryctrl gc0308_qctrl[] = {
 		.default_value	= 0,
 		.flags         = V4L2_CTRL_FLAG_SLIDER,
 	}
+};
+
+static struct v4l2_frmivalenum gc0308_frmivalenum[]={
+    {
+        .index 		= 0,
+        .pixel_format	= V4L2_PIX_FMT_NV21,
+        .width		= 640,
+        .height		= 480,
+        .type		= V4L2_FRMIVAL_TYPE_DISCRETE,
+        {
+            .discrete	={
+                .numerator	= 1,
+                .denominator	= 15,
+            }
+        }
+    },{
+        .index 		= 1,
+        .pixel_format	= V4L2_PIX_FMT_NV21,
+        .width		= 1600,
+        .height		= 1200,
+        .type		= V4L2_FRMIVAL_TYPE_DISCRETE,
+        {
+            .discrete	={
+                .numerator	= 1,
+                .denominator	= 5,
+            }
+        }
+    },
 };
 
 struct v4l2_querymenu gc0308_qmenu_wbmode[] = {
@@ -445,6 +473,7 @@ struct gc0308_fh {
 	enum v4l2_buf_type         type;
 	int			   input; 	/* Input Number on bars */
 	int  stream_on;
+	unsigned int		f_flags;
 };
 
 static inline struct gc0308_fh *to_fh(struct gc0308_device *dev)
@@ -1053,14 +1082,18 @@ static void gc0308_set_resolution(struct gc0308_device *dev,int height,int width
 		resolution_script = resolution_640x480_script;
 		gc0308_h_active = 640;
 		gc0308_v_active = 478;
-		gc0308_frame_rate = 150;
+
+		gc0308_frmintervals_active.denominator 	= 15;
+		gc0308_frmintervals_active.numerator	= 1;
 		//GC0308_init_regs(dev);
 		//return;
 	} else {
 		printk("set resolution 320X240\n");
 		gc0308_h_active = 320;
 		gc0308_v_active = 238;
-		gc0308_frame_rate = 236;
+		gc0308_frmintervals_active.denominator 	= 15;
+		gc0308_frmintervals_active.numerator	= 1;
+
 		resolution_script = resolution_320x240_script;
 	}
 	
@@ -1864,6 +1897,10 @@ static void gc0308_thread_tick(struct gc0308_fh *fh)
 	unsigned long flags = 0;
 
 	dprintk(dev, 1, "Thread tick\n");
+	if(!fh->stream_on){
+		dprintk(dev, 1, "sensor doesn't stream on\n");
+		return ;
+	}
 
 	spin_lock_irqsave(&dev->slock, flags);
 	if (list_empty(&dma_q->active)) {
@@ -1876,9 +1913,12 @@ static void gc0308_thread_tick(struct gc0308_fh *fh)
     dprintk(dev, 1, "%s\n", __func__);
     dprintk(dev, 1, "list entry get buf is %x\n",(unsigned)buf);
 
-	/* Nobody is waiting on this buffer, return */
-	if (!waitqueue_active(&buf->vb.done))
-		goto unlock;
+    if(!(fh->f_flags & O_NONBLOCK)){
+        /* Nobody is waiting on this buffer, return */
+        if (!waitqueue_active(&buf->vb.done))
+            goto unlock;
+    }
+    buf->vb.state = VIDEOBUF_ACTIVE;
 
 	list_del(&buf->vb.queue);
 
@@ -2009,6 +2049,7 @@ static void free_buffer(struct videobuf_queue *vq, struct gc0308_buffer *buf)
 
 	dprintk(dev, 1, "%s, state: %i\n", __func__, buf->vb.state);
 
+	videobuf_waiton(vq, &buf->vb, 0, 0);
 	if (in_interrupt())
 		BUG();
 
@@ -2128,6 +2169,29 @@ static int vidioc_enum_fmt_vid_cap(struct file *file, void  *priv,
 	f->pixelformat = fmt->fourcc;
 	return 0;
 }
+static int vidioc_enum_frameintervals(struct file *file, void *priv,
+        struct v4l2_frmivalenum *fival)
+{
+    struct gc0308_fmt *fmt;
+    unsigned int k;
+
+    if(fival->index > ARRAY_SIZE(gc0308_frmivalenum))
+        return -EINVAL;
+
+    for(k =0; k< ARRAY_SIZE(gc0308_frmivalenum); k++)
+    {
+        if( (fival->index==gc0308_frmivalenum[k].index)&&
+                (fival->pixel_format ==gc0308_frmivalenum[k].pixel_format )&&
+                (fival->width==gc0308_frmivalenum[k].width)&&
+                (fival->height==gc0308_frmivalenum[k].height)){
+            memcpy( fival, &gc0308_frmivalenum[k], sizeof(struct v4l2_frmivalenum));
+            return 0;
+        }
+    }
+
+    return -EINVAL;
+
+}
 
 static int vidioc_g_fmt_vid_cap(struct file *file, void *priv,
 					struct v4l2_format *f)
@@ -2223,6 +2287,28 @@ out:
 	return ret;
 }
 
+static int vidioc_g_parm(struct file *file, void *priv,
+        struct v4l2_streamparm *parms)
+{
+    struct gc0308_fh *fh = priv;
+    struct gc0308_device *dev = fh->dev;
+    struct v4l2_captureparm *cp = &parms->parm.capture;
+    int ret;
+    int i;
+
+    dprintk(dev,3,"vidioc_g_parm\n");
+    if (parms->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
+        return -EINVAL;
+
+    memset(cp, 0, sizeof(struct v4l2_captureparm));
+    cp->capability = V4L2_CAP_TIMEPERFRAME;
+
+    cp->timeperframe = gc0308_frmintervals_active;
+    printk("g_parm,deno=%d, numerator=%d\n", cp->timeperframe.denominator,
+            cp->timeperframe.numerator );
+    return 0;
+}
+
 static int vidioc_reqbufs(struct file *file, void *priv,
 			  struct v4l2_requestbuffers *p)
 {
@@ -2274,7 +2360,9 @@ static int vidioc_streamon(struct file *file, void *priv, enum v4l2_buf_type i)
 
     para.port  = TVIN_PORT_CAMERA;
     para.fmt_info.fmt = TVIN_SIG_FMT_MAX+1;//TVIN_SIG_FMT_MAX+1;TVIN_SIG_FMT_CAMERA_1280X720P_30Hz
-	para.fmt_info.frame_rate = gc0308_frame_rate;
+	para.fmt_info.frame_rate = gc0308_frmintervals_active.denominator
+					/gc0308_frmintervals_active.numerator;//175
+
 	para.fmt_info.h_active = gc0308_h_active;
 	para.fmt_info.v_active = gc0308_v_active;
 	para.fmt_info.hsync_phase = 0;
@@ -2490,6 +2578,7 @@ static int gc0308_open(struct file *file)
 	fh->width    = 640;
 	fh->height   = 480;
 	fh->stream_on = 0 ;
+	fh->f_flags  = file->f_flags;
 	/* Resets frame counters */
 	dev->jiffies = jiffies;
 
@@ -2568,6 +2657,9 @@ static int gc0308_close(struct file *file)
 	gc0308_qctrl[5].default_value=0;
 	gc0308_qctrl[7].default_value=100;
 	gc0308_qctrl[8].default_value=0;
+
+	gc0308_frmintervals_active.numerator = 1;
+	gc0308_frmintervals_active.denominator = 15;
 	//power_down_gc0308(dev);
 #endif
 	if(dev->platform_dev_data.device_uninit) {
@@ -2630,6 +2722,8 @@ static const struct v4l2_ioctl_ops gc0308_ioctl_ops = {
 	.vidioc_streamon      = vidioc_streamon,
 	.vidioc_streamoff     = vidioc_streamoff,
 	.vidioc_enum_framesizes = vidioc_enum_framesizes,
+	.vidioc_g_parm = vidioc_g_parm,
+	.vidioc_enum_frameintervals = vidioc_enum_frameintervals,
 #ifdef CONFIG_VIDEO_V4L1_COMPAT
 	.vidiocgmbuf          = vidiocgmbuf,
 #endif
@@ -2660,33 +2754,6 @@ static const struct v4l2_subdev_ops gc0308_ops = {
 	.core = &gc0308_core_ops,
 };
 static struct i2c_client *this_client;
-
-#ifdef CONFIG_HAS_EARLYSUSPEND
-static void aml_gc0308_early_suspend(struct early_suspend *h)
-{
-	printk("enter -----> %s \n",__FUNCTION__);
-	if(h && h->param && gc0308_have_open) {
-		aml_plat_cam_data_t* plat_dat= (aml_plat_cam_data_t*)h->param;
-		if (plat_dat && plat_dat->early_suspend) {
-			plat_dat->early_suspend();
-		}
-	}
-}
-
-static void aml_gc0308_late_resume(struct early_suspend *h)
-{
-	aml_plat_cam_data_t* plat_dat;
-	if(gc0308_have_open){
-	    printk("enter -----> %s \n",__FUNCTION__);
-	    if(h && h->param) {
-		    plat_dat= (aml_plat_cam_data_t*)h->param;
-		    if (plat_dat && plat_dat->late_resume) {
-			    plat_dat->late_resume();
-		    }
-	    }
-	}
-}
-#endif
 
 static int gc0308_probe(struct i2c_client *client,
 			const struct i2c_device_id *id)
@@ -2752,14 +2819,6 @@ static int gc0308_probe(struct i2c_client *client,
 		return err;
 	}
 
-#ifdef CONFIG_HAS_EARLYSUSPEND
-    gc0308_early_suspend.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN;
-	gc0308_early_suspend.suspend = aml_gc0308_early_suspend;
-	gc0308_early_suspend.resume = aml_gc0308_late_resume;
-	gc0308_early_suspend.param = plat_dat;
-	register_early_suspend(&gc0308_early_suspend);
-#endif
-
 	return 0;
 }
 
@@ -2774,37 +2833,6 @@ static int gc0308_remove(struct i2c_client *client)
 	kfree(t);
 	return 0;
 }
-static int gc0308_suspend(struct i2c_client *client, pm_message_t state)
-{
-	struct v4l2_subdev *sd = i2c_get_clientdata(client);
-	struct gc0308_device *t = to_dev(sd);
-	struct gc0308_fh  *fh = to_fh(t);
-	if (gc0308_have_open) {
-	    if(fh->stream_on == 1){
-		    stop_tvin_service(0);
-	    }
-	    power_down_gc0308(t);
-	}
-	return 0;
-}
-
-static int gc0308_resume(struct i2c_client *client)
-{
-    struct v4l2_subdev *sd = i2c_get_clientdata(client);
-    struct gc0308_device *t = to_dev(sd);
-    struct gc0308_fh  *fh = to_fh(t);
-    tvin_parm_t para;
-    if (gc0308_have_open) {
-        para.port  = TVIN_PORT_CAMERA;
-        para.fmt_info.fmt = TVIN_SIG_FMT_MAX+1;
-        GC0308_init_regs(t);
-	if(fh->stream_on == 1){
-            start_tvin_service(0,&para);
-	}
-    }
-    return 0;
-}
-
 
 static const struct i2c_device_id gc0308_id[] = {
 	{ "gc0308_i2c", 0 },
@@ -2816,8 +2844,6 @@ static struct v4l2_i2c_driver_data v4l2_i2c_data = {
 	.name = "gc0308",
 	.probe = gc0308_probe,
 	.remove = gc0308_remove,
-	.suspend = gc0308_suspend,
-	.resume = gc0308_resume,
 	.id_table = gc0308_id,
 };
 

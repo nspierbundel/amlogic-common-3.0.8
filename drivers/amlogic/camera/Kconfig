@@ -142,6 +142,33 @@ config VIDEO_AMLOGIC_CAPTURE_OV5642
 	  Amlogic capture driver.
 	  Say Y here if you want this driver.	  
 
+choice
+	prompt "OV5642 AUTO FOCUS FIRMWARE"
+	depends on VIDEO_AMLOGIC_CAPTURE_OV5642
+	default NO_AUTO_FUCOS
+	
+config NO_AUTO_FUCOS
+	bool "NONE"
+	---help---
+	  no auto focus
+
+config AD5820
+	bool "AD5820"
+	---help---
+	  AD5820
+
+config DW9714
+	bool "DW9714"
+	---help---
+	  DW9714
+
+config AP5120
+	bool "AP5120"
+	---help---
+	  AP5120
+
+endchoice
+
 config VIDEO_AMLOGIC_CAPTURE_OV7675
 	tristate "Amlogic Platform Capture Driver for OV7675"
 	depends on VIDEO_AMLOGIC_CAPTURE
@@ -166,6 +193,18 @@ config VIDEO_AMLOGIC_CAPTURE_OV2655
 	  Amlogic capture driver.
 	  Say Y here if you want this driver.
 	  
+config VIDEO_AMLOGIC_CAPTURE_OV2640
+	tristate "Amlogic Platform Capture Driver for OV2640"
+	depends on VIDEO_AMLOGIC_CAPTURE
+	select VIDEOBUF_VMALLOC
+	select AMLOGIC_VIDEOIN_MANAGER
+	select TVIN_BT656IN
+	select TVIN_VDIN
+	default n
+	---help---
+	  Amlogic capture driver.
+	  Say Y here if you want this driver.
+	  
 config VIDEO_AMLOGIC_CAPTURE_SP0838
 	tristate "Amlogic Platform Capture Driver for SP0838"
 	depends on VIDEO_AMLOGIC_CAPTURE
@@ -176,8 +215,21 @@ config VIDEO_AMLOGIC_CAPTURE_SP0838
 	default n
 	---help---
 	  Amlogic capture driver.
-	  Say Y here if you want this driver.	 	  
+	  Say Y here if you want this driver.
 	  
+config VIDEO_AMLOGIC_CAPTURE_SP2518
+	tristate "Amlogic Platform Capture Driver for SP2518"
+	depends on VIDEO_AMLOGIC_CAPTURE
+	select VIDEOBUF_VMALLOC
+	select AMLOGIC_VIDEOIN_MANAGER
+	select TVIN
+	select TVIN_BT656
+	select TVIN_VDIN
+	default n
+	---help---
+	  Amlogic capture driver.
+	  Say Y here if you want this driver.
+
 config VIDEO_AMLOGIC_CAPTURE_HI253
 	tristate "Amlogic Platform Capture Driver for HI253"
 	depends on VIDEO_AMLOGIC_CAPTURE
@@ -223,6 +275,45 @@ config VIDEO_AMLOGIC_CAPTURE_HI2056
 	---help---
 	  Amlogic capture driver.
 	  Say Y here if you want this driver.
+
+config VIDEO_AMLOGIC_CAPTURE_NT99250
+	tristate "Amlogic Platform Capture Driver for NT99250"
+	depends on VIDEO_AMLOGIC_CAPTURE
+	select VIDEOBUF_VMALLOC
+	select AMLOGIC_VIDEOIN_MANAGER
+	select TVIN
+	select TVIN_BT656
+	select TVIN_VDIN
+	default n
+	---help---
+	  Amlogic capture driver.
+	  Say Y here if you want this driver.
+	  
+config VIDEO_AMLOGIC_CAPTURE_NT99252
+	tristate "Amlogic Platform Capture Driver for NT99252"
+	depends on VIDEO_AMLOGIC_CAPTURE
+	select VIDEOBUF_VMALLOC
+	select AMLOGIC_VIDEOIN_MANAGER
+	select TVIN
+	select TVIN_BT656
+	select TVIN_VDIN
+	default n
+	---help---
+	  Amlogic capture driver.
+	  Say Y here if you want this driver.
+
+config VIDEO_AMLOGIC_CAPTURE_NT99340
+	tristate "Amlogic Platform Capture Driver for NT99340"
+	depends on VIDEO_AMLOGIC_CAPTURE
+	select VIDEOBUF_VMALLOC
+	select AMLOGIC_VIDEOIN_MANAGER
+	select TVIN
+	select TVIN_BT656
+	select TVIN_VDIN
+	default n
+	---help---
+	  Amlogic capture driver.
+	  Say Y here if you want this driver.	
 
 config AMLOGIC_VIDEOIN_MANAGER
 	tristate

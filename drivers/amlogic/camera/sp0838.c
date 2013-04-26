@@ -49,11 +49,6 @@
 #include <mach/mod_gate.h>
 #endif
 
-#ifdef CONFIG_HAS_EARLYSUSPEND
-#include <linux/earlysuspend.h>
-static struct early_suspend sp0838_early_suspend;
-#endif
-
 #define SP0838_CAMERA_MODULE_NAME "sp0838"
 
 /* Wake up at about 30 fps */
@@ -311,29 +306,12 @@ static struct sp0838_fmt formats[] = {
 		.name     = "YUV420P",
 		.fourcc   = V4L2_PIX_FMT_YUV420,
 		.depth    = 12,
+	},
+	{
+		.name     = "YVU420P",
+		.fourcc   = V4L2_PIX_FMT_YVU420,
+		.depth    = 12,
 	}
-#if 0
-	{
-		.name     = "4:2:2, packed, YUYV",
-		.fourcc   = V4L2_PIX_FMT_VYUY,
-		.depth    = 16,	
-	},
-	{
-		.name     = "RGB565 (LE)",
-		.fourcc   = V4L2_PIX_FMT_RGB565, /* gggbbbbb rrrrrggg */
-		.depth    = 16,
-	},
-	{
-		.name     = "RGB555 (LE)",
-		.fourcc   = V4L2_PIX_FMT_RGB555, /* gggbbbbb arrrrrgg */
-		.depth    = 16,
-	},
-	{
-		.name     = "RGB555 (BE)",
-		.fourcc   = V4L2_PIX_FMT_RGB555X, /* arrrrrgg gggbbbbb */
-		.depth    = 16,
-	},
-#endif
 };
 
 static struct sp0838_fmt *get_format(struct v4l2_format *f)
@@ -2135,7 +2113,11 @@ static int vidioc_enum_framesizes(struct file *file, void *fh,struct v4l2_frmsiz
 	}
 	if (fmt == NULL)
 		return -EINVAL;
-	if (fmt->fourcc == V4L2_PIX_FMT_NV21){
+	if ((fmt->fourcc == V4L2_PIX_FMT_NV21)
+		||(fmt->fourcc == V4L2_PIX_FMT_NV12)
+		||(fmt->fourcc == V4L2_PIX_FMT_YUV420)
+		||(fmt->fourcc == V4L2_PIX_FMT_YVU420)
+		){
 		if (fsize->index >= ARRAY_SIZE(sp0838_prev_resolution))
 			return -EINVAL;
 		frmsize = &sp0838_prev_resolution[fsize->index];
@@ -2476,33 +2458,6 @@ static const struct v4l2_subdev_ops sp0838_ops = {
 };
 static struct i2c_client *this_client;
 
-#ifdef CONFIG_HAS_EARLYSUSPEND
-static void aml_sp0838_early_suspend(struct early_suspend *h)
-{
-	printk("enter -----> %s \n",__FUNCTION__);
-	if(h && h->param && sp0838_have_open) {
-		aml_plat_cam_data_t* plat_dat= (aml_plat_cam_data_t*)h->param;
-		if (plat_dat && plat_dat->early_suspend) {
-			plat_dat->early_suspend();
-		}
-	}
-}
-
-static void aml_sp0838_late_resume(struct early_suspend *h)
-{
-	aml_plat_cam_data_t* plat_dat;
-	if(sp0838_have_open){
-	    printk("enter -----> %s \n",__FUNCTION__);
-	    if(h && h->param) {
-		    plat_dat= (aml_plat_cam_data_t*)h->param;
-		    if (plat_dat && plat_dat->late_resume) {
-			    plat_dat->late_resume();
-		    }
-	    }
-	}
-}
-#endif
-
 static int sp0838_probe(struct i2c_client *client,
 			const struct i2c_device_id *id)
 {
@@ -2574,14 +2529,6 @@ static int sp0838_probe(struct i2c_client *client,
 	}
 	g_dev = t;
 
-#ifdef CONFIG_HAS_EARLYSUSPEND
-    sp0838_early_suspend.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN;
-	sp0838_early_suspend.suspend = aml_sp0838_early_suspend;
-	sp0838_early_suspend.resume = aml_sp0838_late_resume;
-	sp0838_early_suspend.param = plat_dat;
-	register_early_suspend(&sp0838_early_suspend);
-#endif
-
 	return 0;
 }
 
@@ -2596,37 +2543,6 @@ static int sp0838_remove(struct i2c_client *client)
 	kfree(t);
 	return 0;
 }
-static int sp0838_suspend(struct i2c_client *client, pm_message_t state)
-{
-	struct v4l2_subdev *sd = i2c_get_clientdata(client);
-	struct sp0838_device *t = to_dev(sd);	
-	struct sp0838_fh  *fh = to_fh(t);
-	if (sp0838_have_open) {
-	    if(fh->stream_on == 1){
-		    stop_tvin_service(0);
-	    }
-	    power_down_sp0838(t);
-	}
-	return 0;
-}
-
-static int sp0838_resume(struct i2c_client *client)
-{
-	struct v4l2_subdev *sd = i2c_get_clientdata(client);
-	struct sp0838_device *t = to_dev(sd);
-    struct sp0838_fh  *fh = to_fh(t);
-    tvin_parm_t para;
- if (sp0838_have_open) {
-        para.port  = TVIN_PORT_CAMERA_YUYV;
-        para.fmt_info.fmt = TVIN_SIG_FMT_MAX+1;
-        SP0838_init_regs(t);
-	if(fh->stream_on == 1){
-            start_tvin_service(0,&para);
-	}
-    }
-    return 0;
-}
-
 
 static const struct i2c_device_id sp0838_id[] = {
 	{ "sp0838_i2c", 0 },
@@ -2637,9 +2553,7 @@ MODULE_DEVICE_TABLE(i2c, sp0838_id);
 static struct v4l2_i2c_driver_data v4l2_i2c_data = {
 	.name = "sp0838",
 	.probe = sp0838_probe,
-	.remove = sp0838_remove,
-	.suspend = sp0838_suspend,
-	.resume = sp0838_resume,		
+	.remove = sp0838_remove,	
 	.id_table = sp0838_id,
 };
 

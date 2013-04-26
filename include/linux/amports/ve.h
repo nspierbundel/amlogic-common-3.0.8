@@ -48,13 +48,21 @@ typedef struct ve_bext_s {
     unsigned char midpt;
     unsigned char slope2;
 } ve_bext_t;
-
+#if defined(CONFIG_AM_VECM)
+typedef struct ve_dnlp_s {
+    unsigned int      en;
+    unsigned int rt;    //       0 ~ 255,
+    unsigned int rl;    //       0 ~  15, 1.0000x ~ 1.9375x, step 0.0625x
+    unsigned int black; //       0 ~  16, weak ~ strong
+    unsigned int white; //       0 ~  16, weak ~ strong
+} ve_dnlp_t;
+#else
 typedef struct ve_dnlp_s {
     unsigned char en;
     enum  ve_dnlp_rt_e rt;
     unsigned char gamma[64];
 } ve_dnlp_t;
-
+#endif
 typedef struct ve_hsvs_s {
     unsigned char en;
     unsigned char peak_gain_h1;

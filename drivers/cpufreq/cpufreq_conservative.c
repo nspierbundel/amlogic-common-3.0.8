@@ -29,6 +29,12 @@
 #include <linux/reboot.h>
 #include <linux/syscore_ops.h>
 
+#ifdef CONFIG_CPU_FREQ_GOV_CONSERVATIVE_BOOST
+	#define ENABLE_BOOST 1
+#else
+	#define ENABLE_BOOST 0
+#endif
+
 static int halt=0;
 static int conserv_system_reboot(struct notifier_block *nb, unsigned long event, void *unused)
 {
@@ -81,6 +87,10 @@ static unsigned int min_sampling_rate;
 
 #define DEF_SCREEN_OFF_MAX			(408*1000)
 
+#define DEF_BOOST_OFF_MAX_FREQ      (1000*1000)  //in kHz
+#define DEF_BOOST_MAX_TIME          (20*1000)    //in ms
+#define DEF_BOOST_RESET_TIME        (20*1000)	//in ms
+
 static void do_dbs_timer(struct work_struct *work);
 
 struct cpu_dbs_info_s {
@@ -100,6 +110,9 @@ struct cpu_dbs_info_s {
 	 * when user is changing the governor or limits.
 	 */
 	struct mutex timer_mutex;
+#if ENABLE_BOOST
+	unsigned long boost_timeout;
+#endif
 };
 static DEFINE_PER_CPU(struct cpu_dbs_info_s, cs_cpu_dbs_info);
 
@@ -118,6 +131,12 @@ static struct dbs_tuners {
 	unsigned int freq_step;
 	unsigned int screen_off_max;
 	unsigned int change_skips;
+#if ENABLE_BOOST
+	unsigned int boost_off_max_freq;
+	unsigned int boost_max_time;
+	unsigned int boost_reset_time;
+	unsigned int boost_enable;
+#endif
 } dbs_tuners_ins = {
 	.up_threshold = DEF_FREQUENCY_UP_THRESHOLD,
 	.down_threshold = DEF_FREQUENCY_DOWN_THRESHOLD,
@@ -125,6 +144,13 @@ static struct dbs_tuners {
 	.freq_step = 5,
 	.screen_off_max = DEF_SCREEN_OFF_MAX,
 	.change_skips = DEF_CHANGE_SKIPS,
+#if ENABLE_BOOST
+	.boost_off_max_freq = DEF_BOOST_OFF_MAX_FREQ,
+	.boost_max_time = DEF_BOOST_MAX_TIME,
+	.boost_reset_time = DEF_BOOST_RESET_TIME,
+	.boost_enable = 0,
+#endif
+
 };
 
 
@@ -217,6 +243,12 @@ show_one(ignore_nice_load, ignore_nice);
 show_one(freq_step, freq_step);
 show_one(screen_off_max, screen_off_max);
 show_one(change_skips, change_skips);
+#if ENABLE_BOOST
+show_one(boost_off_max_freq, boost_off_max_freq);
+show_one(boost_max_time, boost_max_time);
+show_one(boost_reset_time, boost_reset_time);
+show_one(boost_enable, boost_enable);
+#endif
 
 static ssize_t store_sampling_rate(struct kobject *a, struct attribute *b,
 				   const char *buf, size_t count)
@@ -347,6 +379,85 @@ static ssize_t store_change_skips(struct kobject *a, struct attribute *b,
 	return count;
 }
 
+#if ENABLE_BOOST
+static ssize_t store_boost_off_max_freq(struct kobject *a, struct attribute *b,
+                                        const char *buf, size_t count)
+{
+	unsigned int input;
+	int ret;
+	ret = sscanf(buf, "%u", &input);
+
+	if (ret != 1)
+		return -EINVAL;
+
+	if (input == 0)
+		return -EINVAL;
+
+	mutex_lock(&dbs_mutex);
+	dbs_tuners_ins.boost_off_max_freq = input;
+	mutex_unlock(&dbs_mutex);
+
+	return count;
+}
+
+static ssize_t store_boost_max_time(struct kobject *a, struct attribute *b,
+                                    const char *buf, size_t count)
+{
+	unsigned int input;
+	int ret;
+	ret = sscanf(buf, "%u", &input);
+
+	if (ret != 1)
+		return -EINVAL;
+
+	if (input == 0)
+		return -EINVAL;
+
+	mutex_lock(&dbs_mutex);
+	dbs_tuners_ins.boost_max_time = input;
+	mutex_unlock(&dbs_mutex);
+
+	return count;
+}
+
+static ssize_t store_boost_reset_time(struct kobject *a, struct attribute *b,
+                                      const char *buf, size_t count)
+{
+	unsigned int input;
+	int ret;
+	ret = sscanf(buf, "%u", &input);
+
+	if (ret != 1)
+		return -EINVAL;
+
+	if (input == 0)
+		return -EINVAL;
+
+	mutex_lock(&dbs_mutex);
+	dbs_tuners_ins.boost_reset_time = input;
+	mutex_unlock(&dbs_mutex);
+
+	return count;
+}
+
+static ssize_t store_boost_enable(struct kobject *a, struct attribute *b,
+                                      const char *buf, size_t count)
+{
+	unsigned int input;
+	int ret;
+	ret = sscanf(buf, "%u", &input);
+
+	if (ret != 1)
+		return -EINVAL;
+
+	mutex_lock(&dbs_mutex);
+	dbs_tuners_ins.boost_enable = input ? 1 : 0;
+	mutex_unlock(&dbs_mutex);
+
+	return count;
+}
+#endif //ENABLE_BOOST
+
 define_one_global_rw(sampling_rate);
 define_one_global_rw(up_threshold);
 define_one_global_rw(down_threshold);
@@ -354,6 +465,12 @@ define_one_global_rw(ignore_nice_load);
 define_one_global_rw(freq_step);
 define_one_global_rw(screen_off_max);
 define_one_global_rw(change_skips);
+#if ENABLE_BOOST
+define_one_global_rw(boost_off_max_freq);
+define_one_global_rw(boost_max_time);
+define_one_global_rw(boost_reset_time);
+define_one_global_rw(boost_enable);
+#endif
 
 static struct attribute *dbs_attributes[] = {
 	&sampling_rate_min.attr,
@@ -364,6 +481,12 @@ static struct attribute *dbs_attributes[] = {
 	&freq_step.attr,
 	&screen_off_max.attr,
 	&change_skips.attr,
+#if ENABLE_BOOST
+	&boost_off_max_freq.attr,
+	&boost_max_time.attr,
+	&boost_reset_time.attr,
+	&boost_enable.attr,
+#endif
 	NULL
 };
 
@@ -433,7 +556,12 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 	unsigned int freq_target;
 
 	struct cpufreq_policy *policy;
-	unsigned int j;
+	unsigned int j;	
+#if ENABLE_BOOST
+	unsigned long now;
+	bool allow_boost;
+	bool reset_boost_timeout = false;
+#endif
 
     if (halt) {
         return;
@@ -529,6 +657,25 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 	 */
 	if (dbs_tuners_ins.freq_step == 0)
 		return;
+		
+#if ENABLE_BOOST
+	if (dbs_tuners_ins.boost_enable) {
+		/* Check if boost allowed */
+		now = jiffies;
+		if (time_before(now, this_dbs_info->boost_timeout)) {
+			// allow boost before boost timeout
+			allow_boost = true;
+		} else if (time_after(now, this_dbs_info->boost_timeout + msecs_to_jiffies(dbs_tuners_ins.boost_reset_time))) {
+			// allow (new) boost if reset time has passed since last boost timeout
+			// boost timeout is reset only at the start of a boost period
+			allow_boost = true;
+			reset_boost_timeout = true;
+		} else {
+			// disallow boost
+			allow_boost = false;
+		}
+	}
+#endif
 
 	if (early_suspend && early_suspend < DEF_EARLY_SUSPEND_SAMPLES) {
 		early_suspend++;
@@ -556,8 +703,14 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 			max_load_long > dbs_tuners_ins.up_threshold) {
 
 		/* if we are already at full speed then break out early */
+#if ENABLE_BOOST
+		if (this_dbs_info->requested_freq == policy->max && !dbs_tuners_ins.boost_enable)
+			return;
+#else
 		if (this_dbs_info->requested_freq == policy->max)
 			return;
+#endif
+
 
 		if ((max_load > 95 || max_load_long > 95) &&
 				early_suspend < DEF_EARLY_SUSPEND_SAMPLES)
@@ -581,9 +734,24 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 				policy->cur != dbs_tuners_ins.screen_off_max) {
 			this_dbs_info->requested_freq = dbs_tuners_ins.screen_off_max;
 		}
-        if (halt) {
-            return;
-        }
+		if (halt) {
+			return;
+		}
+		
+#if ENABLE_BOOST
+		if (dbs_tuners_ins.boost_enable) {
+			if (!allow_boost && this_dbs_info->requested_freq > dbs_tuners_ins.boost_off_max_freq) {
+				this_dbs_info->requested_freq = dbs_tuners_ins.boost_off_max_freq;
+			}
+			if (allow_boost && reset_boost_timeout &&
+					this_dbs_info->requested_freq > dbs_tuners_ins.boost_off_max_freq) {
+				// this is the start of a boost period.  reset boost timeout.
+				this_dbs_info->boost_timeout = now + msecs_to_jiffies(dbs_tuners_ins.boost_max_time);
+			}
+			if (this_dbs_info->requested_freq > policy->max)
+				this_dbs_info->requested_freq = policy->max;
+		}
+#endif //ENABLE_BOOST
 
 		pr_debug("UP %uMHz -> %uMHz max_load=%u max_load_long=%u\n", policy->cur / 1000, this_dbs_info->requested_freq / 1000, max_load, max_load_long);
 		__cpufreq_driver_target(policy, this_dbs_info->requested_freq,
@@ -607,15 +775,30 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 		if (policy->cur == policy->min || policy->cur == this_dbs_info->requested_freq)
 			return;
 
-        if (halt) {
-            return;
-        }
+		if (halt) {
+			return;
+		}
 		pr_debug("DOWN %uMHz -> %uMHz max_load=%u max_load_long=%u\n", policy->cur / 1000, this_dbs_info->requested_freq / 1000, max_load, max_load_long);
 		__cpufreq_driver_target(policy, this_dbs_info->requested_freq,
 				CPUFREQ_RELATION_H);
 		return;
 	}
 	pr_devel("max_load_long=%u\n", max_load_long);
+
+#if ENABLE_BOOST
+	/* If freq did not need to be changed, still check if freq needs to be lowered
+	 * if boost is not allowed at this time.
+	 */
+	if (dbs_tuners_ins.boost_enable) {
+		if (!allow_boost && this_dbs_info->requested_freq > dbs_tuners_ins.boost_off_max_freq) {
+			this_dbs_info->requested_freq = dbs_tuners_ins.boost_off_max_freq;
+			pr_devel("= b=%d f=%u\n", allow_boost, this_dbs_info->requested_freq);
+			__cpufreq_driver_target(policy, this_dbs_info->requested_freq,
+					CPUFREQ_RELATION_H);
+			return;
+		}
+	}
+#endif //ENABLE_BOOST
 }
 
 static void do_dbs_timer(struct work_struct *work)
@@ -682,6 +865,9 @@ static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 						kstat_cpu(j).cpustat.nice;
 			}
 		}
+#if ENABLE_BOOST
+		this_dbs_info->boost_timeout = jiffies; /*+ dbs_tuners_ins.boost_max_time;*/
+#endif
 		this_dbs_info->requested_freq = policy->cur;
 
 		mutex_init(&this_dbs_info->timer_mutex);

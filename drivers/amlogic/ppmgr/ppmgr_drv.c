@@ -25,6 +25,8 @@
 #include "ppmgr_log.h"
 #include "ppmgr_pri.h"
 #include "ppmgr_dev.h"
+#include <linux/ppmgr/ppmgr.h>
+#include <linux/ppmgr/ppmgr_status.h>
 
 /***********************************************************************
 *
@@ -32,10 +34,11 @@
 *
 ************************************************************************/
 static int ppmgr_enable_flag=0;
+static int ppmgr_flag_change = 0;
 static int property_change = 0;
 static int buff_change = 0;
 
-static platform_type_t platform_type = PLATFORM_TV; 
+static platform_type_t platform_type = PLATFORM_MID; 
 ppmgr_device_t  ppmgr_device;
 #ifdef CONFIG_POST_PROCESS_MANAGER_3D_PROCESS
 extern void Reset3Dclear(void);
@@ -88,8 +91,15 @@ int get_ppmgr_status(void) {
 }
 
 void set_ppmgr_status(int flag) {
-    if(flag) ppmgr_enable_flag=1;
-    else ppmgr_enable_flag=0;
+	if(flag != ppmgr_enable_flag){
+		ppmgr_flag_change = 1;
+	}
+    if(flag >= 0){
+        ppmgr_enable_flag=flag;
+    }
+    else {
+        ppmgr_enable_flag=0;
+    }
 }
 
 /***********************************************************************
@@ -390,7 +400,7 @@ static ssize_t disp_write(struct class *cla,
 					const char *buf, size_t count)
 {
     set_disp_para(buf);
-    return 0;
+    return count;
 }
 
 #ifdef CONFIG_POST_PROCESS_MANAGER_PPSCALER
@@ -451,19 +461,19 @@ static ssize_t ppscaler_rect_write(struct class *cla,
 					const char *buf, size_t count)
 {
     set_ppscaler_para(buf);
-    return 0;
+    return count;
 }
 #endif
 
-static ssize_t video_out_read(struct class *cla,struct class_attribute *attr,char *buf)
+static ssize_t receiver_read(struct class *cla,struct class_attribute *attr,char *buf)
 {
-	if(ppmgr_device.video_out==1)
+	if(ppmgr_device.receiver==1)
 		return snprintf(buf,80,"video stream out to video4linux\n");
 	else 
 		return snprintf(buf,80,"video stream out to vlayer\n");
 }
 
-static ssize_t video_out_write(struct class *cla,
+static ssize_t receiver_write(struct class *cla,
 					struct class_attribute *attr,
 					const char *buf, size_t count)
 {
@@ -475,11 +485,34 @@ static ssize_t video_out_write(struct class *cla,
 		printk("1: to amlogic video4linux /dev/video10\n");
 		return 0;
 	}
-	ppmgr_device.video_out = simple_strtoul(buf, &endp, 0);
+	ppmgr_device.receiver = simple_strtoul(buf, &endp, 0);
 	vf_ppmgr_reset(0);
 	size = endp - buf;
 	return count;
 }
+
+static ssize_t platform_type_read(struct class *cla,struct class_attribute *attr,char *buf)
+{
+	if(platform_type ==PLATFORM_TV){
+		return snprintf(buf,80,"current platform is TV\n");
+	}else if(platform_type ==PLATFORM_MID){
+		return snprintf(buf,80,"current platform is MID\n");
+	}else{ 
+		return snprintf(buf,80,"current platform is MBX\n");
+	}
+}
+
+static ssize_t platform_type_write(struct class *cla,
+					struct class_attribute *attr,
+					const char *buf, size_t count)
+{
+	ssize_t ret = -EINVAL, size;
+	char *endp;
+	platform_type = simple_strtoul(buf, &endp, 0);
+	size = endp - buf;
+	return count;
+}
+
 #ifdef CONFIG_POST_PROCESS_MANAGER_3D_PROCESS
 static ssize_t _3dmode_read(struct class *cla,struct class_attribute *attr,char *buf)
 {
@@ -612,7 +645,7 @@ static ssize_t scale_down_write(struct class *cla,
 *********************************************************************/
 
 frame_info_t frame_info;
-static int ppmgr_flag_change = 0;
+
 static int ppmgr_view_mode = 0 ;
 static int ppmgr_vertical_sample =1 ;
 static int ppmgr_scale_width = 800 ;
@@ -733,10 +766,33 @@ static ssize_t cut_win_store(struct class *cla, struct class_attribute *attr, co
     return strnlen(buf, count);
 }
 
+#endif
+static ssize_t mirror_read(struct class *cla,struct class_attribute *attr,char *buf)
+{
+	if(ppmgr_device.mirror_flag == 1)
+		return snprintf(buf,80,"currnet mirror mode is l-r mirror mode. value is: %d.\n",ppmgr_device.mirror_flag);
+	else if(ppmgr_device.mirror_flag == 2)
+		return snprintf(buf,80,"currnet mirror mode is t-b mirror mode. value is: %d.\n",ppmgr_device.mirror_flag);
+	else
+		return snprintf(buf,80,"currnet mirror mode is normal mode. value is: %d.\n",ppmgr_device.mirror_flag);
+}
+
+static ssize_t mirror_write(struct class *cla,
+					struct class_attribute *attr,
+					const char *buf, size_t count)
+{
+	ssize_t size;
+	char *endp;
+	ppmgr_device.mirror_flag = simple_strtoul(buf, &endp, 0);
+	if (ppmgr_device.mirror_flag > 2)
+		ppmgr_device.mirror_flag = 0;
+	size = endp - buf;
+	return count;
+}
+
 /**************************************************************
  			3DTV usage
 *******************************************************************/
-#endif
 extern int  vf_ppmgr_get_states(vframe_states_t *states);
 
 static ssize_t ppmgr_vframe_states_show(struct class *cla, struct class_attribute* attr, char* buf)
@@ -796,8 +852,8 @@ static struct class_attribute ppmgr_class_attrs[] = {
 #endif
        __ATTR(vtarget,
            S_IRUGO | S_IWUSR,
-           video_out_read,
-           video_out_write), 
+           receiver_read,
+           receiver_write),
 #ifdef CONFIG_POST_PROCESS_MANAGER_3D_PROCESS
     __ATTR(ppmgr_3d_mode,
            S_IRUGO | S_IWUSR,
@@ -844,6 +900,16 @@ static struct class_attribute ppmgr_class_attrs[] = {
 		    cut_win_show,
 		    cut_win_store),	
 #endif
+
+    __ATTR(platform_type,
+           S_IRUGO | S_IWUSR,
+           platform_type_read,
+           platform_type_write),
+
+    __ATTR(mirror,
+           S_IRUGO | S_IWUSR,
+           mirror_read,
+           mirror_write),
     __ATTR_RO(ppmgr_vframe_states),
     __ATTR_NULL
 };
@@ -905,12 +971,6 @@ static long ppmgr_ioctl(struct file *file,
     switch (cmd)
     {
 #if 0
-        case PPMGR_IOC_2OSD0:
-            break;
-        case PPMGR_IOC_ENABLE_PP:
-            flag=(int)argp;
-            set_ppmgr_status(flag);
-            break;
         case PPMGR_IOC_CONFIG_FRAME:
             copy_from_user(&frame_info,argp,sizeof(frame_info_t));
             break;
@@ -923,8 +983,14 @@ static long ppmgr_ioctl(struct file *file,
             break;
 #ifdef CONFIG_POST_PROCESS_MANAGER_3D_PROCESS
         case PPMGR_IOC_ENABLE_PP:
-            mode=(int)argp;
-            set_ppmgr_3dmode(mode);
+            mode=(int)argp;    
+            platform_type_t plarform_type;
+            plarform_type = get_platform_type();
+            if( plarform_type == PLATFORM_TV){
+            	set_ppmgr_status(mode);            
+            }else{            
+          	  set_ppmgr_3dmode(mode);
+         	}
             break;
         case PPMGR_IOC_VIEW_MODE:
             mode=(int)argp;
@@ -1020,13 +1086,16 @@ int  init_ppmgr_device(void)
     ppmgr_device.scale_v_end = 0;
     scaler_pos_reset = false;
 #endif
-	ppmgr_device.video_out=0;
+	ppmgr_device.receiver=0;
+	ppmgr_device.receiver_format = (GE2D_FORMAT_M24_NV21|GE2D_LITTLE_ENDIAN);
+    ppmgr_device.display_mode = 0;
 #ifdef CONFIG_POST_PROCESS_MANAGER_3D_PROCESS
     ppmgr_device.ppmgr_3d_mode = EXTERNAL_MODE_3D_DISABLE ;
     ppmgr_device.direction_3d = 0;
     ppmgr_device.viewmode = VIEWMODE_NORMAL;
     ppmgr_device.scale_down = 0;
 #endif
+    ppmgr_device.mirror_flag  = 0;
     ppmgr_device.canvas_width = ppmgr_device.canvas_height = 0;
     amlog_level(LOG_LEVEL_LOW,"ppmgr_dev major:%d\r\n",ret);
     
@@ -1038,7 +1107,7 @@ int  init_ppmgr_device(void)
     }
     buff_change = 0;
     ppmgr_register();  
-    if(ppmgr_buffer_init(0)<0) goto unregister_dev;
+    if(ppmgr_buffer_init(0) < 0) goto unregister_dev;
     //if(start_vpp_task()<0) return -1;
     
     return 0;

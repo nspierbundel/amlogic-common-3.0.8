@@ -45,6 +45,8 @@ static u32 parse_halt;
 static DECLARE_WAIT_QUEUE_HEAD(rm_wq);
 const static char rmparser_id[] = "rmparser-id";
 
+extern void vreal_set_fatal_flag(int flag);
+
 static irqreturn_t rm_parser_isr(int irq, void *dev_id)
 
 {
@@ -189,6 +191,8 @@ static ssize_t _rmparser_write(const char __user *buf, size_t count)
             parse_halt ++;
 			printk("write timeout, retry,halt_count=%d parse_control=%x \n",
 			    parse_halt,READ_MPEG_REG(PARSER_CONTROL));
+
+            vreal_set_fatal_flag(1);
 			
 			if(parse_halt > 10) {			    
 			    WRITE_MPEG_REG(PARSER_CONTROL, (ES_SEARCH | ES_PARSER_START));

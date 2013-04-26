@@ -175,6 +175,36 @@ BEGIN{
 			{
 				str=substr(a[j],3);
 				enable="disable";
+			}else if( a[j] ~ /^[tdhD][a-zA-Z0-9_]*[\(|\[]([[:digit:]]+)[\)|\]]$/ )
+			{
+				
+				sig=a[j];
+				if(length(pads_pinmux[$2,sig,"enable"]) != 0 ||length(pads_pinmux[$2,sig,"disable"])!= 0)
+				{
+					if (length(module[i])!=0)
+					{
+						if(length(pads_pinmux[$2,sig,"enable"]) != 0)
+							enable="enable";
+						else
+							enable="disable";
+						
+						if(warning_on>=1)print "Waring found, pads conflict " | "cat 1>&2" 
+						if(warning_on>=1)print "\tsig=" sig " pads_pinmux[" $2 "," sig "," enable "]="  pads_pinmux[$2,sig,enable] | "cat 1>&2" 
+						sig=a[j] "_" module[i];
+						if(warning_on>=1)print "\treplace name is  " sig | "cat 1>&2" 
+					}
+					else {
+						if(length(pads_pinmux[$2,sig,"enable"]) != 0)
+							enable="enable";
+						else
+							enable="disable";
+						print "error found, pads conflict " | "cat 1>&2" 
+						print "\tsig=" sig " pads_pinmux[" $2 "," sig "," enable "]="  pads_pinmux[$2,sig,enable] | "cat 1>&2" 
+						ret=1;
+						break;
+					}
+				}
+				continue;
 			}else if(a[j] ~ /([[:alpha:]_][[:alnum:]_]*)[\(|\[]([[:digit:]]+)[\)|\]]$/) 
 			{
 				str=a[j];

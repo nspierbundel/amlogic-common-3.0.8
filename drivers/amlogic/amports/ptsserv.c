@@ -11,7 +11,7 @@
 #include "vdec_reg.h"
 
 #define VIDEO_REC_SIZE  4096
-#define AUDIO_REC_SIZE  4096
+#define AUDIO_REC_SIZE  8192
 #define VIDEO_LOOKUP_RESOLUTION 2500
 #define AUDIO_LOOKUP_RESOLUTION 1024
 
@@ -194,7 +194,7 @@ int pts_checkin_offset(u8 type, u32 offset, u32 val)
 
         if (tsync_get_debug_pts_checkin()) {
             if (tsync_get_debug_vpts() && (type == PTS_TYPE_VIDEO)) {
-                printk("check in vpts <0x%x:0x%x>\n", offset, val);
+                printk("check in vpts <0x%x:0x%x>, current vpts 0x%x\n", offset, val, timestamp_vpts_get());
             }
 
             if (tsync_get_debug_apts() && (type == PTS_TYPE_AUDIO)) {
@@ -699,7 +699,7 @@ int pts_stop(u8 type)
         if (type == PTS_TYPE_AUDIO) {
             timestamp_apts_set(-1);
         }
-
+		tsync_mode_reinit();
         return 0;
 
     } else {

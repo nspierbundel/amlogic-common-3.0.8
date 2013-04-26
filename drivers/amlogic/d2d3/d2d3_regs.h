@@ -12,12 +12,12 @@
  */
 #ifndef _D2D3_REGS_H
 #define _D2D3_REGS_H
-#define D2D3_REG_NUM                    0x43
+
 //#define D2D3_INTF_LENGTH                0x1a08
-	#define V0_LINE_LENGTHM1_BIT		16
-	#define V0_LINE_LENGTHM1_WID		13
-	#define V1_LINE_LENGTHM1_BIT		0
+	#define V1_LINE_LENGTHM1_BIT		16
 	#define V1_LINE_LENGTHM1_WID		13
+	#define V0_LINE_LENGTHM1_BIT		0
+	#define V0_LINE_LENGTHM1_WID		13
 
 //#define D2D3_INTF_CTRL0                 0x1a09
 	#define VD0_DOUT_SPLITTER_BIT		30	
@@ -48,6 +48,11 @@
 	#define USE_VDIN_EOL_WID		1
 	#define D2D3_V0_SEL_BIT			0
 	#define D2D3_V0_SEL_WID			3
+//#define VPP_VSC_PHASE_CTRL      0x1d0d
+        #define DOUBLE_LINE_MODE_BIT            17
+        #define DOUBLE_LINE_MODE_WID            2
+        #define OUTPUT_MODE_BIT                 16
+        #define OUTPUT_MODE_WID                 1
 
 //#define VPP_INPUT_CTRL                0x1dab     //default 12'h440
 	#define VD2_SEL_BIT				9			
@@ -60,8 +65,10 @@
 	#define VD1_LEAVE_MOD_WID			3
 	
 
+#define D2D3_REG_NUM                    0x40
 
-#define D2D3_CBUS_BASE                0x2b         // D2D3 address space
+#define D2D3_CBUS_BASE                0x2b00         // D2D3 address space
+
 
 //#define D2D3_GLB_CTRL            0x2b00 
 	#define RD_LOCK_EN_BIT		        31	

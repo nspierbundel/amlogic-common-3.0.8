@@ -59,21 +59,30 @@ enum {
 
     /* HI704,   */
 	V4L2_IDENT_HI704 =  27,
-
-	/* GC0339,   */
-	V4L2_IDENT_GC0339 =  28,
-
+	
 	/* HI2056,   */
-	V4L2_IDENT_HI2056 =  29,
+	V4L2_IDENT_HI2056 =  28,
 
 	/* GC0307,   */
-	V4L2_IDENT_GC0307 =  30,
+	V4L2_IDENT_GC0307 =  29,
 	
 	/* OV3660,   */
-	V4L2_IDENT_OV3660 =	 31,
+	V4L2_IDENT_OV3660 =	 30,
 	
 	/* GC0329,   */
-	V4L2_IDENT_GC0329 =  32,
+	V4L2_IDENT_GC0329 =  31,
+	
+	/* NT99250,   */
+	V4L2_IDENT_NT99250 = 32,
+	
+	/* NT99252,  */
+	V4L2_IDENT_NT99252 = 33,
+	
+	/* NT99340,  */
+	V4L2_IDENT_NT99340 = 34,
+	
+	/* NT99340,  */
+	V4L2_IDENT_SP2518 = 35,
 
 	/* module tvaudio: reserved range 50-99 */
 	V4L2_IDENT_TVAUDIO = 50,	/* A tvaudio chip, unknown which it is exactly */

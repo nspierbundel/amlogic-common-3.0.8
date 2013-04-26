@@ -1,7 +1,30 @@
 EXTRA_CFLAGS += -O1 -Wno-unused-variable -Wno-unused-value -Wno-unused-label -Wno-unused-parameter -Wno-uninitialized
 EXTRA_CFLAGS += -I$(src)/include  -Wno-unused -Wno-unused-function
 
-include $(src)/config
+CONFIG_RTL8711                  =       n
+CONFIG_RTL8712                  =       y
+
+
+CONFIG_USB_HCI                  =       y
+CONFIG_SDIO_HCI                 =       n
+
+
+CONFIG_MP_INCLUDED              =       y
+
+CONFIG_PLATFORM_I386_PC         =       y
+CONFIG_PLATFORM_ANDROID_X86     =       n
+CONFIG_PLATFORM_ARM_S3C         =       n
+CONFIG_PLATFORM_ARM_PXA         =       n
+CONFIG_PLATFORM_MIPS_RMI        =       n
+CONFIG_PLATFORM_RTK_DMP         =       n
+CONFIG_PLATFORM_MIPS_PLM        =       n
+CONFIG_PLATFORM_RTD2880B        =       n
+CONFIG_PLATFORM_MSTAR389        =       n
+CONFIG_PLATFORM_ARM_TCC8900     =       n
+
+CONFIG_MLME_EXT                 =       n
+CONFIG_DRVEXT_MODULE    = n
+
 
 ifeq ($(CONFIG_RTL8711), y)
 RTL871X = rtl8711
@@ -41,9 +64,10 @@ ifeq ($(CONFIG_USB_HCI), y)
  
 
 _OS_INTFS_FILES := os_intf/osdep_service.o \
-				   os_intf/linux/os_intfs.o \
-				   os_intf/linux/usb_intf.o \
-
+					os_intf/linux/os_intfs.o \
+					os_intf/linux/usb_intf.o \
+					os_dep/linux/ioctl_cfg80211.o \
+					os_dep/linux/rtw_android.o \
 
 _HAL_INTFS_FILES := hal/$(RTL871X)/hal_init.o \
 					hal/$(RTL871X)/usb_ops.o \
@@ -71,6 +95,7 @@ SUBARCH := $(shell uname -m | sed -e s/i.86/i386/)
 ARCH := $(SUBARCH)
 CROSS_COMPILE := i686-unknown-linux-gnu-
 KSRC := /usr/src/froyo-x86/out/target/product/eeepc/obj/kernel
+MODULE_NAME = wlan
 endif
 
 ifeq ($(CONFIG_PLATFORM_ARM_S3C), y)
@@ -130,18 +155,11 @@ KSRC:= /home/mstar/mstar_linux/2.6.28.9/
 endif
 
 ifeq ($(CONFIG_PLATFORM_ARM_TCC8900), y)
-EXTRA_CFLAGS += -DCONFIG_LITTLE_ENDIAN -DCONFIG_PLATFORM_ANDROID #-DCONFIG_DEBUG_RTW_WX_SET_PRIV
-ARCH := arm
-CROSS_COMPILE = /usr/src/telechip/SDK_0127_20101006/prebuilt/linux-x86/toolchain/arm-eabi-4.3.1/bin/arm-eabi-
-KSRC := /usr/src/telechip/SDK_0127_20101006/kernel
-endif
-
-ifeq ($(CONFIG_PLATFORM_ARM_ANDROID_AML8726M), y)
-EXTRA_CFLAGS += -DCONFIG_LITTLE_ENDIAN -DCONFIG_PLATFORM_ANDROID
+EXTRA_CFLAGS += -DCONFIG_LITTLE_ENDIAN #-DCONFIG_MINIMAL_MEMORY_USAGE
 ARCH ?= arm
-CROSS_COMPILE ?= arm-none-linux-gnueabi-
-KVER:= 2.6.34
-KSRC ?= 
+CROSS_COMPILE ?= /media/DATA-1/telechips/SDK_2302_20110425/prebuilt/linux-x86/toolchain/arm-eabi-4.4.3/bin/arm-eabi-
+KSRC ?=/media/DATA-1/telechips/SDK_2302_20110425/kernel
+MODULE_NAME := wlan
 endif
 
 ifneq ($(KERNELRELEASE),)
@@ -200,7 +218,6 @@ all: modules
 
 modules:
 	$(MAKE) ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE) -C $(KSRC) M=$(shell pwd)  modules
-	arm-none-linux-gnueabi-strip --strip-debug --strip-unneeded $(MODDESTDIR)/$(MODULE_NAME).ko
 
 install:
 	install -p -m 644 $(MODULE_NAME).ko  $(MODDESTDIR)

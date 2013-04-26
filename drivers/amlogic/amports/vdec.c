@@ -25,10 +25,38 @@
 #include <linux/platform_device.h>
 #include <linux/amports/vformat.h>
 #include <mach/am_regs.h>
+#if MESON_CPU_TYPE >= MESON_CPU_TYPE_MESON6
+#include <mach/mod_gate.h>
+#endif
 
 #include "vdec_reg.h"
+#if MESON_CPU_TYPE == MESON_CPU_TYPE_MESON6TV
+/*
+HHI_VDEC_CLK_CNTL..
+bits,9~11:
+0x106d[11:9] :
+0 for fclk_div2,  1GHz   
+1 for fclk_div3,  2G/3Hz  
+2 for fclk_div5, 2G/5Hz
+3 for fclk_div7, 2G/7HZ
 
-#if MESON_CPU_TYPE >= MESON_CPU_TYPE_MESON6
+4 for mp1_clk_out
+5 for ddr_pll_clk
+
+bit0~6: div N=bit[0-7]+1
+bit8: vdec.gate
+*/
+#define VDEC_166M()  WRITE_MPEG_REG(HHI_VDEC_CLK_CNTL, (0 << 9) | (1 << 8) | (5))
+#define VDEC_200M()  WRITE_MPEG_REG(HHI_VDEC_CLK_CNTL, (0 << 9) | (1 << 8) | (4))
+#define VDEC_250M()  WRITE_MPEG_REG(HHI_VDEC_CLK_CNTL, (0 << 9) | (1 << 8) | (3))
+#define VDEC_333M()  WRITE_MPEG_REG(HHI_VDEC_CLK_CNTL, (0 << 9) | (1 << 8) | (2))
+
+
+#define vdec_clock_enable() \
+    VDEC_200M(); \
+    WRITE_VREG(DOS_GCLK_EN0, 0xffffffff)
+
+#elif MESON_CPU_TYPE >= MESON_CPU_TYPE_MESON6
 // TODO: setup VDEC clock with fclk_div2/5 = 250MHz for now.
 /*
 HHI_VDEC_CLK_CNTL..
@@ -200,12 +228,18 @@ static ssize_t amrisc_regs_show(struct class *class, struct class_attribute *att
     int i;
     unsigned  val;
 
+#if MESON_CPU_TYPE >= MESON_CPU_TYPE_MESON6
+    switch_mod_gate_by_type(MOD_VDEC, 1);
+#endif
     pbuf += sprintf(pbuf, "amrisc registers show:\n");
     for (i = 0; i < rsize; i++) {
         val = READ_VREG(regs[i].offset);
         pbuf += sprintf(pbuf, "%s(%#x)\t:%#x(%d)\n",
                         regs[i].name, regs[i].offset, val, val);
     }
+#if MESON_CPU_TYPE >= MESON_CPU_TYPE_MESON6
+    switch_mod_gate_by_type(MOD_VDEC, 0);
+#endif
     return (pbuf - buf);
 }
 

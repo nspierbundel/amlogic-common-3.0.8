@@ -34,7 +34,7 @@ typedef struct tvin_decoder_ops_s {
          * return 0 if not supported, return other if supported.
          */
         int (*support)  (struct tvin_frontend_s *fe, enum tvin_port_e port);
-        void (*open)    (struct tvin_frontend_s *fe, enum tvin_port_e port);
+        int  (*open)    (struct tvin_frontend_s *fe, enum tvin_port_e port);
         void (*start)   (struct tvin_frontend_s *fe, enum tvin_sig_fmt_e fmt);
         void (*stop)    (struct tvin_frontend_s *fe, enum tvin_port_e port);
         void (*close)   (struct tvin_frontend_s *fe);

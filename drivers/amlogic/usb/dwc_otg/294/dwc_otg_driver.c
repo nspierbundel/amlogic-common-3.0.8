@@ -64,7 +64,7 @@
 #include <mach/usbclock.h>
 
 
-#define DWC_DRIVER_VERSION	"2.94a 30-AUG-2012"
+#define DWC_DRIVER_VERSION	"2.94a 05-DEC-2012"
 #define DWC_DRIVER_DESC		"HS OTG USB Controller driver"
 
 static const char dwc_driver_name[] = "dwc_otg";
@@ -714,14 +714,14 @@ static void dwc_otg_driver_remove(
 }
 #ifdef CONFIG_HAS_EARLYSUSPEND
 extern int get_pcd_ums_state(dwc_otg_pcd_t *pcd);
-static void usb_early_suspend(struct early_suspend *h)                                               
+static void usb_early_suspend(struct early_suspend *h)
 {
 	int is_mount = 0;
 	dwc_otg_device_t *dwc_otg_device;
 	dwc_otg_device = (dwc_otg_device_t *)h->param;
 	is_mount = get_pcd_ums_state(dwc_otg_device->pcd);
 	printk("DWC_OTG: going early suspend! is_mount=%d\n",is_mount);
-	if (dwc_otg_is_device_mode(dwc_otg_device->core_if) && !is_mount) {	
+	if (dwc_otg_is_device_mode(dwc_otg_device->core_if) && !is_mount) {
 		DWC_MODIFY_REG32(&dwc_otg_device->core_if->dev_if->dev_global_regs->dctl, 0, 2);
 	}
 }
@@ -730,7 +730,7 @@ static void usb_early_resume(struct early_suspend *h)
 	dwc_otg_device_t *dwc_otg_device;
 	printk("DWC_OTG: going early resume\n");
 	dwc_otg_device = (dwc_otg_device_t *)h->param;
-	if (dwc_otg_is_device_mode(dwc_otg_device->core_if)) {	
+	if (dwc_otg_is_device_mode(dwc_otg_device->core_if)) {
 		DWC_MODIFY_REG32(&dwc_otg_device->core_if->dev_if->dev_global_regs->dctl, 2, 0);
 	}
 }
@@ -868,10 +868,13 @@ static int dwc_otg_driver_probe(
 #ifdef LM_INTERFACE
 	lm_set_drvdata(_dev, dwc_otg_device);
 	dwc_otg_device->os_dep.lmdev = _dev;
+	dwc_otg_device->gen_dev = &_dev->dev;
 #elif defined(PCI_INTERFACE)
 	pci_set_drvdata(_dev, dwc_otg_device);
 	dwc_otg_device->os_dep.pcidev = _dev;
+	dwc_otg_device->gen_dev = &_dev->dev;
 #endif
+	dwc_otg_device->dev_name = dev_name(dwc_otg_device->gen_dev);
 
 	port_type = _dev->param.usb.port_type;
 	port_speed = _dev->param.usb.port_speed;
@@ -901,7 +904,7 @@ static int dwc_otg_driver_probe(
 		retval = -EINVAL;
 		goto fail;
 	}
-	
+
 	dev_dbg(&_dev->dev,"DMA config: %s\n",dma_config_name[dma_config]);
 	if (dma_config == USB_DMA_DISABLE) {
 		pcore_para->dma_enable = 0;
@@ -937,7 +940,7 @@ static int dwc_otg_driver_probe(
 			    DWC_GAHBCFG_INT_DMA_BURST_INCR4;
 			break;
 		}
-	}	
+	}
 
 	/*
 	 * Validate parameter values.
@@ -984,7 +987,7 @@ static int dwc_otg_driver_probe(
 		id_mode = FORCE_ID_CLEAR;
 		break;
 	case USB_PORT_TYPE_HOST:
-		id_mode = FORCE_ID_HOST;		
+		id_mode = FORCE_ID_HOST;
 		break;
 	case USB_PORT_TYPE_SLAVE:
 		id_mode = FORCE_ID_SLAVE;
@@ -994,14 +997,14 @@ static int dwc_otg_driver_probe(
 		break;
 	}
 	dwc_otg_set_force_id(dwc_otg_device->core_if,id_mode);
-	
+
 	/*
 	 * Initialize the DWC_otg core.
 	 */
 	dwc_otg_core_init(dwc_otg_device->core_if);
 
 	/*
-	 *   Set VBus Power CallBack 
+	 *   Set VBus Power CallBack
 	 */
 	dwc_otg_device->core_if->set_vbus_power = _dev->param.usb.set_vbus_power;
 
@@ -1072,23 +1075,23 @@ static int dwc_otg_driver_probe(
 	}
 
 	dwc_otg_save_global_regs(dwc_otg_device->core_if);
-	
+
 	/*
 	 * Enable the global interrupt after all the interrupt
-	 * handlers are installed if there is no ADP support else 
+	 * handlers are installed if there is no ADP support else
 	 * perform initial actions required for Internal ADP logic.
 	 */
 
 	if(port_type == USB_PORT_TYPE_OTG){
-		if (!dwc_otg_get_param_adp_enable(dwc_otg_device->core_if))	
+		if (!dwc_otg_get_param_adp_enable(dwc_otg_device->core_if))
 			dwc_otg_enable_global_interrupts(dwc_otg_device->core_if);
 		else
-			dwc_otg_adp_start(dwc_otg_device->core_if, 
+			dwc_otg_adp_start(dwc_otg_device->core_if,
 								dwc_otg_is_host_mode(dwc_otg_device->core_if));
 	}else{
 		dwc_otg_enable_global_interrupts(dwc_otg_device->core_if);
 	}
-#ifdef CONFIG_HAS_EARLYSUSPEND                                                                                        
+#ifdef CONFIG_HAS_EARLYSUSPEND
         dwc_otg_device->usb_early_suspend.level = EARLY_SUSPEND_LEVEL_DISABLE_FB;
         dwc_otg_device->usb_early_suspend.suspend = usb_early_suspend;
         dwc_otg_device->usb_early_suspend.resume = usb_early_resume;
@@ -1178,11 +1181,7 @@ static int __init dwc_otg_driver_init(void)
 	return retval;
 }
 
-#if defined(CONFIG_DEFERRED_MODULE_INIT) && defined(CONFIG_USB_DWC_OTG_HCD)
-deferred_module_init(dwc_otg_driver_init);
-#else
 module_init(dwc_otg_driver_init);
-#endif
 
 /**
  * This function is called when the driver is removed from the kernel
@@ -1646,7 +1645,7 @@ MODULE_PARM_DESC(otg_ver, "OTG revision supported 0=OTG 1.3 1=OTG 2.0");
  - 0: Disabled (default)
  - 1: Enabled
  </td></tr>
- 
+
  <tr>
  <td>en_multiple_tx_fifo</td>
  <td>Specifies whether dedicatedto tx fifos are enabled for non periodic IN EPs.
@@ -1677,7 +1676,7 @@ MODULE_PARM_DESC(otg_ver, "OTG revision supported 0=OTG 1.3 1=OTG 2.0");
 
 <tr>
  <td>thr_ctl</td>
- <td>Specifies whether to enable Thresholding for Device mode. Bits 0, 1, 2 of 
+ <td>Specifies whether to enable Thresholding for Device mode. Bits 0, 1, 2 of
  this parmater specifies if thresholding is enabled for non-Iso Tx, Iso Tx and
  Rx transfers accordingly.
  The driver will automatically detect the value for this parameter if none is
@@ -1730,7 +1729,7 @@ MODULE_PARM_DESC(otg_ver, "OTG revision supported 0=OTG 1.3 1=OTG 2.0");
  The driver will automatically detect the value for this parameter if none is
  specified.
  - 0: IC_USB disabled (default, if available)
- - 1: IC_USB enable 
+ - 1: IC_USB enable
  </td></tr>
 
 <tr>
@@ -1747,7 +1746,7 @@ MODULE_PARM_DESC(otg_ver, "OTG revision supported 0=OTG 1.3 1=OTG 2.0");
  - 0: Power Down disabled (default)
  - 2: Power Down enabled
  </td></tr>
- 
+
  <tr>
  <td>reload_ctl</td>
  <td>Specifies whether dynamic reloading of the HFIR register is allowed during
@@ -1769,9 +1768,9 @@ MODULE_PARM_DESC(otg_ver, "OTG revision supported 0=OTG 1.3 1=OTG 2.0");
 
  <tr>
  <td>cont_on_bna</td>
- <td>Specifies whether Enable Continue on BNA enabled or no. 
+ <td>Specifies whether Enable Continue on BNA enabled or no.
  After receiving BNA interrupt the core disables the endpoint,when the
- endpoint is re-enabled by the application the  
+ endpoint is re-enabled by the application the
  - 0: Core starts processing from the DOEPDMA descriptor (default)
  - 1: Core starts processing from the descriptor which received the BNA.
  This parameter is valid only when OTG_EN_DESC_DMA == 1’b1.
@@ -1780,7 +1779,7 @@ MODULE_PARM_DESC(otg_ver, "OTG revision supported 0=OTG 1.3 1=OTG 2.0");
  <tr>
  <td>ahb_single</td>
  <td>This bit when programmed supports SINGLE transfers for remainder data
- in a transfer for DMA mode of operation. 
+ in a transfer for DMA mode of operation.
  - 0: The remainder data will be sent using INCR burst size (default)
  - 1: The remainder data will be sent using SINGLE burst size.
  </td></tr>
@@ -1799,7 +1798,7 @@ MODULE_PARM_DESC(otg_ver, "OTG revision supported 0=OTG 1.3 1=OTG 2.0");
  <td>Specifies whether OTG is performing as USB OTG Revision 2.0 or Revision 1.3
  USB OTG device.
  - 0: OTG 2.0 support disabled (default)
- - 1: OTG 2.0 support enabled 
+ - 1: OTG 2.0 support enabled
  </td></tr>
 
 */

@@ -51,7 +51,9 @@
 static dev_t                     tvafe_devno;
 static struct class              *tvafe_clsp;
 static bool                      disableapi = 0;
+static bool                      force_stable = false;
 #define TVAFE_TIMER_INTERVAL    (HZ/100)   //10ms, #define HZ 100
+
 
 /*default only one tvafe ,echo cvdfmt pali/palm/ntsc/secam >dir*/
 static ssize_t tvafe_store(struct device *dev, struct device_attribute *attr,const char *buff,size_t count)
@@ -85,11 +87,31 @@ static ssize_t tvafe_store(struct device *dev, struct device_attribute *attr,con
 	}
 	else if(!strncmp(buff,"disableapi",strlen("disableapi")))
 		disableapi = simple_strtoul(buff+strlen("disableapi")+1,NULL,10);
+    else if(!strncmp(buff,"force_stable",strlen("force_stable")))
+        force_stable = simple_strtoul(buff+strlen("force_stable")+1,NULL,10);
 	else if(!strncmp(buff,"cphasepr",strlen("cphasepr")))
-		tvafe_adc_comphase_pr();
+	        tvafe_adc_comphase_pr();
+        else if(!strncmp(buff,"vdin_bbld",strlen("vdin_bbld"))){
+                tvin_vdin_bbar_init(devp->tvafe.parm.info.fmt);
+                devp->tvafe.adc.vga_auto.phase_state == VGA_VDIN_BORDER_DET;
+        }
+        else if(!strncmp(buff,"pdown",strlen("pdown"))){
+                tvafe_enable_module(false);
+        }
+	else if(!strncmp(buff, "vga_edid",strlen("vga_edid"))){
+		struct tvafe_vga_edid_s edid;
+		int i = 0;
+		tvafe_vga_get_edid(&edid);
+		for(i=0; i<32; i++)
+		{
+        		pr_info("0x%2x 0x%2x 0x%2x 0x%2x 0x%2x 0x%2x 0x%2x 0x%2x.\n", edid.value[(i<<3)+0],
+				edid.value[(i<<3)+1], edid.value[(i<<3)+2], edid.value[(i<<3)+3], edid.value[(i<<3)+4],
+				edid.value[(i<<3)+5], edid.value[(i<<3)+6], edid.value[(i<<3)+7] );
+		}
+	}
 	else
 		pr_info("[%s]:invaild command.\n",__func__);
-	return 0;
+	return count;
 }
 static ssize_t tvafe_show(struct device *dev,struct device_attribute *attr,char *buff)
 {
@@ -131,7 +153,7 @@ static ssize_t tvafe_show(struct device *dev,struct device_attribute *attr,char 
 		pr_info("[%s]:diableapi!!!.\n",__func__);
 	return len;
 }
-static DEVICE_ATTR(dbg,0644,tvafe_show,tvafe_store);
+static DEVICE_ATTR(debug,0644,tvafe_show,tvafe_store);
 /*
  * tvafe 10ms timer handler
  */
@@ -164,7 +186,7 @@ int tvafe_dec_support(struct tvin_frontend_s *fe, enum tvin_port_e port)
 /*
  * tvafe open port and init register
  */
-void tvafe_dec_open(struct tvin_frontend_s *fe, enum tvin_port_e port)
+int tvafe_dec_open(struct tvin_frontend_s *fe, enum tvin_port_e port)
 {
 	struct tvafe_dev_s *devp = container_of(fe, struct tvafe_dev_s, frontend);
 	struct tvafe_info_s *tvafe = &devp->tvafe;
@@ -175,13 +197,15 @@ void tvafe_dec_open(struct tvin_frontend_s *fe, enum tvin_port_e port)
 		pr_err("[tvafe..] %s(%d), %s opened already\n", __func__,
 				devp->index, tvin_port_str(port));
 		mutex_unlock(&devp->afe_mutex);
-		return ;
+		return 1;
 	}
 	/* init variable */
 	memset(tvafe, 0, sizeof(struct tvafe_info_s));
-
 	/**enable and reset tvafe clock**/
 	tvafe_enable_module(true);
+
+    /**set cvd2 reset to high**/
+    tvafe_cvd2_hold_rst(&tvafe->cvd2);
 
 	/* init tvafe registers */
 	tvafe_init_reg(&tvafe->cvd2, &devp->mem, port, devp->pinmux);
@@ -200,6 +224,7 @@ void tvafe_dec_open(struct tvin_frontend_s *fe, enum tvin_port_e port)
 	pr_info("[tvafe..] %s open port:0x%x ok.\n", __func__, port);
 
 	mutex_unlock(&devp->afe_mutex);
+	return 0;
 }
 
 /*
@@ -331,6 +356,14 @@ int tvafe_dec_isr(struct tvin_frontend_s *fe, unsigned int hcnt64)
 	struct tvafe_info_s *tvafe = &devp->tvafe;
 	enum tvin_port_e port = tvafe->parm.port;
 
+        if(!(devp->flags & TVAFE_FLAG_DEV_OPENED))
+        {
+                pr_err("[tvafe..] tvafe havn't opened, isr error!!!\n");
+                return true;
+        }
+
+        if (force_stable)
+            return 0;
 	/* if there is any error or overflow, do some reset, then rerurn -1;*/
 	if ((tvafe->parm.info.status != TVIN_SIG_STATUS_STABLE) ||
 			(tvafe->parm.info.fmt == TVIN_SIG_FMT_NULL)) {
@@ -361,8 +394,12 @@ int tvafe_dec_isr(struct tvin_frontend_s *fe, unsigned int hcnt64)
 
 	/* TVAFE vs counter for VGA */
 	if ((port >= TVIN_PORT_VGA0) && (port <= TVIN_PORT_VGA7))
-	{
-		tvafe_vga_vs_cnt(&tvafe->adc);
+	{                                
+		tvafe_vga_vs_cnt(&tvafe->adc);                
+                if(tvafe->adc.vga_auto.phase_state == VGA_VDIN_BORDER_DET){                                        
+                        tvin_vdin_bar_detect(tvafe->parm.info.fmt,&tvafe->adc);
+                }
+                              
 	}
 
 	/* fetch WSS data must get them during VBI */
@@ -394,6 +431,14 @@ bool tvafe_is_nosig(struct tvin_frontend_s *fe)
 	struct tvafe_info_s *tvafe = &devp->tvafe;
 	enum tvin_port_e port = tvafe->parm.port;
 
+    if(!(devp->flags & TVAFE_FLAG_DEV_OPENED))
+    {
+        pr_err("[tvafe..] tvafe havn't opened, check no sig error!!!\n");
+        return true;
+    }
+    if (force_stable)
+        return ret;
+
 	if ((port >= TVIN_PORT_VGA0) && (port <= TVIN_PORT_COMP7))
 		ret = tvafe_adc_no_sig();
 	else if ((port >= TVIN_PORT_CVBS0) && (port <= TVIN_PORT_SVIDEO7))
@@ -420,6 +465,14 @@ bool tvafe_fmt_chg(struct tvin_frontend_s *fe)
 	struct tvafe_dev_s *devp = container_of(fe, struct tvafe_dev_s, frontend);
 	struct tvafe_info_s *tvafe = &devp->tvafe;
 	enum tvin_port_e port = tvafe->parm.port;
+
+    if(!(devp->flags & TVAFE_FLAG_DEV_OPENED))
+    {
+        pr_err("[tvafe..] tvafe havn't opened, get fmt chg error!!!\n");
+        return true;
+    }
+    if (force_stable)
+        return ret;
 
 	if ((port >= TVIN_PORT_VGA0) && (port <= TVIN_PORT_COMP7))
 		ret = tvafe_adc_fmt_chg(&tvafe->parm, &tvafe->adc);
@@ -458,6 +511,12 @@ enum tvin_sig_fmt_e tvafe_get_fmt(struct tvin_frontend_s *fe)
 	struct tvafe_dev_s *devp = container_of(fe, struct tvafe_dev_s, frontend);
 	struct tvafe_info_s *tvafe = &devp->tvafe;
 	enum tvin_port_e port = tvafe->parm.port;
+
+    if(!(devp->flags & TVAFE_FLAG_DEV_OPENED))
+    {
+        pr_err("[tvafe..] tvafe havn't opened, get sig fmt error!!!\n");
+        return fmt;
+    }
 
 	if ((port >= TVIN_PORT_VGA0) && (port <= TVIN_PORT_COMP7))
 		fmt = tvafe_adc_search_mode(&tvafe->parm, &tvafe->adc);
@@ -529,6 +588,13 @@ void tvafe_vga_set_parm(struct tvafe_vga_parm_s *vga_parm, struct tvin_frontend_
 {
 	struct tvafe_dev_s *devp = container_of(fe, struct tvafe_dev_s, frontend);
 	struct tvafe_info_s *tvafe = &devp->tvafe;
+
+    if(!(devp->flags & TVAFE_FLAG_DEV_OPENED))
+    {
+        pr_err("[tvafe..] tvafe havn't opened, vga parm error!!!\n");
+        return;
+    }
+
 	if(vga_parm == 0)
 		tvafe_adc_set_param(&tvafe->parm, &tvafe->adc);
 	else
@@ -560,6 +626,13 @@ void tvafe_fmt_config(struct tvin_frontend_s *fe)
 	struct tvafe_info_s *tvafe = &devp->tvafe;
 	enum tvin_port_e port = tvafe->parm.port;
 
+
+    if(!(devp->flags & TVAFE_FLAG_DEV_OPENED))
+    {
+        pr_err("[tvafe..] tvafe havn't opened, config fmt error!!!\n");
+        return;
+    }
+
 	/*store the current fmt avoid configuration again*/
 	if(tvafe->adc.current_fmt != tvafe->parm.info.fmt)
 		tvafe->adc.current_fmt = tvafe->parm.info.fmt;
@@ -588,6 +661,12 @@ bool tvafe_cal(struct tvin_frontend_s *fe)
 	struct tvafe_dev_s *devp = container_of(fe, struct tvafe_dev_s, frontend);
 	struct tvafe_info_s *tvafe = &devp->tvafe;
 
+    if(!(devp->flags & TVAFE_FLAG_DEV_OPENED))
+    {
+        pr_err("[tvafe..] tvafe havn't opened, calibration error!!!\n");
+        return false;
+    }
+
 	return tvafe_adc_cal(&tvafe->parm, &tvafe->cal);
 }
 
@@ -600,6 +679,13 @@ bool tvafe_check_frame_skip(struct tvin_frontend_s *fe)
 	struct tvafe_dev_s *devp = container_of(fe, struct tvafe_dev_s, frontend);
 	struct tvafe_info_s *tvafe = &devp->tvafe;
 	enum tvin_port_e port = tvafe->parm.port;
+
+
+    if(!(devp->flags & TVAFE_FLAG_DEV_OPENED))
+    {
+        pr_err("[tvafe..] tvafe havn't opened, check frame error!!!\n");
+        return ret;
+    }
 
 	if (((port >= TVIN_PORT_COMP0) && (port <= TVIN_PORT_COMP7)) ||
 			((port >= TVIN_PORT_VGA0) && (port <= TVIN_PORT_VGA7))) {
@@ -656,9 +742,9 @@ static int tvafe_release(struct inode *inode, struct file *file)
 }
 
 
-static int tvafe_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+static long tvafe_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
-	int ret = 0;
+	long ret = 0;
 	unsigned char i,j;
 	void __user *argp = (void __user *)arg;
 	struct tvafe_dev_s *devp = file->private_data;
@@ -702,22 +788,22 @@ static int tvafe_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			if ((port >= TVIN_PORT_COMP0) &&(port <= TVIN_PORT_COMP7))
 			{
 
-				if((fmt>=TVIN_SIG_FMT_COMP_1080P_23HZ_D976)&&(fmt<=TVIN_SIG_FMT_COMP_1080P_60HZ_D000))
-					tvafe->cal.cal_val.a_analog_clamp += 4;
-				else if((fmt>=TVIN_SIG_FMT_COMP_1080I_47HZ_D952)&&(fmt<=TVIN_SIG_FMT_COMP_1080I_60HZ_D000))
-					tvafe->cal.cal_val.a_analog_clamp += 3;
-				else
-					tvafe->cal.cal_val.a_analog_clamp += 2;
+				//if((fmt>=TVIN_SIG_FMT_COMP_1080P_23HZ_D976)&&(fmt<=TVIN_SIG_FMT_COMP_1080P_60HZ_D000))
+				//	tvafe->cal.cal_val.a_analog_clamp += 4;
+				//else if((fmt>=TVIN_SIG_FMT_COMP_1080I_47HZ_D952)&&(fmt<=TVIN_SIG_FMT_COMP_1080I_60HZ_D000))
+				//	tvafe->cal.cal_val.a_analog_clamp += 3;
+				//else
+				//	tvafe->cal.cal_val.a_analog_clamp += 2;
 				tvafe->cal.cal_val.b_analog_clamp += 1;
-				tvafe->cal.cal_val.c_analog_clamp += 2;
+				tvafe->cal.cal_val.c_analog_clamp += 1;
 			}
 
 			else if((port >= TVIN_PORT_VGA0) &&(port <= TVIN_PORT_VGA7))
 			{
 
-				tvafe->cal.cal_val.a_analog_clamp += 2;
-				//tvafe->cal.cal_val.b_analog_clamp += 5;
-				tvafe->cal.cal_val.c_analog_clamp += 2;
+				//tvafe->cal.cal_val.a_analog_clamp += 2;
+				tvafe->cal.cal_val.b_analog_clamp += 1;
+				tvafe->cal.cal_val.c_analog_clamp += 1;
 			}
 			//pr_info("\nNot allow to use TVIN_IOC_S_AFE_ADC_CAL command!!!\n\n");
 			tvafe_set_cal_value(&tvafe->cal);
@@ -1003,9 +1089,9 @@ static int tvafe_drv_probe(struct platform_device *pdev)
 	}
 
 	/*create sysfs attribute files*/
-	ret = device_create_file(tdevp->dev,&dev_attr_dbg);
+	ret = device_create_file(tdevp->dev,&dev_attr_debug);
 	if(ret < 0) {
-		pr_err("hdmirx: fail to create dbg attribute file\n");
+		pr_err("tvafe: fail to create dbg attribute file\n");
 		goto fail_create_dbg_file;
 	}
 	
@@ -1038,6 +1124,10 @@ static int tvafe_drv_probe(struct platform_device *pdev)
 	/* set APB bus register accessing error exception */
 	tvafe_set_apb_bus_err_ctrl();	
 	dev_set_drvdata(tdevp->dev, tdevp);
+        platform_set_drvdata(pdev,tdevp);
+
+    /**disable tvafe clock**/
+    tvafe_enable_module(false);
 
 	pr_info("tvafe: driver probe ok\n");
 	return 0;
@@ -1062,7 +1152,7 @@ static int tvafe_drv_remove(struct platform_device *pdev)
 
 	mutex_destroy(&tdevp->afe_mutex);
 	tvin_unreg_frontend(&tdevp->frontend);
-	device_remove_file(tdevp->dev, &dev_attr_dbg);
+	device_remove_file(tdevp->dev, &dev_attr_debug);
 	tvafe_delete_device(tdevp->index);
 	cdev_del(&tdevp->cdev);
 	kfree(tdevp);
@@ -1076,9 +1166,23 @@ static int tvafe_drv_suspend(struct platform_device *pdev,pm_message_t state)
 	struct tvafe_dev_s *tdevp;
 	tdevp = platform_get_drvdata(pdev);
 
-	tdevp->flags &= (~TVAFE_FLAG_DEV_OPENED);
-	tvafe_enable_module(false);
-	pr_info("tvafe: suspend module\n");
+	/* close afe port first */
+    if (tdevp->flags & TVAFE_FLAG_DEV_OPENED)
+    {
+        pr_info("tvafe: suspend module, close afe port first\n");
+        //tdevp->flags &= (~TVAFE_FLAG_DEV_OPENED);
+        del_timer_sync(&tdevp->timer);
+
+        /**set cvd2 reset to high**/
+        tvafe_cvd2_hold_rst(&tdevp->tvafe.cvd2);
+        /**disable av out**/
+        tvafe_enable_avout(false);
+    }
+
+    /*disable and reset tvafe clock*/
+    tvafe_enable_module(false);
+
+    pr_info("tvafe: suspend module\n");
 
 	return 0;
 }
@@ -1088,6 +1192,8 @@ static int tvafe_drv_resume(struct platform_device *pdev)
 	struct tvafe_dev_s *tdevp;
 	tdevp = platform_get_drvdata(pdev);
 
+        /*disable and reset tvafe clock*/
+        tvafe_enable_module(true);
 	pr_info("tvafe: resume module\n");
 	return 0;
 }

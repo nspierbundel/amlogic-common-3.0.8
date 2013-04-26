@@ -75,6 +75,11 @@ static void init_656in_dec_parameter(struct am656in_dev_s *devp)
         fmt = devp->para.fmt;
         fmt_info_p = tvin_get_fmt_info(fmt);
 
+    if(!fmt_info_p) {
+        printk("[bt656..]%s:invaild fmt %d.\n",__func__, fmt);
+        return;
+    }
+
 	if(fmt < TVIN_SIG_FMT_MAX)
 	{
 		devp->para.v_active    = fmt_info_p->v_active;
@@ -643,6 +648,7 @@ static int amvdec_656in_probe(struct platform_device *pdev)
 	}
 
 	/*register frontend */
+        sprintf(devp->frontend.name, "%s", DEV_NAME);
 	tvin_frontend_init(&devp->frontend, &am656_decoder_ops_s, &am656_machine_ops, pdev->id);
 	tvin_reg_frontend(&devp->frontend);
 	/*set pinmux for ITU601 A and ITU601 B*/

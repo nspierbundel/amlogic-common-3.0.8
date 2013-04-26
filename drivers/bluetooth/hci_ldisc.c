@@ -43,11 +43,18 @@
 
 #include <net/bluetooth/bluetooth.h>
 #include <net/bluetooth/hci_core.h>
-
+#ifdef CONFIG_MTK_DISCRETE_BT_HW_CTL
+#include <linux/wakelock.h>
+#include "../amlogic/bluetooth/mtk_wcn_bt/bt_hwctl.h"
+#endif
 #include "hci_uart.h"
 
 #define VERSION "2.2"
-
+#ifdef CONFIG_MTK_DISCRETE_BT_HW_CTL
+/* Add wake lock mechamism */
+#define WAKE_LOCK_TIMEOUT (5 * HZ)
+static struct wake_lock bt_wake_lock;
+#endif
 static int reset = 0;
 
 static struct hci_uart_proto *hup[HCI_UART_MAX_PROTO];
@@ -155,6 +162,10 @@ restart:
 		goto restart;
 
 	clear_bit(HCI_UART_SENDING, &hu->tx_state);
+#ifdef CONFIG_MTK_DISCRETE_BT_HW_CTL
+	/* Host can enter sleep after 5s no UART data */
+	wake_lock_timeout(&bt_wake_lock, WAKE_LOCK_TIMEOUT);
+#endif
 	return 0;
 }
 
@@ -167,7 +178,9 @@ static int hci_uart_open(struct hci_dev *hdev)
 	/* Nothing to do for UART driver */
 
 	set_bit(HCI_RUNNING, &hdev->flags);
-
+#ifdef CONFIG_MTK_DISCRETE_BT_HW_CTL
+	mt_bt_enable_irq();
+#endif
 	return 0;
 }
 
@@ -200,7 +213,9 @@ static int hci_uart_close(struct hci_dev *hdev)
 
 	if (!test_and_clear_bit(HCI_RUNNING, &hdev->flags))
 		return 0;
-
+#ifdef CONFIG_MTK_DISCRETE_BT_HW_CTL
+	mt_bt_disable_irq();
+#endif
 	hci_uart_flush(hdev);
 	hdev->flush = NULL;
 	return 0;
@@ -237,7 +252,6 @@ static void hci_uart_destruct(struct hci_dev *hdev)
 		return;
 
 	BT_DBG("%s", hdev->name);
-	kfree(hdev->driver_data);
 }
 
 /* ------ LDISC part ------ */
@@ -310,12 +324,13 @@ static void hci_uart_tty_close(struct tty_struct *tty)
 			hci_uart_close(hdev);
 
 		if (test_and_clear_bit(HCI_UART_PROTO_SET, &hu->flags)) {
-			hu->proto->close(hu);
 			if (hdev) {
 				hci_unregister_dev(hdev);
 				hci_free_dev(hdev);
 			}
+			hu->proto->close(hu);
 		}
+		kfree(hu);
 	}
 }
 
@@ -532,7 +547,9 @@ static int __init hci_uart_init(void)
 	int err;
 
 	BT_INFO("HCI UART driver ver %s", VERSION);
-
+#ifdef CONFIG_MTK_DISCRETE_BT_HW_CTL
+	wake_lock_init(&bt_wake_lock, WAKE_LOCK_SUSPEND, "bt");
+#endif
 	/* Register the tty discipline */
 
 	memset(&hci_uart_ldisc, 0, sizeof (hci_uart_ldisc));
@@ -589,6 +606,9 @@ static void __exit hci_uart_exit(void)
 	/* Release tty registration of line discipline */
 	if ((err = tty_unregister_ldisc(N_HCI)))
 		BT_ERR("Can't unregister HCI line discipline (%d)", err);
+#ifdef CONFIG_MTK_DISCRETE_BT_HW_CTL
+	wake_lock_destroy(&bt_wake_lock);
+#endif
 }
 
 module_init(hci_uart_init);

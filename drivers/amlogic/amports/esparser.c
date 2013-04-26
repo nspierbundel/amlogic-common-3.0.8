@@ -452,6 +452,7 @@ ssize_t esparser_write(struct file *file,
 	        }
 	}
     }
+    len = min(len, count);
     mutex_lock(&esparser_mutex);
     r = _esparser_write(buf, len, stbuf->type);
     mutex_unlock(&esparser_mutex);

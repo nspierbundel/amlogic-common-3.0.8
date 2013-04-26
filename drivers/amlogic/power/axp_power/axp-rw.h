@@ -5,7 +5,7 @@
 
 static uint8_t axp_reg_addr = 0;
 
-struct i2c_client *axp;
+struct i2c_client *axp = NULL;
 EXPORT_SYMBOL_GPL(axp);
 
 static inline int __axp_read(struct i2c_client *client,
@@ -173,7 +173,7 @@ int axp_update(struct device *dev, int reg, uint8_t val, uint8_t mask)
 		goto out;
 
 	if ((reg_val & mask) != val) {
-		reg_val = (reg_val & ~mask) | val;
+		reg_val = (reg_val & ~mask) | (val & mask);
 		ret = __axp_write(chip->client, reg, reg_val);
 	}
 out:

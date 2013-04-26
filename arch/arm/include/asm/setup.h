@@ -151,9 +151,9 @@ struct tag_memclk {
 /*
  * add for customer battery parameters
  */
-#include "../../../../drivers/amlogic/power/axp_power/axp-mfd.h"
+#include <amlogic/battery_parameter.h> 
 struct tag_battery {
-    struct axp_cfg_info axp_cfg;
+    struct battery_parameter battery_para;
 };
 #endif
 

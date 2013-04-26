@@ -17,13 +17,16 @@
 #include <linux/slab.h>
 #include <linux/list.h>
 #include <linux/spinlock.h>
-
+#include <linux/device.h>
 /* Amlogic headers */
 #include <linux/amports/vframe.h>
 
 /* Local headers */
 #include "tvin_frontend.h"
 
+#define CLASS_NAME      "tvincom"
+
+static struct class *tvcom_clsp;
 static struct list_head head = LIST_HEAD_INIT(head);
 static DEFINE_SPINLOCK(list_lock);
 
@@ -97,7 +100,33 @@ struct tvin_frontend_s * tvin_get_frontend(enum tvin_port_e port, int index)
         return NULL;
 }
 EXPORT_SYMBOL(tvin_get_frontend);
-
-
+static ssize_t frontend_name_show(struct class *cls,struct class_attribute *attr,char *buf)
+{
+        size_t len = 0;
+        struct tvin_frontend_s *f = NULL;
+        list_for_each_entry(f,&head,list){
+                len += sprintf(buf+len,"%s\n",f->name);
+        }
+        return len;
+}
+static CLASS_ATTR(fnedname,S_IWUGO|S_IRUGO,frontend_name_show,NULL);
+static int __init  tvin_common_init(void)
+{
+        int ret = 0;
+        tvcom_clsp = class_create(THIS_MODULE,CLASS_NAME);
+        if(!tvcom_clsp){
+                pr_err("[tvin_com..]%s: create tvin common class error.\n",__func__);
+                return -1;
+        }
+        ret = class_create_file(tvcom_clsp,&class_attr_fnedname);
+        return ret;
+}
+static void __exit tvin_common_exit(void)
+{
+        class_remove_file(tvcom_clsp,&class_attr_fnedname);
+        class_destroy(tvcom_clsp);
+}
+module_init(tvin_common_init);
+module_exit(tvin_common_exit);
 MODULE_LICENSE("GPL");
 

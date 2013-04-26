@@ -10,10 +10,9 @@
  *******************************************************************/
 
 #define AM_CSI2_BUFF_STATUS_NULL         0x00
-#define AM_CSI2_BUFF_STATUS_FREE         0x01
-#define AM_CSI2_BUFF_STATUS_AVAIL       0x02
-#define AM_CSI2_BUFF_STATUS_RECYCLE   0x03
-#define AM_CSI2_BUFF_STATUS_BUSY         0x04
+#define AM_CSI2_BUFF_STATUS_FREE         0x01  //can be used by mipi receiver
+#define AM_CSI2_BUFF_STATUS_AVAIL       0x02  // can be used to fill buffer
+#define AM_CSI2_BUFF_STATUS_BUSY        0x03  // pop to use
 
 typedef struct bufq_s{
     am_csi2_frame_t *pool[CSI2_BUF_POOL_SIZE];
@@ -24,7 +23,6 @@ typedef struct bufq_s{
 
 typedef struct mipi_buf_s{
     bufq_t available_q;
-    bufq_t recycle_q;
     bufq_t free_q;
     spinlock_t q_lock;
 }mipi_buf_t;
@@ -36,15 +34,12 @@ am_csi2_frame_t *bufq_pop(bufq_t *q);
 
 bool bufq_empty_free(mipi_buf_t* buff);
 bool bufq_empty_available(mipi_buf_t* buff);
-bool bufq_empty_recycle(mipi_buf_t* buff);
 
 void bufq_push_free(mipi_buf_t* buff, am_csi2_frame_t *frame);
 void bufq_push_available(mipi_buf_t* buff, am_csi2_frame_t *frame);
-void bufq_push_recycle(mipi_buf_t* buff, am_csi2_frame_t *frame);
 
 am_csi2_frame_t *bufq_pop_free(mipi_buf_t* buff);
 am_csi2_frame_t *bufq_pop_available(mipi_buf_t* buff);
-am_csi2_frame_t *bufq_pop_recycle(mipi_buf_t* buff);
 
 void bufq_init(mipi_buf_t* buff, am_csi2_frame_t* frame, unsigned count);
 

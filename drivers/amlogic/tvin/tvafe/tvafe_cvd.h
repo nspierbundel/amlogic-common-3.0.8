@@ -19,7 +19,7 @@
 /* cvd2 function enable/disable defines*/
 //#define TVAFE_CVD2_NOT_TRUST_NOSIG  // Do not trust Reg no signal flag
 //#define SYNC_HEIGHT_AUTO_TUNING
-#define TVAFE_CVD2_ADC_REG_CHECK
+//#define TVAFE_CVD2_ADC_REG_CHECK
 
 /* cvd2 function enable/disable defines*/
 //#define TVAFE_CVD2_TUNER_DET_ACCELERATED  // accelerate tuner mode detection

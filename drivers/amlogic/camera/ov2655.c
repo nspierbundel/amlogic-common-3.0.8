@@ -48,18 +48,7 @@
 #include <mach/mod_gate.h>
 #endif
 
-#ifdef CONFIG_HAS_EARLYSUSPEND
-#include <linux/earlysuspend.h>
-static struct early_suspend ov2655_early_suspend;
-#endif
-
 #define OV2655_CAMERA_MODULE_NAME "ov2655"
-
-#ifdef CONFIG_VIDEO_AMLOGIC_FLASHLIGHT
-#include <media/amlogic/flashlight.h>
-extern aml_plat_flashlight_status_t get_flashlightflag(void);
-extern int set_flashlight(bool mode);
-#endif
 
 /* Wake up at about 30 fps */
 #define WAKE_NUMERATOR 30
@@ -222,29 +211,13 @@ static struct ov2655_fmt formats[] = {
 		.name     = "YUV420P",
 		.fourcc   = V4L2_PIX_FMT_YUV420,
 		.depth    = 12,
+	},
+	{
+		.name     = "YVU420P",
+		.fourcc   = V4L2_PIX_FMT_YVU420,
+		.depth    = 12,
 	}
-#if 0
-	{
-		.name     = "4:2:2, packed, YUYV",
-		.fourcc   = V4L2_PIX_FMT_VYUY,
-		.depth    = 16,
-	},
-	{
-		.name     = "RGB565 (LE)",
-		.fourcc   = V4L2_PIX_FMT_RGB565, /* gggbbbbb rrrrrggg */
-		.depth    = 16,
-	},
-	{
-		.name     = "RGB555 (LE)",
-		.fourcc   = V4L2_PIX_FMT_RGB555, /* gggbbbbb arrrrrgg */
-		.depth    = 16,
-	},
-	{
-		.name     = "RGB555 (BE)",
-		.fourcc   = V4L2_PIX_FMT_RGB555X, /* arrrrrgg gggbbbbb */
-		.depth    = 16,
-	},
-#endif
+
 };
 
 static struct ov2655_fmt *get_format(struct v4l2_format *f)
@@ -2000,7 +1973,7 @@ static void free_buffer(struct videobuf_queue *vq, struct ov2655_buffer *buf)
 }
 
 #define norm_maxw() 1920
-#define norm_maxh() 1200
+#define norm_maxh() 1600
 static int
 buffer_prepare(struct videobuf_queue *vq, struct videobuf_buffer *vb,
 						enum v4l2_field field)
@@ -2201,19 +2174,7 @@ static int vidioc_s_fmt_vid_cap(struct file *file, void *priv,
 		OV2655_set_resolution(dev,fh->height,fh->width);
 		}
 	#endif
-#ifdef CONFIG_VIDEO_AMLOGIC_FLASHLIGHT	
-	if (dev->platform_dev_data.flash_support) {
-		if (f->fmt.pix.pixelformat == V4L2_PIX_FMT_RGB24) {
-			if (get_flashlightflag() == FLASHLIGHT_ON) {
-				set_flashlight(true);
-			}
-		} else if(f->fmt.pix.pixelformat == V4L2_PIX_FMT_NV21){
-			if (get_flashlightflag() != FLASHLIGHT_TORCH) {
-				set_flashlight(false);
-			}		
-		}
-	}
-#endif	
+
 	ret = 0;
 out:
 	mutex_unlock(&q->vb_lock);
@@ -2316,7 +2277,11 @@ static int vidioc_enum_framesizes(struct file *file, void *fh,struct v4l2_frmsiz
 	}
 	if (fmt == NULL)
 		return -EINVAL;
-	if (fmt->fourcc == V4L2_PIX_FMT_NV21){
+	if ((fmt->fourcc == V4L2_PIX_FMT_NV21)
+		||(fmt->fourcc == V4L2_PIX_FMT_NV12)
+		||(fmt->fourcc == V4L2_PIX_FMT_YUV420)
+		||(fmt->fourcc == V4L2_PIX_FMT_YVU420)
+		){
 		if (fsize->index >= ARRAY_SIZE(ov2655_prev_resolution))
 			return -EINVAL;
 		frmsize = &ov2655_prev_resolution[fsize->index];
@@ -2670,42 +2635,6 @@ static const struct v4l2_subdev_ops ov2655_ops = {
 	.core = &ov2655_core_ops,
 };
 
-#ifdef CONFIG_HAS_EARLYSUSPEND
-static void aml_ov2655_early_suspend(struct early_suspend *h)
-{
-	printk("enter -----> %s \n",__FUNCTION__);
-	if(h && h->param) {
-		aml_plat_cam_data_t* plat_dat= (aml_plat_cam_data_t*)h->param;
-		if (plat_dat && plat_dat->early_suspend) {
-			plat_dat->early_suspend();
-		}
-	}
-}
-
-static void aml_ov2655_late_resume(struct early_suspend *h)
-{
-
-	if(ov2655_have_opened==0){
-		printk("enter -----> %s \n",__FUNCTION__);
-		if(h && h->param) {
-			aml_plat_cam_data_t* plat_dat= (aml_plat_cam_data_t*)h->param;
-			if (plat_dat && plat_dat->late_resume) {
-				plat_dat->late_resume();
-			}
-		i2c_put_byte(this_client,0x3012, 0x80);
-		msleep(5);
-		i2c_put_byte(this_client,0x30ab, 0x00);
-		i2c_put_byte(this_client,0x30ad, 0x0a);
-		i2c_put_byte(this_client,0x30ae, 0x27);
-		i2c_put_byte(this_client,0x363b, 0x01);
-		if (plat_dat && plat_dat->device_uninit) {
-				plat_dat->device_uninit();
-			}
-		}
-		}
-}
-#endif
-
 static int ov2655_probe(struct i2c_client *client,
 			const struct i2c_device_id *id)
 {
@@ -2760,15 +2689,7 @@ static int ov2655_probe(struct i2c_client *client,
 		kfree(t);
 		return err;
 	}
-
-#ifdef CONFIG_HAS_EARLYSUSPEND
-    ov2655_early_suspend.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN;
-    ov2655_early_suspend.suspend = aml_ov2655_early_suspend;
-    ov2655_early_suspend.resume = aml_ov2655_late_resume;
-    ov2655_early_suspend.param = plat_dat;
-	register_early_suspend(&ov2655_early_suspend);
-#endif
-
+	
 	return 0;
 }
 
@@ -2784,34 +2705,6 @@ static int ov2655_remove(struct i2c_client *client)
 	return 0;
 }
 
-static int ov2655_suspend(struct i2c_client *client, pm_message_t state)
-{
-	struct v4l2_subdev *sd = i2c_get_clientdata(client);
-	struct ov2655_device *t = to_dev(sd);
-	struct ov2655_fh  *fh = to_fh(t);
-	if(fh->stream_on == 1){
-		stop_tvin_service(0);
-	}
-	power_down_ov2655(t);
-	return 0;
-}
-
-static int ov2655_resume(struct i2c_client *client)
-{
-	struct v4l2_subdev *sd = i2c_get_clientdata(client);
-	struct ov2655_device *t = to_dev(sd);
-    struct ov2655_fh  *fh = to_fh(t);
-    tvin_parm_t para;
-    para.port  = TVIN_PORT_CAMERA;
-    para.fmt_info.fmt = TVIN_SIG_FMT_CAMERA_1280X720P_30Hz;
-    OV2655_init_regs(t);
-	if(fh->stream_on == 1){
-        start_tvin_service(0,&para);
-	}
-	return 0;
-}
-
-
 static const struct i2c_device_id ov2655_id[] = {
 	{ "ov2655_i2c", 0 },
 	{ }
@@ -2822,8 +2715,6 @@ static struct v4l2_i2c_driver_data v4l2_i2c_data = {
 	.name = "ov2655",
 	.probe = ov2655_probe,
 	.remove = ov2655_remove,
-	.suspend = ov2655_suspend,
-	.resume = ov2655_resume,
 	.id_table = ov2655_id,
 };
 

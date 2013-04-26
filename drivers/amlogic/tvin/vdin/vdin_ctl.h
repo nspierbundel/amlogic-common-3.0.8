@@ -88,9 +88,19 @@ typedef struct vdin_matrix_lup_s {
 } vdin_matrix_lup_t;
 
 typedef struct vdin_stat_s {
-        unsigned int   sum_luma   ; // VDIN_HIST_LUMA_SUM_REG
-        unsigned int   sum_pixel  ; // VDIN_HIST_PIX_CNT_REG
+        unsigned int   sum_luma;  // VDIN_HIST_LUMA_SUM_REG
+        unsigned int   sum_pixel; // VDIN_HIST_PIX_CNT_REG
 } vdin_stat_t;
+
+#ifdef AML_LOCAL_DIMMING
+struct ldim_max_s{
+    // general parameters
+    int ld_pic_rowmax;
+    int ld_pic_colmax;
+    int ld_stamax_hidx[9];  // U12* 9
+    int ld_stamax_vidx[9];  // u12x 9
+};
+#endif
 
 typedef struct vdin_hist_cfg_s {
         unsigned int                pow;
@@ -134,6 +144,11 @@ extern bool vdin_check_cycle(struct vdin_dev_s *devp);
 extern void vdin_write_done_check(unsigned int offset, struct vdin_dev_s *devp);
 extern bool vdin_check_vs(struct vdin_dev_s *devp);
 extern void vdin_calculate_duration(struct vdin_dev_s *devp);
+extern void vdin0_output_ctl(unsigned int output_flag);
 extern void vdin_wr_reverse(unsigned int offset, bool hreverse, bool vreverse);
+void vdin_set_hscale(unsigned int offset, int src_w,  int dst_w);
+#if MESON_CPU_TYPE >= MESON_CPU_TYPE_MESON6TV
+void vdin_set_vscale(unsigned int offset, unsigned int src_h,  unsigned int dst_h);
 #endif
 
+#endif

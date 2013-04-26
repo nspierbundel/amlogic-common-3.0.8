@@ -50,7 +50,7 @@ typedef struct {
 #define DISPLAY2_CANVAS_BASE_INDEX   0x66
 #define DISPLAY2_CANVAS_MAX_INDEX    0x6b
 
-/*here ppmgr share the same canvas with deinterlace*/
+/*here ppmgr share the same canvas with deinterlace and mipi driver for m6*/
 #define PPMGR_CANVAS_INDEX 0x70
 #define PPMGR_DOUBLE_CANVAS_INDEX 0x74  //for double canvas use
 #define PPMGR_DEINTERLACE_BUF_CANVAS 0x77   /*for progressive mjpeg use*/
@@ -66,14 +66,31 @@ typedef struct {
 #define DI_PRE_CHAN2_NR_CANVAS_IDX      0x71
 #define DI_PRE_WR_NR_CANVAS_IDX         0x72
 #define DI_PRE_WR_MTN_CANVAS_IDX        0x73
-#define DI_POST_BUF0_CANVAS_IDX         0x74
-#define DI_POST_BUF1_CANVAS_IDX         0x75
-#define DI_POST_MTNCRD_CANVAS_IDX       0x76
-#define DI_POST_MTNPRD_CANVAS_IDX       0x77
+//NEW DI
+#define DI_CONTPRD_CANVAS_IDX           0x74
+#define DI_CONTP2RD_CANVAS_IDX           0x75
+#define DI_CONTWR_CANVAS_IDX            0x76
+//DI POST, share with DISPLAY
+#define DI_POST_BUF0_CANVAS_IDX         0x60
+#define DI_POST_BUF1_CANVAS_IDX         0x61
+#define DI_POST_MTNCRD_CANVAS_IDX       0x62
+#define DI_POST_MTNPRD_CANVAS_IDX       0x63
 #else
 #define DEINTERLACE_CANVAS_BASE_INDEX	0x70
 #define DEINTERLACE_CANVAS_MAX_INDEX	0x7f
 #endif
+
+#define MIPI_CANVAS_INDEX 0x70
+#define MIPI_CANVAS_MAX_INDEX 0x7f
+
+#define VDIN1_CANVAS_INDEX 0xC0
+#define VDIN1_CANVAS_MAX_INDEX 0xCF
+
+#define AMLVIDEO2_RES_CANVAS 0xD0
+#define AMLVIDEO2_MAX_RES_CANVAS 0xD7
+
+#define AMVENC_CANVAS_INDEX 0xD8
+#define AMVENC_CANVAS_MAX_INDEX 0xDD
 
 extern void canvas_config(u32 index, ulong addr, u32 width,
                           u32 height, u32 wrap, u32 blkmode);

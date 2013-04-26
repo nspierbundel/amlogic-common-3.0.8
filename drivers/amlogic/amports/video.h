@@ -22,15 +22,14 @@
 #ifndef VIDEO_H
 #define VIDEO_H
 
-#include <mach/cpu.h>
-
 enum {
     VIDEO_WIDEOPTION_NORMAL           = 0,
     VIDEO_WIDEOPTION_FULL_STRETCH     = 1,
     VIDEO_WIDEOPTION_4_3              = 2,
     VIDEO_WIDEOPTION_16_9             = 3,
-    VIDEO_WIDEOPTION_NORMAL_NOSCALEUP = 4,
-    VIDEO_WIDEOPTION_MAX              = 5
+	VIDEO_WIDEOPTION_NONLINEAR        = 4,
+    VIDEO_WIDEOPTION_NORMAL_NOSCALEUP = 5,
+    VIDEO_WIDEOPTION_MAX              = 6
 };
 
 typedef  struct {

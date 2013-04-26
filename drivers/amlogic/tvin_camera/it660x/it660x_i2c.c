@@ -62,7 +62,7 @@ repeat:
         return 0xff;
     }
 
-    if(it660x_debug_flag&0x2){
+    if(it660x_debug_flag&0x4){
         printk("[%s] %x: %x\n", __func__, RegAddr, uc);
     }
     return uc ;

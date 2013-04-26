@@ -18,6 +18,7 @@
 #include <linux/etherdevice.h>
 #include <linux/rtnetlink.h>
 #include <linux/sched.h>
+#include <linux/vmalloc.h>
 #include <net/genetlink.h>
 #include <net/cfg80211.h>
 #include "nl80211.h"
@@ -342,8 +343,16 @@ struct wiphy *wiphy_new(const struct cfg80211_ops *ops, int sizeof_priv)
 	alloc_size = sizeof(*rdev) + sizeof_priv;
 
 	rdev = kzalloc(alloc_size, GFP_KERNEL);
-	if (!rdev)
-		return NULL;
+	if (!rdev) {
+        printk("kzalloc %d memory failed! try to use vzalloc\n", alloc_size);
+
+        rdev = vzalloc(alloc_size);
+        if (!rdev) {
+            printk("vzalloc %d memory failed\n", alloc_size);
+            return NULL;
+        }
+        rdev->vmalloc_flag = 1;
+    }
 
 	rdev->ops = ops;
 
@@ -355,7 +364,10 @@ struct wiphy *wiphy_new(const struct cfg80211_ops *ops, int sizeof_priv)
 		wiphy_counter--;
 		mutex_unlock(&cfg80211_mutex);
 		/* ugh, wrapped! */
-		kfree(rdev);
+        if(rdev->vmalloc_flag)
+		    vfree(rdev);
+        else
+            kfree(rdev);
 		return NULL;
 	}
 
@@ -392,7 +404,10 @@ struct wiphy *wiphy_new(const struct cfg80211_ops *ops, int sizeof_priv)
 				   &rdev->rfkill_ops, rdev);
 
 	if (!rdev->rfkill) {
-		kfree(rdev);
+		if(rdev->vmalloc_flag)
+		    vfree(rdev);
+        else
+            kfree(rdev);
 		return NULL;
 	}
 
@@ -487,6 +502,14 @@ int wiphy_register(struct wiphy *wiphy)
 	bool have_band = false;
 	int i;
 	u16 ifmodes = wiphy->interface_modes;
+
+	if (WARN_ON((wiphy->wowlan.flags & WIPHY_WOWLAN_GTK_REKEY_FAILURE) &&
+		    !(wiphy->wowlan.flags & WIPHY_WOWLAN_SUPPORTS_GTK_REKEY)))
+		return -EINVAL;
+
+	if (WARN_ON(wiphy->ap_sme_capa &&
+		    !(wiphy->flags & WIPHY_FLAG_HAVE_AP_SME)))
+		return -EINVAL;
 
 	if (WARN_ON(wiphy->addresses && !wiphy->n_addresses))
 		return -EINVAL;
@@ -706,7 +729,10 @@ void cfg80211_dev_free(struct cfg80211_registered_device *rdev)
 	list_for_each_entry_safe(scan, tmp, &rdev->bss_list, list)
 		cfg80211_put_bss(&scan->pub);
 	cfg80211_rdev_free_wowlan(rdev);
-	kfree(rdev);
+	if(rdev->vmalloc_flag)
+	    vfree(rdev);
+    else
+        kfree(rdev);
 }
 
 void wiphy_free(struct wiphy *wiphy)
@@ -959,6 +985,11 @@ static int cfg80211_netdev_notifier_call(struct notifier_block * nb,
 		 */
 		synchronize_rcu();
 		INIT_LIST_HEAD(&wdev->list);
+		/*
+		 * Ensure that all events have been processed and
+		 * freed.
+		 */
+		cfg80211_process_wdev_events(wdev);
 		break;
 	case NETDEV_PRE_UP:
 		if (!(wdev->wiphy->interface_modes & BIT(wdev->iftype)))

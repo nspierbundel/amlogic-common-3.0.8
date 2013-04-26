@@ -275,23 +275,22 @@
 
 
 //#define VDIN_MATRIX_CTRL                        0x1210
-
-#define VDIN_MATRIX_EN_BIT                  0
-#define VDIN_MATRIX_EN_WID                  1    // post conversion matrix
-
-
-#define VDIN_HIGHLIGHT_EN_BIT                   7
-#define VDIN_HIGHLIGHT_EN_WID                  1
-#define VDIN_PROBE_POST_BIT                      6//1: probe pixel data after matrix, 0:probe pixel data before matrix
-#define VDIN_PROBE_POST_WID                     1
-#define VDIN_PROBE_SEL_BIT                         4//00: select matrix0, 01: select matrix1,otherwise select nothing
-#define VDIN_PROBE_SEL_WID                        2
-#define VDIN_MATRIX_COEF_INDEX_BIT         2//00: select mat0, 01: select mat1, otherwise slect nothing 
-#define VDIN_MATRIX_COEF_INDEX_WID        2
-#define VDIN_MATRIX1_EN_BIT                         1//Bit 1   mat1 conversion matrix enable
-#define VDIN_MATRIX1_EN_WID                         1
-#define VDIN_MATRIX_EN_BIT                          0//Bit 0   mat0 conversion matrix enable
-#define VDIN_MATRIX_EN_WID                         1
+#define VDIN_MATRIX0_BYPASS_BIT             9//1:bypass 0:pass
+#define VDIN_MATRIX0_BYPASS_WID             1
+#define VDIN_MATRIX1_BYPASS_BIT             8
+#define VDIN_MATRIX1_BYPASS_WID             1
+#define VDIN_HIGHLIGHT_EN_BIT               7
+#define VDIN_HIGHLIGHT_EN_WID               1
+#define VDIN_PROBE_POST_BIT                 6//1: probe pixel data after matrix, 0:probe pixel data before matrix
+#define VDIN_PROBE_POST_WID                 1
+#define VDIN_PROBE_SEL_BIT                  4//00: select matrix0, 01: select matrix1,otherwise select nothing
+#define VDIN_PROBE_SEL_WID                  2
+#define VDIN_MATRIX_COEF_INDEX_BIT          2//00: select mat0, 01: select mat1, otherwise slect nothing 
+#define VDIN_MATRIX_COEF_INDEX_WID          2
+#define VDIN_MATRIX1_EN_BIT                 1//Bit 1   mat1 conversion matrix enable
+#define VDIN_MATRIX1_EN_WID                 1
+#define VDIN_MATRIX_EN_BIT                  0//Bit 0   mat0 conversion matrix enable
+#define VDIN_MATRIX_EN_WID                  1
 
 //#define VDIN_MATRIX_COEF00_01                   0x1211
 #define MATRIX_C00_BIT                  16
@@ -755,8 +754,8 @@
 #define LPF_BEFORE_STATISTIC_EN_BIT    20
 #define LPF_BEFORE_STATISTIC_EN_WID    1
 // region H/V position index, refer to VDIN_LDIM_STTS_HIST_SET_REGION
-#define REGION_HV_INDEX_BIT                     16
-#define REGION_HV_INDEX_WID                    4
+#define BLK_HV_POS_IDXS_BIT                     16
+#define BLK_HV_POS_IDXS_WID                    4
 #define REGION_RD_INDEX_INC_BIT             15
 #define REGION_RD_INDEX_INC_WID            1
 #define REGION_RD_INDEX_BIT                      0

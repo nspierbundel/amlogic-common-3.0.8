@@ -42,6 +42,10 @@ void __cpuinit platform_secondary_init(unsigned int cpu)
 	 * for us: do so
 	 */
 	gic_secondary_init(0);
+#ifdef CONFIG_MESON_ARM_GIC_FIQ	
+extern void  init_fiq(void);	
+	init_fiq();
+#endif	
 #endif    
 
 	/*

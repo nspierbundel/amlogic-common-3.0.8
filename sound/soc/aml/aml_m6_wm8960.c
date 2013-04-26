@@ -26,9 +26,11 @@
 #include <sound/soc-dapm.h>
 #include <sound/jack.h>
 #include <sound/wm8960.h>
+#include <linux/delay.h>
 
 #include <asm/mach-types.h>
 #include <mach/hardware.h>
+#include <linux/switch.h>
 
 #include "../codecs/wm8960.h"
 #include "aml_dai.h"
@@ -36,7 +38,7 @@
 #include "aml_audio_hw.h"
 
 #define HP_DET                  1
-
+#define WM8960_CAPLESS_MODE
 struct wm8960_private_data {
     int bias_level;
     int clock_en;
@@ -48,6 +50,7 @@ struct wm8960_private_data {
     struct mutex lock;
     struct snd_soc_jack jack;
     void* data;
+    struct switch_dev sdev; // for android
 #endif
 };
 
@@ -112,6 +115,7 @@ static void wm8960_work_func(struct work_struct *work)
     struct snd_soc_codec *codec = NULL;
     int flag = -1;
 	int status = SND_JACK_HEADPHONE;
+	int jack_type = 0;
 
     pdata = container_of(work, struct wm8960_private_data, work);
     codec = (struct snd_soc_codec *)pdata->data;
@@ -119,35 +123,38 @@ static void wm8960_work_func(struct work_struct *work)
     flag = wm8960_detect_hp();
     if(pdata->detect_flag != flag) {
         if (flag == 1) {
-            printk(KERN_INFO "wm8960 hp pluged\n");
-
-            /* Speaker */
-            snd_soc_update_bits(codec, WM8960_LOUT2, 0x7f, 0);
-            snd_soc_update_bits(codec, WM8960_ROUT2, 0x7f, 0);
-            /* Headphone */
-            snd_soc_update_bits(codec, WM8960_LOUT1, 0x7f, 0x7f);
-            snd_soc_update_bits(codec, WM8960_ROUT1, 0x7f, 0x7f);
-
-            /* DAC Mono Mix clear */
-            snd_soc_update_bits(codec, WM8960_ADDCTL1, 1 << 4, 0);
-
-            /* jack report */
-            snd_soc_jack_report(&pdata->jack, status, SND_JACK_HEADPHONE);
+			snd_soc_update_bits(codec, WM8960_POWER1, 2, 2);
+			msleep(100);
+			jack_type = wm8960_detect_hp();
+			if(jack_type == 1){
+				printk("wm8960 3 ports hp pluged\n");
+            	/* jack report */
+            	snd_soc_jack_report(&pdata->jack, SND_JACK_HEADPHONE, SND_JACK_HEADPHONE);
+				switch_set_state(&pdata->sdev, 2);
+			}else{
+				printk("wm8960 4 ports hs pluged\n");
+            	/* jack report */
+            	snd_soc_jack_report(&pdata->jack, SND_JACK_HEADSET, SND_JACK_HEADSET);
+				switch_set_state(&pdata->sdev, 1);
+			}
         } else {
             printk(KERN_INFO "wm8960 hp unpluged\n");
-
+#if 0
             /* Speaker */
-            snd_soc_update_bits(codec, WM8960_LOUT2, 0x7f, 0x7f);
-            snd_soc_update_bits(codec, WM8960_ROUT2, 0x7f, 0x7f);
+            snd_soc_update_bits(codec, WM8960_LOUT2, 0x70, 0x70);
+            snd_soc_update_bits(codec, WM8960_ROUT2, 0x70, 0x70);
             /* Headphone */
-            snd_soc_update_bits(codec, WM8960_LOUT1, 0x7f, 0);
-            snd_soc_update_bits(codec, WM8960_ROUT1, 0x7f, 0);
+            snd_soc_update_bits(codec, WM8960_LOUT1, 0x70, 0);
+            snd_soc_update_bits(codec, WM8960_ROUT1, 0x70, 0);
+ 
 
             /* DAC Mono Mix set */
             snd_soc_update_bits(codec, WM8960_ADDCTL1, 1 << 4, 1 << 4);
+#endif         
 
+			switch_set_state(&pdata->sdev, 0);
             /* jack report */
-            snd_soc_jack_report(&pdata->jack, 0, SND_JACK_HEADPHONE);
+            snd_soc_jack_report(&pdata->jack, 0, SND_JACK_HEADSET);
         }
 
         pdata->detect_flag = flag;
@@ -204,10 +211,12 @@ static int wm8960_hw_params(struct snd_pcm_substream *substream,
         return ret;
     }
 	/*set codec DAI sysclk divider,now 512fs for MCLK,sysclk divide 2  */
-	snd_soc_dai_set_clkdiv(codec_dai,WM8960_SYSCLKDIV,WM8960_SYSCLK_DIV_2);
-
+	if(MCLKFS_RATIO == 512)
+		snd_soc_dai_set_clkdiv(codec_dai,WM8960_SYSCLKDIV,WM8960_SYSCLK_DIV_2);
+	else
+		snd_soc_dai_set_clkdiv(codec_dai,WM8960_SYSCLKDIV,WM8960_SYSCLK_DIV_1);		
     /* set cpu DAI clock */
-    ret = snd_soc_dai_set_sysclk(cpu_dai, 0, params_rate(params) * 512, SND_SOC_CLOCK_OUT);
+    ret = snd_soc_dai_set_sysclk(cpu_dai, 0, params_rate(params) * MCLKFS_RATIO, SND_SOC_CLOCK_OUT);
     if (ret < 0) {
         printk(KERN_ERR "%s: set cpu dai sysclk failed (rate: %d)!\n", __func__, params_rate(params));
         return ret;
@@ -249,9 +258,15 @@ static int wm8960_set_bias_level(struct snd_soc_card *card,
         }
         break;
 
-    case SND_SOC_BIAS_OFF:
     case SND_SOC_BIAS_STANDBY:
         /* clock disable */
+        if (wm8960_snd_priv->clock_en) {
+            wm8960_set_clock(0);
+        }
+        break;
+        
+    case SND_SOC_BIAS_OFF:
+    	        /* clock disable */
         if (wm8960_snd_priv->clock_en) {
             wm8960_set_clock(0);
         }
@@ -321,6 +336,8 @@ static const struct snd_soc_dapm_widget wm8960_dapm_widgets[] = {
 static const struct snd_soc_dapm_route wm8960_dapm_intercon[] = {
     {"Ext Spk", NULL, "SPK_LP"},
     {"Ext Spk", NULL, "SPK_LN"},
+    {"Ext Spk", NULL, "SPK_RP"},
+    {"Ext Spk", NULL, "SPK_RN"},
 
     {"HP", NULL, "HP_L"},
     {"HP", NULL, "HP_R"},
@@ -329,13 +346,15 @@ static const struct snd_soc_dapm_route wm8960_dapm_intercon[] = {
 
     {"LINPUT1", NULL, "MICB"},
     {"LINPUT2", NULL, "MICB"},
+	{"RINPUT1", NULL, "MICB"},
+    {"RINPUT2", NULL, "MICB"},
 };
 
 #if HP_DET
 static struct snd_soc_jack_pin jack_pins[] = {
     {
         .pin = "HP",
-        .mask = SND_JACK_HEADPHONE,
+        .mask = SND_JACK_HEADSET,
     }
 };
 #endif
@@ -378,7 +397,7 @@ static int wm8960_codec_init(struct snd_soc_pcm_runtime *rtd)
     snd_soc_dapm_sync(dapm);
 
 #if HP_DET
-    ret = snd_soc_jack_new(codec, "hp switch", SND_JACK_HEADPHONE, &wm8960_snd_priv->jack);
+    ret = snd_soc_jack_new(codec, "hp switch", SND_JACK_HEADSET, &wm8960_snd_priv->jack);
     if (ret) {
         printk(KERN_WARNING "Failed to alloc resource for hp switch\n");
     } else {
@@ -396,6 +415,22 @@ static int wm8960_codec_init(struct snd_soc_pcm_runtime *rtd)
     INIT_WORK(&wm8960_snd_priv->work, wm8960_work_func);
     mutex_init(&wm8960_snd_priv->lock);
 #endif
+
+   // wm8960_start_timer(msecs_to_jiffies(100));
+    printk("enter %s wm8960_snd_pdata->dis_hp_det=%d: %p\n", __func__, wm8960_snd_pdata->dis_hp_det);
+	if(!wm8960_snd_pdata->dis_hp_det){
+        //JD2 as headphone detect
+        snd_soc_update_bits(codec,27, 0x008, 0x008);// OUT3 buffer Enabled and disabled with HPL and HPR jack detect              
+        //INSERT_DELAY    [1] 
+        mdelay(1);      
+        ///GPIO1 output the "jack detect output"
+        snd_soc_update_bits(codec,48, 0x03A, 0x03A);// JD2 used for Jack Detect Input, GPIO function = jack detect output 
+
+		snd_soc_update_bits(codec,24, 0x040, 0x040);// HPDETECT LOW = Speaker 
+	}
+
+        snd_soc_update_bits(codec, 23, 0x1D1, 0x1D1);
+        mdelay(500);
 
     return 0;
 }
@@ -462,6 +497,14 @@ static int wm8960_audio_probe(struct platform_device *pdev)
     wm8960_snd_priv->bias_level = SND_SOC_BIAS_OFF;
     wm8960_snd_priv->clock_en = 0;
 
+#if HP_DET
+    wm8960_snd_priv->sdev.name = "h2w";//for report headphone to android
+    ret = switch_dev_register(&wm8960_snd_priv->sdev);
+    if (ret < 0){
+        printk(KERN_ERR "ASoC: register switch dev failed\n");
+        goto err;
+    }
+#endif
     wm8960_dev_init();
 
     return ret;

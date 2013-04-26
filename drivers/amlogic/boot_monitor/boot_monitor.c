@@ -27,8 +27,10 @@
 #include <mach/am_regs.h>
 #include <linux/reboot.h>
 #include <linux/fs.h>
+#include <mach/watchdog.h>
 
 static struct platform_device *pdev;
+static aml_watchdog_t* boot_monitor_watchdog = NULL;
 
 /* Sysfs Files */
 
@@ -40,19 +42,23 @@ void boot_timer_func(unsigned long arg);
 static void disable_watchdog(void)
 {
     printk(KERN_INFO "** disable watchdog\n");
-    aml_write_reg32(P_WATCHDOG_RESET, 0);
-    aml_clr_reg32_mask(P_WATCHDOG_TC,(1 << WATCHDOG_ENABLE_BIT));
+	if (boot_monitor_watchdog)
+		aml_disable_watchdog(boot_monitor_watchdog);
 }
 static void enable_watchdog(void)
 {
 	printk(KERN_INFO "** enable watchdog\n");
-    aml_write_reg32(P_WATCHDOG_RESET, 0);
-    aml_write_reg32(P_WATCHDOG_TC, 1 << WATCHDOG_ENABLE_BIT | 0x1FFFFF);//about 20sec
+	/* set watchdog time out as 20000 ms */
+	if (boot_monitor_watchdog) {
+		aml_set_watchdog_timeout_ms(boot_monitor_watchdog, 200000);
+		aml_enable_watchdog(boot_monitor_watchdog);
+	}
 }
 static void reset_watchdog(void)
 {
 	printk(KERN_INFO "** reset watchdog\n");
-    aml_write_reg32(P_WATCHDOG_RESET, 0);	
+	if (boot_monitor_watchdog)
+		aml_reset_watchdog(boot_monitor_watchdog);	
 }
 
 void boot_timer_func(unsigned long arg)
@@ -119,6 +125,12 @@ static int __init boot_monitor_init(void)
 {
 	int ret;
 
+	boot_monitor_watchdog = aml_create_watchdog("boot_monitor");
+	if (!boot_monitor_watchdog) {
+		ret = -1;
+		goto out;
+	}
+
 	ret = platform_driver_register(&boot_monitor_driver);
 	if (ret)
 		goto out;
@@ -150,6 +162,10 @@ static void __exit boot_monitor_exit(void)
 	class_unregister(&boot_monitor_class);
 	platform_device_unregister(pdev);
 	platform_driver_unregister(&boot_monitor_driver);	
+	if (boot_monitor_watchdog) {
+		aml_destroy_watchdog(boot_monitor_watchdog);
+		boot_monitor_watchdog = NULL;
+	}
 
 	printk(KERN_INFO "boot_monitor: driver unloaded.\n");
 }

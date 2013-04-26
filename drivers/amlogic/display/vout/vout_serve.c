@@ -126,6 +126,9 @@ static int  meson_vout_resume(struct platform_device *pdev);
 
 static  void  set_vout_mode(char * name)
 {
+#ifdef CONFIG_AML_HDMI_TX
+    extern void hdmi_pre_set_change_mode(void);
+#endif
 	vmode_t    mode;
 
 	amlog_mask_level(LOG_MASK_PARA,LOG_LEVEL_HIGH,"tvmode set to %s\r\n",name);
@@ -140,6 +143,10 @@ static  void  set_vout_mode(char * name)
 		amlog_mask_level(LOG_MASK_PARA,LOG_LEVEL_HIGH,"don't set the same mode as current.\r\n");	
 		return ;
 	}
+#ifdef CONFIG_AML_HDMI_TX
+	if(mode < VMODE_LCD)
+		hdmi_pre_set_change_mode();
+#endif
 	set_current_vmode(mode);
 	amlog_mask_level(LOG_MASK_PARA,LOG_LEVEL_HIGH,"new mode %s set ok\r\n",name);
 	vout_notifier_call_chain(VOUT_EVENT_MODE_CHANGE,&mode) ;

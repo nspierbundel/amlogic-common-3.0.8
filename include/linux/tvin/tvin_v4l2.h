@@ -146,6 +146,16 @@ typedef enum camera_focus_mode_e {
         CAM_FOCUS_MODE_CONTI_PIC,
 }camera_focus_mode_t;
 
+//removed this when move to new v4l2
+#define V4L2_CID_AUTO_FOCUS_START               (V4L2_CID_CAMERA_CLASS_BASE+28)
+#define V4L2_CID_AUTO_FOCUS_STOP                (V4L2_CID_CAMERA_CLASS_BASE+29)
+#define V4L2_CID_AUTO_FOCUS_STATUS              (V4L2_CID_CAMERA_CLASS_BASE+30)
+#define V4L2_AUTO_FOCUS_STATUS_IDLE             (0 << 0)
+#define V4L2_AUTO_FOCUS_STATUS_BUSY             (1 << 0)
+#define V4L2_AUTO_FOCUS_STATUS_REACHED          (1 << 1)
+#define V4L2_AUTO_FOCUS_STATUS_FAILED           (1 << 2)
+//removed this when move to new v4l2
+
 typedef enum camera_night_mode_flip_e {
         CAM_NM_AUTO = 0,
         CAM_NM_ENABLE,
@@ -201,6 +211,8 @@ typedef struct camera_info_s {
 #define CAMERA_IOC_START_CAPTURE_PARA     _IOR(CAMERA_IOC_MAGIC, 0x05, struct camera_info_s)
 #define CAMERA_IOC_STOP_CAPTURE_PARA     _IOR(CAMERA_IOC_MAGIC, 0x06, struct camera_info_s)
 
+
+
 //add for vdin called by backend driver
 typedef struct vdin_parm_s {
         enum tvin_port_e     port;
@@ -216,6 +228,15 @@ typedef struct vdin_parm_s {
         unsigned short  frame_rate;
         unsigned int    reserved;
 } vdin_parm_t;
+
+typedef struct vdin_v4l2_ops_s {
+        int  (*start_tvin_service)(int no ,vdin_parm_t *para);
+        int  (*stop_tvin_service)(int no);
+        void (*set_tvin_canvas_info)(int start , int num);
+        void (*get_tvin_canvas_info)(int* start , int* num);
+        void *private;
+}vdin_v4l2_ops_t;
+
 /*
    macro defined applied to camera driver is ending
  */
@@ -223,5 +244,6 @@ extern int start_tvin_service(int no ,vdin_parm_t *para);
 extern int stop_tvin_service(int no);
 extern void set_tvin_canvas_info(int start , int num);
 extern void get_tvin_canvas_info(int* start , int* num);
-
+extern int v4l2_vdin_ops_init(vdin_v4l2_ops_t* vdin_v4l2p);
+extern vdin_v4l2_ops_t *get_vdin_v4l2_ops(void);
 #endif

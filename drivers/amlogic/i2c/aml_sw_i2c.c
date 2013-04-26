@@ -148,7 +148,7 @@ static int aml_sw_bit_getsda(void *data)
 {
 	struct aml_sw_i2c* i2c = (struct aml_sw_i2c*)data;
 	unsigned int sda;
-	//unsigned int oe;
+	unsigned int oe;
 
 	//set input
 /*	oe = readl(i2c->sw_pins->sda_oe);

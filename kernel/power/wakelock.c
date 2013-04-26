@@ -282,7 +282,11 @@ static void suspend(struct work_struct *work)
 	}
 
 	entry_event_num = current_event_num;
+	if (debug_mask & DEBUG_SUSPEND)
+		pr_info("suspend: sys_sync...");
 	sys_sync();
+	if (debug_mask & DEBUG_SUSPEND)
+		pr_info("done.\n");
 	if (debug_mask & DEBUG_SUSPEND)
 		pr_info("suspend: enter suspend\n");
 	getnstimeofday(&ts_entry);

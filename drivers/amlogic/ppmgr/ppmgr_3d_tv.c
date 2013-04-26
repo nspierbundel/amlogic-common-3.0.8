@@ -46,6 +46,7 @@ extern int get_ppmgr_vertical_sample(void);
 extern int get_ppmgr_scale_width(void);
 extern int get_ppmgr_view_mode(void);
 extern u32 index2canvas(u32 index);
+extern void ppmgr_vf_put_dec(vframe_t *vf);
 static inline u32 index2canvas_0(u32 index)
 {
     const u32 canvas_tab[4] = {
@@ -189,6 +190,18 @@ static int get_input_format(vframe_t* vf)
     int format= GE2D_FORMAT_M24_YUV420;
     if(vf->type&VIDTYPE_VIU_422){
         format =  GE2D_FORMAT_S16_YUV422;
+    }else if(vf->type&VIDTYPE_VIU_NV21){
+    	if(is_vertical_sample_enable(vf)){
+	    	 if(vf->type &VIDTYPE_INTERLACE_BOTTOM){
+	    	 	format =  GE2D_FORMAT_M24_NV21|(GE2D_FORMAT_M24_NV21B & (3<<3));
+	    	 	}else if(vf->type &VIDTYPE_INTERLACE_TOP){
+	    	 	format =  GE2D_FORMAT_M24_NV21|(GE2D_FORMAT_M24_NV21T & (3<<3));
+	    	 }else{
+	        	format =  GE2D_FORMAT_M24_NV21;
+	    	 }     	
+    	}else{
+    		 format =  GE2D_FORMAT_M24_NV21;
+    	}    	
     }else{
     	 if(is_vertical_sample_enable(vf)){
     	 	if(vf->type &VIDTYPE_INTERLACE_BOTTOM){
@@ -1157,8 +1170,8 @@ static void process_none(vframe_t* vf, ge2d_context_t *context,config_para_ex_t*
 //    stretchblt_noalpha(context,input_frame.content_left,input_frame.content_top,input_frame.content_width ,input_frame.content_height,0,0,new_vf->width,new_vf->height);
 stretchblt_noalpha(context,input_frame.frame_left,input_frame.frame_top,input_frame.frame_width ,input_frame.frame_height,0,0,new_vf->width,new_vf->height);
 
-
-    vf_put(vf,RECEIVER_NAME );
+    ppmgr_vf_put_dec(vf);
+    vfq_push(&q_ready, new_vf);
 }
 
 static int ratio_value = 10; // 0~255
@@ -1177,6 +1190,7 @@ static void process_2d_to_3d(vframe_t* vf, ge2d_context_t *context,config_para_e
     if (unlikely((!new_vf) || (!vf)))
         return;  
     pp_vf = to_ppframe(new_vf);
+    pp_vf->dec_frame = NULL;
     memcpy(new_vf , vf, sizeof(vframe_t));
     get_input_frame(vf,&input_frame);
 
@@ -1371,7 +1385,8 @@ static void process_2d_to_3d(vframe_t* vf, ge2d_context_t *context,config_para_e
     new_vf->ratio_control = 0;
 
 
-    vf_put(vf,RECEIVER_NAME );
+    ppmgr_vf_put_dec(vf);
+    vfq_push(&q_ready, new_vf);
     return;
 }
 
@@ -1390,6 +1405,7 @@ void process_2d_to_3d_switch(vframe_t* vf, ge2d_context_t *context,config_para_e
     if (unlikely((!new_vf) || (!vf)))
         return;  
     pp_vf = to_ppframe(new_vf);
+    pp_vf->dec_frame = NULL;
     memcpy(new_vf , vf, sizeof(vframe_t));
 //    new_vf->type = VIDTYPE_VIU_444|VIDTYPE_VIU_SINGLE_PLANE | VIDTYPE_VIU_FIELD;/*vf->type;*/
     new_vf->type = VIDTYPE_VIU_444|VIDTYPE_VIU_SINGLE_PLANE |  VIDTYPE_PROGRESSIVE ;
@@ -1576,7 +1592,8 @@ void process_2d_to_3d_switch(vframe_t* vf, ge2d_context_t *context,config_para_e
     new_vf->height = h2 ;
     new_vf->ratio_control = 0;
 
-    vf_put(vf,RECEIVER_NAME);
+    ppmgr_vf_put_dec(vf);
+    vfq_push(&q_ready, new_vf);
 }
 
 /*for 3D video input processing
@@ -1599,6 +1616,7 @@ void process_lr(vframe_t* vf, ge2d_context_t *context,config_para_ex_t* ge2d_con
     if (unlikely((!new_vf) || (!vf)))
         return;  
     pp_vf = to_ppframe(new_vf);
+    pp_vf->dec_frame = NULL;
     memcpy(new_vf , vf, sizeof(vframe_t));
     get_input_frame(vf,&input_frame);
     get_input_l_frame(vf,&l_frame);
@@ -1797,8 +1815,8 @@ void process_lr(vframe_t* vf, ge2d_context_t *context,config_para_ex_t* ge2d_con
     new_vf->width =  w2;
     new_vf->height = h2 ;
     new_vf->ratio_control = 0;
-
-    vf_put(vf,RECEIVER_NAME );
+    ppmgr_vf_put_dec(vf);
+    vfq_push(&q_ready, new_vf);
 }
 
 void process_bt(vframe_t* vf, ge2d_context_t *context,config_para_ex_t* ge2d_config)
@@ -1815,6 +1833,7 @@ void process_bt(vframe_t* vf, ge2d_context_t *context,config_para_ex_t* ge2d_con
     if (unlikely((!new_vf) || (!vf)))
         return;  
     pp_vf = to_ppframe(new_vf);
+    pp_vf->dec_frame = NULL;
     memcpy(new_vf , vf, sizeof(vframe_t));
     get_input_frame(vf,&input_frame);
     get_input_l_frame(vf,&l_frame);
@@ -2021,7 +2040,8 @@ void process_bt(vframe_t* vf, ge2d_context_t *context,config_para_ex_t* ge2d_con
     new_vf->height = h2 ;
     new_vf->ratio_control = 0;
 
-    vf_put(vf,RECEIVER_NAME );
+    ppmgr_vf_put_dec(vf);
+    vfq_push(&q_ready, new_vf);
 }
 
 void process_lr_switch(vframe_t* vf, ge2d_context_t *context,config_para_ex_t* ge2d_config)
@@ -2117,7 +2137,8 @@ ROUND2:
 
     stretchblt_noalpha(context,input_frame.frame_width/2,0,input_frame.content_width/2,input_frame.content_height, input_frame.content_left,0,input_frame.content_width/2 ,input_frame.frame_height);
 
-    vf_put(vf,RECEIVER_NAME );
+    ppmgr_vf_put_dec(vf);
+    vfq_push(&q_ready, new_vf);
 #else
     vframe_t* new_vf;
     ppframe_t *pp_vf;
@@ -2131,6 +2152,7 @@ ROUND2:
     if (unlikely((!new_vf) || (!vf)))
         return;  
     pp_vf = to_ppframe(new_vf);
+    pp_vf->dec_frame = NULL;
     memcpy(new_vf , vf, sizeof(vframe_t));
     get_input_frame(vf,&input_frame);
     get_input_l_frame(vf,&l_frame);
@@ -2328,9 +2350,10 @@ stretchblt_noalpha(context,r_frame.content_left,r_frame.content_top,r_frame.cont
 	}
     new_vf->width = w2;
     new_vf->height = h2 ;
+    new_vf->height = h2 ;
     new_vf->ratio_control = 0;
-
-    vf_put(vf,RECEIVER_NAME );
+    ppmgr_vf_put_dec(vf);
+    vfq_push(&q_ready, new_vf);
 
 #endif
 }
@@ -2358,6 +2381,7 @@ static void process_field_depth(vframe_t* vf, ge2d_context_t *context,config_par
     if (unlikely((!new_vf) || (!vf)))
         return;  
     pp_vf = to_ppframe(new_vf);
+    pp_vf->dec_frame = NULL;
     memcpy(new_vf , vf, sizeof(vframe_t));
     get_input_frame(vf,&input_frame);
 //    new_vf->type = VIDTYPE_VIU_444|VIDTYPE_VIU_SINGLE_PLANE | VIDTYPE_VIU_FIELD;/*vf->type;*/
@@ -2692,7 +2716,8 @@ static void process_field_depth(vframe_t* vf, ge2d_context_t *context,config_par
     new_vf->height = h2 ;
     new_vf->ratio_control = 0;
 
-    vf_put(vf,RECEIVER_NAME );
+    ppmgr_vf_put_dec(vf);
+    vfq_push(&q_ready, new_vf);
     return;
 }
 
@@ -2710,6 +2735,7 @@ void process_3d_to_2d_l(vframe_t* vf, ge2d_context_t *context,config_para_ex_t* 
     if (unlikely((!new_vf) || (!vf)))
         return;  
     pp_vf = to_ppframe(new_vf);
+    pp_vf->dec_frame = NULL;
     memcpy(new_vf , vf, sizeof(vframe_t));
     get_input_frame(vf,&input_frame);
     get_input_l_frame(vf,&l_frame);
@@ -2817,7 +2843,8 @@ void process_3d_to_2d_l(vframe_t* vf, ge2d_context_t *context,config_para_ex_t* 
 
     new_vf->width = w2 ;
 
-    vf_put(vf,RECEIVER_NAME );
+    ppmgr_vf_put_dec(vf);
+    vfq_push(&q_ready, new_vf);
 }
 
 void process_3d_to_2d_r(vframe_t* vf, ge2d_context_t *context,config_para_ex_t* ge2d_config)
@@ -2834,6 +2861,7 @@ void process_3d_to_2d_r(vframe_t* vf, ge2d_context_t *context,config_para_ex_t* 
     if (unlikely((!new_vf) || (!vf)))
         return;  
     pp_vf = to_ppframe(new_vf);
+    pp_vf->dec_frame = NULL;
     memcpy(new_vf , vf, sizeof(vframe_t));
     get_input_frame(vf,&input_frame);
     get_input_l_frame(vf,&l_frame);
@@ -2938,7 +2966,8 @@ void process_3d_to_2d_r(vframe_t* vf, ge2d_context_t *context,config_para_ex_t* 
 	}
     new_vf->width = w2 ;
 
-    vf_put(vf,RECEIVER_NAME );
+    ppmgr_vf_put_dec(vf);
+    vfq_push(&q_ready, new_vf);
 }
 
 /*for camera input processing*/
@@ -2953,6 +2982,7 @@ void process_camera_input(vframe_t* vf, ge2d_context_t *context,config_para_ex_t
     if (unlikely((!new_vf) || (!vf)))
         return;  
     pp_vf = to_ppframe(new_vf);
+    pp_vf->dec_frame = NULL;
     memcpy(new_vf , vf, sizeof(vframe_t));
  //   new_vf->type = VIDTYPE_VIU_444|VIDTYPE_VIU_SINGLE_PLANE | VIDTYPE_VIU_FIELD;/*vf->type;*/
     new_vf->type = VIDTYPE_VIU_444|VIDTYPE_VIU_SINGLE_PLANE |  VIDTYPE_PROGRESSIVE ;
@@ -3025,7 +3055,8 @@ void process_camera_input(vframe_t* vf, ge2d_context_t *context,config_para_ex_t
     }
     stretchblt_noalpha(context,0,0,vf->width,vf->height,0,0,new_vf->width,new_vf->height);
 
-    vf_put(vf,RECEIVER_NAME );
+    ppmgr_vf_put_dec(vf);
+    vfq_push(&q_ready, new_vf);
 }
 
 static void buffer_clear_2D(ge2d_context_t *context, config_para_ex_t* ge2d_config,int index)
@@ -3252,10 +3283,11 @@ void ppmgr_index_clear(ge2d_context_t *context, config_para_ex_t* ge2d_config ,i
 
 void ppmgr_vf_3d_tv(vframe_t* vf, ge2d_context_t *context,config_para_ex_t* ge2d_config)
 {
-    int process_type  = cur_process_type;
     display_frame_t input_frame ;
     display_frame_t l_frame ,r_frame ;
     canvas_t cd;
+    int process_type = get_tv_process_type(vf);
+    cur_process_type = process_type;    
     get_input_frame(vf,&input_frame);
     get_input_l_frame(vf,&l_frame);
     get_input_r_frame(vf,&r_frame);
@@ -3268,7 +3300,7 @@ void ppmgr_vf_3d_tv(vframe_t* vf, ge2d_context_t *context,config_para_ex_t* ge2d
      ||((input_frame.content_top +input_frame.content_height ) > cd.height )
      ||((input_frame.frame_left +input_frame.frame_width )> cd.width )
      ||((input_frame.frame_top +input_frame.frame_height ) > cd.height )){
-		vf_put(vf,RECEIVER_NAME );
+    ppmgr_vf_put_dec(vf);
 		printk("case 1: vdin canvas setting is not compatible with vframe!!!\n");
 		return ;
     }
@@ -3277,7 +3309,7 @@ void ppmgr_vf_3d_tv(vframe_t* vf, ge2d_context_t *context,config_para_ex_t* ge2d
      ||((l_frame.content_top +l_frame.content_height ) > cd.height )
      ||((l_frame.frame_left +l_frame.frame_width )> cd.width )
      ||((l_frame.frame_top +l_frame.frame_height ) > cd.height )){
-		vf_put(vf,RECEIVER_NAME );
+    ppmgr_vf_put_dec(vf);
 		printk("case 2: vdin canvas setting is not compatible with vframe!!!\n");
 		return ;
     }
@@ -3286,7 +3318,7 @@ void ppmgr_vf_3d_tv(vframe_t* vf, ge2d_context_t *context,config_para_ex_t* ge2d
      ||((r_frame.content_top +r_frame.content_height ) > cd.height )
      ||((r_frame.frame_left +r_frame.frame_width )> cd.width )
      ||((r_frame.frame_top +r_frame.frame_height ) > cd.height )){
-		vf_put(vf,RECEIVER_NAME );
+    ppmgr_vf_put_dec(vf);
 		printk("case 3:vdin canvas setting is not compatible with vframe!!!\n");
 		return ;
     }

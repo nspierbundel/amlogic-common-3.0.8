@@ -52,6 +52,16 @@
 static unsigned char init_flag = 0;
 static dev_t	hdmirx_devno;
 static struct class	*hdmirx_clsp;
+extern void clk_init(void);
+static int open_flage = 0;
+struct hdmirx_dev_s *devp_hdmirx_suspend;
+extern void clk_off(void);
+extern void hdmirx_wr_top (unsigned long addr, unsigned long data);
+int resume_flag = 0;
+MODULE_PARM_DESC(resume_flag, "\n resume_flag \n");
+module_param(resume_flag, int, 0664);
+
+
 
 typedef struct hdmirx_dev_s {
 	int                         index;
@@ -83,11 +93,13 @@ int hdmirx_dec_support(struct tvin_frontend_s *fe, enum tvin_port_e port)
 	}
 }
 
-void hdmirx_dec_open(struct tvin_frontend_s *fe, enum tvin_port_e port)
+int hdmirx_dec_open(struct tvin_frontend_s *fe, enum tvin_port_e port)
 {
 	struct hdmirx_dev_s *devp;
-
+	
+	open_flage = 1;
 	devp = container_of(fe, struct hdmirx_dev_s, frontend);
+	devp_hdmirx_suspend = container_of(fe, struct hdmirx_dev_s, frontend);
 	devp->param.port = port;
 	hdmirx_hw_enable();
 	hdmirx_hw_init(port);
@@ -98,6 +110,7 @@ void hdmirx_dec_open(struct tvin_frontend_s *fe, enum tvin_port_e port)
 	devp->timer.expires = jiffies + TIMER_STATE_CHECK;
 	add_timer(&devp->timer);
 	pr_info("%s port:%x ok\n",__FUNCTION__, port);
+	return 0;
 }
 
 void hdmirx_dec_start(struct tvin_frontend_s *fe, enum tvin_sig_fmt_e fmt)
@@ -105,7 +118,9 @@ void hdmirx_dec_start(struct tvin_frontend_s *fe, enum tvin_sig_fmt_e fmt)
 	struct hdmirx_dev_s *devp;
 	struct tvin_parm_s *parm;
 	
+	open_flage = 1;
 	devp = container_of(fe, struct hdmirx_dev_s, frontend);
+	devp_hdmirx_suspend = container_of(fe, struct hdmirx_dev_s, frontend);
 	parm = &devp->param;
 	parm->info.fmt = fmt;
 	parm->info.status = TVIN_SIG_STATUS_STABLE;
@@ -129,6 +144,7 @@ void hdmirx_dec_close(struct tvin_frontend_s *fe)
 	struct hdmirx_dev_s *devp;
 	struct tvin_parm_s *parm;
 
+	open_flage = 0;
 	devp = container_of(fe, struct hdmirx_dev_s, frontend);
 	parm = &devp->param;
 	del_timer_sync(&devp->timer);
@@ -178,6 +194,8 @@ bool hdmirx_fmt_chg(struct tvin_frontend_s *fe)
 	struct hdmirx_dev_s *devp;
 	struct tvin_parm_s *parm;
 
+#if 1
+
 	devp = container_of(fe, struct hdmirx_dev_s, frontend);
 	parm = &devp->param;
 	if (!hdmirx_hw_pll_lock()) {
@@ -188,11 +206,28 @@ bool hdmirx_fmt_chg(struct tvin_frontend_s *fe)
 		{
 			pr_info("hdmirx %d --> %d\n", parm->info.fmt, fmt);
 			parm->info.fmt = fmt;
-			return true;
+			if (video_format_change()) {
+				printk("vic change, return ture\n");
+				return true;
+			} else {
+				printk("vic change, pixel not change, return false\n");
+				return false;
+			}
 		} else {
 			return false;
 		}
 	}
+#else
+	devp = container_of(fe, struct hdmirx_dev_s, frontend);
+	parm = &devp->param;
+	if (!hdmirx_hw_pll_lock()) {
+		return true;
+	} else {
+		ret = video_format_change();
+		return ret;
+	}
+
+#endif
 
 }
 
@@ -221,7 +256,7 @@ enum tvin_color_fmt_e hdmirx_get_color_fmt(struct tvin_frontend_s *fe)
 		color_fmt = TVIN_YUV444;
 		break;
 	case 3:
-		color_fmt = TVIN_YUV422;
+		color_fmt = TVIN_YUYV422;
 		break;
 	case 0:
 	default:
@@ -236,12 +271,13 @@ void hdmirx_get_sig_propery(struct tvin_frontend_s *fe, struct tvin_sig_property
 	unsigned char _3d_structure, _3d_ext_data;
 
 	prop->dvi_info = hdmirx_hw_get_dvi_info();
+	
 	switch (hdmirx_hw_get_color_fmt()) {
 	case 1:
 		prop->color_format = TVIN_YUV444;
 		break;
 	case 3:
-		prop->color_format = TVIN_YUV422;
+		prop->color_format = TVIN_YUYV422;
 		break;
 	case 0:
 	default:
@@ -353,6 +389,25 @@ static unsigned int  hdmirx_log_buf_size = 0;
 static DEFINE_SPINLOCK (hdmirx_print_lock);
 #define DEF_LOG_BUF_SIZE (1024*128)
 #define PRINT_TEMP_BUF_SIZE 128
+
+void hdmirx_powerdown(const char* buf, int size)
+{
+	char tmpbuf[128];
+	int i = 0;
+
+	while((buf[i]) && (buf[i] != ',') && (buf[i] != ' ')) {
+		tmpbuf[i]=buf[i];
+		i++;
+	}
+	tmpbuf[i] = 0;
+	if(strncmp(tmpbuf, "powerdown", 9)==0){
+		if (open_flage == 1) {
+			del_timer_sync(&devp_hdmirx_suspend->timer);
+			WRITE_MPEG_REG(HHI_HDMIRX_CLK_CNTL,0x0);
+		}
+		pr_info("[hdmirx]: hdmirx power down\n");
+  	}
+}
 
 int hdmirx_print_buf(char* buf, int len)
 {
@@ -480,6 +535,7 @@ static ssize_t hdmirx_debug_show(struct device *dev, struct device_attribute *at
 static ssize_t hdmirx_debug_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
 {
 	hdmirx_debug(buf, count);
+	hdmirx_powerdown(buf, count);
 	return count;
 }
 
@@ -677,17 +733,82 @@ static int hdmirx_remove(struct platform_device *pdev)
 #ifdef CONFIG_PM
 static int hdmirx_suspend(struct platform_device *pdev, pm_message_t state)
 {
-	pr_info("hdmirx: hdmirx_suspend\n");
-	hdmirx_hw_disable(1);
-	pr_info("hdmirx: suspend module\n");
+	int i = 0;
+	
+	pr_info("[hdmirx]: hdmirx_suspend\n");
+	if (open_flage == 1) {
+		pr_info("[hdmirx]: suspend--step1111\n");
+		if (resume_flag == 0)
+		del_timer_sync(&devp_hdmirx_suspend->timer);
+		pr_info("[hdmirx]: suspend--step2\n");
+		pr_info("[hdmirx]: suspend--step3\n");
+		for (i = 0; i < 5000; i++) {
+		}
+		pr_info("[hdmirx]: suspend--step4\n");
+	}
+	pr_info("[hdmirx]: suspend--step5\n");
+	clk_off();
+	pr_info("[hdmirx]: suspend success\n");
 	return 0;
 }
 
 static int hdmirx_resume(struct platform_device *pdev)
 {
-	hdmirx_hw_enable();
+	unsigned int data32;
+	int i;
+
+	//hdmirx_hw_enable();
 	pr_info("hdmirx: resume module\n");
+
+	/* DWC clock enable */
+	//Wr_reg_bits(HHI_GCLK_MPEG0, 1, 21, 1);  // Turn on clk_hdmirx_pclk, also = sysclk
+	WRITE_MPEG_REG(HHI_GCLK_MPEG0, (READ_MPEG_REG(HHI_GCLK_MPEG0) | (1 << 21)));
+	// Enable APB3 fail on error
+	//*((volatile unsigned long *) P_HDMIRX_CTRL_PORT)          |= (1 << 15);   // APB3 to HDMIRX-TOP err_en
+	//*((volatile unsigned long *) (P_HDMIRX_CTRL_PORT+0x10))   |= (1 << 15);   // APB3 to HDMIRX-DWC err_en
+
+	//turn on clocks: md, cfg...
+
+	data32  = 0;
+	data32 |= 0 << 25;  // [26:25] HDMIRX mode detection clock mux select: osc_clk
+	data32 |= 1 << 24;  // [24]    HDMIRX mode detection clock enable
+	data32 |= 0 << 16;  // [22:16] HDMIRX mode detection clock divider
+	data32 |= 3 << 9;   // [10: 9] HDMIRX config clock mux select: fclk_div5=400MHz
+	data32 |= 1 << 8;   // [    8] HDMIRX config clock enable
+	data32 |= 3 << 0;   // [ 6: 0] HDMIRX config clock divider: 400/4=100MHz
+	WRITE_MPEG_REG(HHI_HDMIRX_CLK_CNTL,     data32);
+
+	data32  = 0;
+	data32 |= 2             << 25;  // [26:25] HDMIRX ACR ref clock mux select: fclk_div5
+	data32 |= rx.ctrl.acr_mode      << 24;  // [24]    HDMIRX ACR ref clock enable
+	data32 |= 0             << 16;  // [22:16] HDMIRX ACR ref clock divider
+	data32 |= 2             << 9;   // [10: 9] HDMIRX audmeas clock mux select: fclk_div5
+	data32 |= 1             << 8;   // [    8] HDMIRX audmeas clock enable
+	data32 |= 1             << 0;   // [ 6: 0] HDMIRX audmeas clock divider: 400/2 = 200MHz
+	WRITE_MPEG_REG(HHI_HDMIRX_AUD_CLK_CNTL, data32);
+	pr_info("hdmirx: resume module---1\n");
+
+	for (i = 0; i < 5000; i++) {
+	}
+
+	data32  = 0;
+	data32 |= 1 << 17;  // [17]     audfifo_rd_en
+	data32 |= 1 << 16;  // [16]     pktfifo_rd_en
+	data32 |= 1 << 2;   // [2]      hdmirx_cecclk_en
+	data32 |= 0 << 1;   // [1]      bus_clk_inv
+	data32 |= 0 << 0;   // [0]      hdmi_clk_inv
+	if (resume_flag == 0)
+	hdmirx_wr_top( 0x1, data32);    // DEFAULT: {32'h0}
+	pr_info("hdmirx: resume module---2\n");
+
+	for (i = 0; i < 5000; i++) {
+	}
+	if ((resume_flag == 0) && (open_flage == 1))
+	add_timer(&devp_hdmirx_suspend->timer);
+	pr_info("hdmirx: resume module---end,open_flage:%d\n",open_flage);
+
 	return 0;
+
 }
 #endif
 
@@ -703,6 +824,7 @@ static struct platform_driver hdmirx_driver = {
 	}
 };
 
+void hdmirx_irq_init(void);
 static int __init hdmirx_init(void)
 {
 	int ret = 0;
@@ -729,6 +851,8 @@ static int __init hdmirx_init(void)
 		goto fail_pdrv_register;
 	}
 	pr_info("hdmirx: hdmirx_init.\n");
+	
+	hdmirx_irq_init();
 	return 0;
 
 fail_pdrv_register:

@@ -23,18 +23,23 @@
 #include <linux/regulator/machine.h>
 
 #include <mach/voltage.h>
-
+#if 0
 struct meson_opp meson_vcck_opp_table[] = {
     /* freq must be in descending order */
     {
+        .freq   = 1500000,
+        .min_uV = 1370000,
+        .max_uV = 1370000,
+    },
+    {
         .freq   = 1320000,
-        .min_uV = 1209000,
-        .max_uV = 1209000,
+        .min_uV = 1327000,
+        .max_uV = 1327000,
     },
     {
         .freq   = 1200000,
-        .min_uV = 1192000,
-        .max_uV = 1192000,
+        .min_uV = 1193000,
+        .max_uV = 1193000,
     },
 	/* {
         .freq   = 1000000,
@@ -62,6 +67,46 @@ struct meson_opp meson_vcck_opp_table[] = {
         .max_uV = 979000,
     }
 };
+#endif
+struct meson_opp meson_vcck_opp_table[] = {
+    /* freq must be in descending order */
+    {
+        .freq   = 1500000,
+        .min_uV = 1370000,
+        .max_uV = 1370000,
+    },
+    {
+        .freq   = 1320000,
+        .min_uV = 1327000,
+        .max_uV = 1327000,
+    },
+    {
+        .freq   = 1200000,
+        .min_uV = 1193000,
+        .max_uV = 1193000,
+    },
+    /*{
+        .freq   = 1080000,
+        .min_uV = 1110000,
+        .max_uV = 1110000,
+    },*/
+    {
+        .freq   = 840000,
+        .min_uV = 1110000,
+        .max_uV = 1110000,
+    },
+/*    {
+        .freq   = 600000,
+        .min_uV = 996000,
+        .max_uV = 996000,
+    },
+*/  {
+        .freq   = 200000,
+        .min_uV = 1067000,
+        .max_uV = 1067000,
+    }
+};
+
 
 const int meson_vcck_opp_table_size = ARRAY_SIZE(meson_vcck_opp_table);
 
@@ -96,6 +141,8 @@ int meson_vcck_scale(struct regulator *reg, struct meson_opp *table,
     for (i = 0; i < tablesize; i++) {
         if (table[i].freq >= frequency)
             optimal = i;
+        else
+            break;
     }
     opp = &table[optimal];
 

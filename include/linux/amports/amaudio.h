@@ -70,8 +70,10 @@
 #define AMAUDIO_IOC_START_HDMI_IN           _IOW(AMAUDIO_IOC_MAGIC, 0x16, int)
 #define AMAUDIO_IOC_STOP_LINE_IN            _IOW(AMAUDIO_IOC_MAGIC, 0x17, int)
 #define AMAUDIO_IOC_STOP_HDMI_IN            _IOW(AMAUDIO_IOC_MAGIC, 0x18, int)
-
-
+#define AMAUDIO_IOC_SET_RESAMPLE_ENA        _IOW(AMAUDIO_IOC_MAGIC, 0x19, unsigned long)
+#define AMAUDIO_IOC_GET_RESAMPLE_ENA        _IOR(AMAUDIO_IOC_MAGIC, 0x1a, unsigned long)
+#define AMAUDIO_IOC_SET_RESAMPLE_TYPE       _IOW(AMAUDIO_IOC_MAGIC, 0x1b, unsigned long)
+#define AMAUDIO_IOC_GET_RESAMPLE_TYPE       _IOR(AMAUDIO_IOC_MAGIC, 0x1c, unsigned long)
 
 	
 

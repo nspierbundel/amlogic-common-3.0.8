@@ -34,6 +34,7 @@
 
 #include <trace/events/ext4.h>
 
+extern int journal_has_data_buffers(journal_t *journal);
 static void dump_completed_IO(struct inode * inode)
 {
 #ifdef	EXT4FS_DEBUG
@@ -207,7 +208,8 @@ int ext4_sync_file(struct file *file, int datasync)
 	 *  safe in-journal, which is all fsync() needs to ensure.
 	 */
 	if (ext4_should_journal_data(inode)) {
-		ret = ext4_force_commit(inode->i_sb);
+		if(!datasync || journal_has_data_buffers(journal))
+			ret = ext4_force_commit(inode->i_sb);
 		goto out;
 	}
 

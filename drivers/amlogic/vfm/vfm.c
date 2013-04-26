@@ -252,6 +252,7 @@ char* vf_get_receiver_name(const char* provider_name)
 
 static void vfm_init(void)
 {
+
 #ifdef CONFIG_POST_PROCESS_MANAGER
     char def_id[] = "default";
     char def_name_chain[] = "decoder ppmgr amvideo";
@@ -273,13 +274,18 @@ static void vfm_init(void)
 #endif    
 #endif
     char def_osd_id[] = "default_osd";
-    //char def_osd_name_chain[] = "osd amvideo4osd";
-    char def_osd_name_chain[] = "osd amvideo";
+    char def_osd_name_chain[] = "osd amvideo4osd";
+    //char def_osd_name_chain[] = "osd amvideo";
 
 #ifdef CONFIG_VDIN_MIPI
     char def_mipi_id[] = "default_mipi";
     char def_mipi_name_chain[] = "vdin mipi";
 #endif  
+
+#ifdef CONFIG_V4L_AMLOGIC_VIDEO2
+    char def_amlvideo2_id[] = "default_amlvideo2";
+    char def_amlvideo2_chain[] = "vdin1 amlvideo2";
+#endif
 
     int i;
     for(i=0; i<VFM_MAP_COUNT; i++){
@@ -293,7 +299,14 @@ static void vfm_init(void)
 #ifdef CONFIG_AMLOGIC_VIDEOIN_MANAGER
     vfm_map_add(def_ext_id, def_ext_name_chain);
 #endif    
-
+#ifdef CONFIG_DEINTERLACE     
+    char tvpath_id[] = "tvpath";
+    char tvpath_chain[]="vdin0 deinterlace amvideo";
+    vfm_map_add(tvpath_id, tvpath_chain);
+#endif
+#ifdef CONFIG_V4L_AMLOGIC_VIDEO2
+    vfm_map_add(def_amlvideo2_id, def_amlvideo2_chain);
+#endif
 }
 
 /*

@@ -549,9 +549,6 @@ asmlinkage void __init start_kernel(void)
 	early_boot_irqs_disabled = false;
 	local_irq_enable();
 
-	/* Interrupts are enabled now so all GFP allocations are safe. */
-	gfp_allowed_mask = __GFP_BITS_MASK;
-
 	kmem_cache_init_late();
 
 	/*
@@ -695,18 +692,17 @@ int __init_or_module do_one_initcall(initcall_t fn)
 
 extern initcall_t __defferred_initcall_start[], __defferred_initcall_end[];
 /*load deferred modules*/
-int do_deferred_initcalls_thread(void *arg)
+void do_deferred_initcalls_thread(void)
 {
-	static int already_run=0;
-	initcall_t *call;
-
 	daemonize("deferred_module_init"); 
 
+	initcall_t *call;
+	static int already_run=0;
 
 	if (already_run)
 	{
 		printk("do_deferred_initcalls() has already run\n");
-		return 0;
+		return;
 	}
 
 	already_run=1;
@@ -723,13 +719,11 @@ int do_deferred_initcalls_thread(void *arg)
 	schedule_timeout(HZ*10); 
 
 	//unlock_kernel();
-
-	return 0;
 }
 
-int do_deferred_initcalls(void)
+void do_deferred_initcalls(void)
 {
-	kernel_thread(do_deferred_initcalls_thread, NULL, CLONE_KERNEL | SIGCHLD);
+    kernel_thread(do_deferred_initcalls_thread, NULL, CLONE_KERNEL | SIGCHLD);
 	return 0;
 }
 
@@ -827,6 +821,10 @@ static int __init kernel_init(void * unused)
 	 * Wait until kthreadd is all set-up.
 	 */
 	wait_for_completion(&kthreadd_done);
+
+	/* Now the scheduler is fully set up and can do blocking allocations */
+	gfp_allowed_mask = __GFP_BITS_MASK;
+
 	/*
 	 * init can allocate pages on any node
 	 */

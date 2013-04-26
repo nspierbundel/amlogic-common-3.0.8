@@ -1043,6 +1043,7 @@ typedef struct SD_MMC_Card_Info {
 	SD_UHS_I_MODE_t uhs_mode;
 	SD_REG_CID_t raw_cid;	
 	SDIO_Pad_Type_t  io_pad_type;	/* hw io pin pad */
+	enum card_clock_mode  max_clock;
 
 	unsigned short card_rca;
 	unsigned char sdio_function_nums;

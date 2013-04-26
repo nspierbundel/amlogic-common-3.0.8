@@ -34,12 +34,19 @@
 
 #elif defined (CONFIG_USB_HCI)
 #ifdef CONFIG_USB_TX_AGGREGATION
-#define MAX_XMITBUF_SZ	20480	// 20k
+	#ifdef CONFIG_PLATFORM_ARM_SUNxI
+		#define MAX_XMITBUF_SZ (12288)  //12k 1536*8
+	#else
+		#define MAX_XMITBUF_SZ	(20480)	// 20k
+	#endif
 #else
 #define MAX_XMITBUF_SZ	(2048)
 #endif //CONFIG_USB_TX_AGGREGATION
-
+#ifdef CONFIG_SINGLE_XMIT_BUF
+#define NR_XMITBUFF	(1)
+#else
 #define NR_XMITBUFF	(4)
+#endif //CONFIG_SINGLE_XMIT_BUF
 
 #elif defined (CONFIG_PCI_HCI)
 #define MAX_XMITBUF_SZ	(1664)
@@ -58,8 +65,11 @@
 
 // xmit extension buff defination
 #define MAX_XMIT_EXTBUF_SZ	(1536)
-
+#ifdef CONFIG_SINGLE_XMIT_BUF
+#define NR_XMIT_EXTBUFF	(1)
+#else
 #define NR_XMIT_EXTBUFF	(32)
+#endif //CONFIG_SINGLE_XMIT_BUF
 
 #define MAX_NUMBLKS		(1)
 
@@ -67,6 +77,17 @@
 #define XMIT_VI_QUEUE (1)
 #define XMIT_BE_QUEUE (2)
 #define XMIT_BK_QUEUE (3)
+
+#define VO_QUEUE_INX		0
+#define VI_QUEUE_INX		1
+#define BE_QUEUE_INX		2
+#define BK_QUEUE_INX		3
+#define BCN_QUEUE_INX		4
+#define MGT_QUEUE_INX		5
+#define HIGH_QUEUE_INX		6
+#define TXCMD_QUEUE_INX	7
+
+#define HW_QUEUE_ENTRY	8
 
 #ifdef CONFIG_PCI_HCI
 //#define TXDESC_NUM						64
@@ -371,6 +392,35 @@ struct pkt_attrib
 
 #define TXAGG_FRAMETAG 	0x08
 
+struct  submit_ctx{
+	u32 submit_time; /* */
+	u32 timeout_ms; /* <0: not synchronous, 0: wait forever, >0: up to ms waiting */
+	int status; /* status for operation */
+#ifdef PLATFORM_LINUX
+	struct completion done;
+#endif
+};
+
+enum {
+	RTW_SCTX_SUBMITTED = -1,
+	RTW_SCTX_DONE_SUCCESS = 0,
+	RTW_SCTX_DONE_UNKNOWN,
+	RTW_SCTX_DONE_TIMEOUT,
+	RTW_SCTX_DONE_BUF_ALLOC,
+	RTW_SCTX_DONE_BUF_FREE,
+	RTW_SCTX_DONE_WRITE_PORT_ERR,
+	RTW_SCTX_DONE_TX_DESC_NA,
+	RTW_SCTX_DONE_TX_DENY,
+	RTW_SCTX_DONE_CCX_PKT_FAIL,
+	RTW_SCTX_DONE_DRV_STOP,
+	RTW_SCTX_DONE_DEV_REMOVE,
+};
+
+
+void rtw_sctx_init(struct submit_ctx *sctx, int timeout_ms);
+int rtw_sctx_wait(struct submit_ctx *sctx);
+void rtw_sctx_done_err(struct submit_ctx **sctx, int status);
+void rtw_sctx_done(struct submit_ctx **sctx);
 
 struct xmit_buf
 {
@@ -388,6 +438,8 @@ struct xmit_buf
 	u16 flags;
 	u32 alloc_sz;
 
+	struct submit_ctx *sctx;
+
 #ifdef CONFIG_USB_HCI
 
 	u32 sz[8];
@@ -403,12 +455,6 @@ struct xmit_buf
 
 #ifdef PLATFORM_OS_CE
 	USB_TRANSFER	usb_transfer_write_port;
-#endif
-
-#ifdef PLATFORM_LINUX
-	u8 isSync; //is this synchronous?
-	int status; // keeping urb status for synchronous call to access
-	struct completion done; // for wirte_port synchronously
 #endif
 
 	u8 bpending[8];
@@ -472,6 +518,10 @@ struct xmit_frame
 	u16	EMPktLen[5];//The max value by HW
 #endif
 #endif
+#ifdef CONFIG_XMIT_ACK
+	u8 ack_report;
+#endif
+
 };
 
 struct tx_servq {
@@ -611,6 +661,13 @@ struct	xmit_priv	{
 	uint free_xmit_extbuf_cnt;
 
 	u16	nqos_ssn;
+
+#ifdef CONFIG_XMIT_ACK
+	int	ack_tx;
+	_mutex ack_tx_mutex;
+	struct submit_ctx ack_tx_ops;
+#endif
+	
 };
 
 extern struct xmit_buf *rtw_alloc_xmitbuf_ext(struct xmit_priv *pxmitpriv);
@@ -639,9 +696,6 @@ extern s32 rtw_xmitframe_coalesce(_adapter *padapter, _pkt *pkt, struct xmit_fra
 #ifdef CONFIG_TDLS
 s32 rtw_xmit_tdls_coalesce(_adapter *padapter, struct xmit_frame *pxmitframe, u8 action);
 #endif //CONFIG_TDLS
-#ifdef CONFIG_IOL
-void rtw_dump_xframe_sync(_adapter *padapter, struct xmit_frame *pxmitframe);
-#endif
 s32 _rtw_init_hw_txqueue(struct hw_txqueue* phw_txqueue, u8 ac_tag);
 void _rtw_init_sta_xmit_priv(struct sta_xmit_priv *psta_xmitpriv);
 
@@ -658,7 +712,6 @@ void _rtw_free_xmit_priv (struct xmit_priv *pxmitpriv);
 void rtw_alloc_hwxmits(_adapter *padapter);
 void rtw_free_hwxmits(_adapter *padapter);
 
-s32 rtw_free_xmitframe_ex(struct xmit_priv *pxmitpriv, struct xmit_frame *pxmitframe);
 
 s32 rtw_xmit(_adapter *padapter, _pkt **pkt);
 
@@ -670,6 +723,12 @@ void xmit_delivery_enabled_frames(_adapter *padapter, struct sta_info *psta);
 #endif
 
 u8	qos_acm(u8 acm_mask, u8 priority);
+
+#ifdef CONFIG_XMIT_ACK
+int rtw_ack_tx_wait(struct xmit_priv *pxmitpriv, u32 timeout_ms);
+void rtw_ack_tx_done(struct xmit_priv *pxmitpriv, int status);
+#endif //CONFIG_XMIT_ACK
+
 
 //include after declaring struct xmit_buf, in order to avoid warning
 #include <xmit_osdep.h>

@@ -27,12 +27,14 @@
 #define _DVBFRONTEND_H_
 
 #include <linux/types.h>
+#include <linux/videodev2.h>
 
 typedef enum fe_type {
 	FE_QPSK,
 	FE_QAM,
 	FE_OFDM,
-	FE_ATSC
+	FE_ATSC,
+	FE_ANALOG
 } fe_type_t;
 
 
@@ -247,6 +249,16 @@ struct dvb_ofdm_parameters {
 	fe_ofdm_mode_t ofdm_mode;
 };
 
+#define ANALOG_FLAG_ENABLE_AFC                 0X00000001
+#define  ANALOG_FLAG_MANUL_SCAN                0x00000011   
+struct dvb_analog_parameters {
+	unsigned int         audmode; /*V4L2_TUNER_MODE_MONO,V4L2_TUNER_MODE_STEREO,V4L2_TUNER_MODE_LANG2,V4L2_TUNER_MODE_SAP,V4L2_TUNER_MODE_LANG1,V4L2_TUNER_MODE_LANG1_LANG2*/
+	unsigned int         soundsys;/*A2,BTSC,EIAJ,NICAM*/
+	v4l2_std_id           std;
+	unsigned int         flag;
+                unsigned int         afc_range;
+        unsigned int         reserved;
+};
 
 struct dvb_frontend_parameters {
 	__u32 frequency;     /* (absolute) frequency in Hz for QAM/OFDM/ATSC */
@@ -257,6 +269,7 @@ struct dvb_frontend_parameters {
 		struct dvb_qam_parameters  qam;
 		struct dvb_ofdm_parameters ofdm;
 		struct dvb_vsb_parameters vsb;
+		struct dvb_analog_parameters analog;
 	} u;
 };
 
@@ -357,7 +370,8 @@ typedef enum fe_delivery_system {
 	SYS_DMBTH,
 	SYS_CMMB,
 	SYS_DAB,
-	SYS_DVBT2,
+	SYS_ANALOG,
+	SYS_DVBT2
 } fe_delivery_system_t;
 
 struct dtv_cmds_h {
@@ -393,42 +407,86 @@ struct dtv_properties {
 	__u32 num;
 	struct dtv_property *props;
 };
+//for atv
+typedef struct tuner_status_s {
+	unsigned int frequency;
+	unsigned int rssi;
+	unsigned char mode;//dtv:0 or atv:1
+	unsigned char tuner_locked;//notlocked:0,locked:1
+	void 		 *ressrved;
+}tuner_status_t;
+
+typedef struct atv_status_s {
+	unsigned char atv_lock;//notlocked:0,locked 1
+	v4l2_std_id	  std;
+	unsigned int  audmode;
+			 int  snr;
+                         int  afc;
+	void     	  *resrvred;
+}atv_status_t;
+
+typedef struct sound_status_s {
+	unsigned short sound_sys;//A2DK/A2BG/NICAM BG/NICAM DK/BTSC/EIAJ
+	unsigned short sound_mode;//SETERO/DUAL/MONO/SAP
+	void     	       *resrvred;
+}sound_status_t;
+typedef enum tuner_param_cmd_e{
+	TUNER_CMD_AUDIO_MUTE = 0x0000,
+	TUNER_CMD_AUDIO_ON,// 0x0001,
+	TUNER_CMD_TUNER_POWER_ON,
+	TUNER_CMD_TUNER_POWER_DOWN,
+	TUNER_CMD_SET_VOLUME,
+	TUNER_CMD_SET_LEAP_SETP_SIZE,
+	TUNER_CMD_GET_MONO_MODE,
+	TUNER_CMD_SET_BEST_LOCK_RANGE,
+	TUNER_CMD_GET_BEST_LOCK_RANGE,
+	TUNER_CMD_SET_CVBS_AMP_OUT,
+	TUNER_CMD_GET_CVBS_AMP_OUT,
+	TUNER_CMD_NULL,
+}tuner_param_cmd_t;
+/*parameter for set param box*/
+typedef struct tuner_param_s {
+	tuner_param_cmd_t cmd;
+	unsigned int      parm;
+	unsigned int 	  resvred;
+}tuner_param_t;
 
 #define FE_SET_PROPERTY		   _IOW('o', 82, struct dtv_properties)
 #define FE_GET_PROPERTY		   _IOR('o', 83, struct dtv_properties)
 
-/*Stores the blind scan parameters which are passed to the FE_SET_BLINDSCAN ioctl.*/
-struct dvbsx_blindscanpara
-{
-	__u16 m_uifrequency_100khz;
-	__u16 m_uitunerlpf_100khz;
-	__u16 m_uistartfreq_100khz;		/*The start scan frequency in units of 100kHz. The minimum value depends on the tuner specification.*/ 
-	__u16 m_uistopfreq_100khz;		/*The stop scan frequency in units of 100kHz. The maximum value depends on the tuner specification.*/
-	__u16 m_uiminsymrate_khz;		/*The minimum symbol rate to be scanned in units of kHz. The minimum value is 1000 kHz.*/
-	__u16 m_uimaxsymrate_khz;		/*The maximum symbol rate to be scanned in units of kHz. The maximum value is 45000 kHz.*/
+/* Satellite blind scan settings */
+struct dvbsx_blindscanpara {
+	__u32 minfrequency;			/* minimum tuner frequency in kHz */
+	__u32 maxfrequency;			/* maximum tuner frequency in kHz */
+	__u32 minSymbolRate;		/* minimum symbol rate in sym/sec */
+	__u32 maxSymbolRate;		/* maximum symbol rate in sym/sec */
+	__u32 frequencyRange;		/* search range in kHz. freq -/+freqRange will be searched */
+	__u32 frequencyStep;			/* tuner step frequency in kHz */	
+	__s32 timeout;				/* blindscan event timeout*/
 };
 
-/*Stores the blind scan status information.*/
-struct dvbsx_blindscaninfo
-{
-	__u16 m_uiProgress;					/*The percentage completion of the blind scan procedure. A value of 100 indicates that the blind scan is finished.*/ 
-	__u16 m_uiChannelCount;				/*The number of channels detected thus far by the blind scan operation.  The Availink device can store up to 120 detected channels.*/ 
-	__u16 m_uiNextStartFreq_100kHz;	/*The start frequency of the next scan in units of 100kHz.*/ 
-	__u16 m_uiResultCode;				/*The result of the blind scan operation.  Possible values are:  0 - blind scan operation normal; 1 -- more than 120 channels have been detected.*/ 
-};
+/* Satellite blind scan status */
+typedef enum dvbsx_blindscanstatus {
+	BLINDSCAN_NONEDO,
+	BLINDSCAN_UPDATESTARTFREQ,
+	BLINDSCAN_UPDATEPROCESS,
+	BLINDSCAN_UPDATERESULTFREQ
+} dvbsx_blindscanstatus_t;
 
-#define DVBSX_IOCTL_MAX_CHANNEL_INFO 16
-
-/*Store the blind scan channel info*/
-struct dvbsx_frontend_parameters {
-	struct dvb_frontend_parameters parameters[DVBSX_IOCTL_MAX_CHANNEL_INFO];
+/* Satellite blind scan event */
+struct dvbsx_blindscanevent {
+	dvbsx_blindscanstatus_t status;
+	union {
+		__u16 m_uiprogress;							/* The percentage completion of the blind scan procedure. A value of 100 indicates that the blind scan is finished. */
+		__u32 m_uistartfreq_khz;					/* The start scan frequency in units of kHz. The minimum value depends on the tuner specification. */
+		struct dvb_frontend_parameters parameters;	/* Blind scan channel info. */
+	} u;	
 };
 
 #define FE_SET_BLINDSCAN					_IOW('o', 84, struct dvbsx_blindscanpara)
-#define FE_GET_BLINDSCANSTATUS			    _IOR('o', 85, struct dvbsx_blindscaninfo)
+#define FE_GET_BLINDSCANEVENT		   		_IOR('o', 85, struct dvbsx_blindscanevent)
 #define FE_SET_BLINDSCANCANCEl				_IO('o', 86)
-#define FE_READ_BLINDSCANCHANNELINFO		_IOR('o', 87, struct dvbsx_frontend_parameters)
-#define FE_SET_BLINDSCANRESET               _IO('o', 88)
+
 /**
  * When set, this flag will disable any zigzagging or other "normal" tuning
  * behaviour. Additionally, there will be no automatic monitoring of the lock
@@ -465,4 +523,14 @@ struct dvbsx_frontend_parameters {
 
 #define FE_SET_DELAY               _IO('o', 100)
 
+
+#define FE_SET_MODE                _IO('o', 90)
+#define FE_READ_AFC                _IOR('o', 91, __u32)
+#define FE_FINE_TUNE               _IOW('o', 92, __u32)
+#define FE_READ_TUNER_STATUS       _IOR('o', 93, tuner_status_t)
+#define FE_READ_ANALOG_STATUS      _IOR('o', 94, atv_status_t)
+#define FE_READ_SD_STATUS          _IOR('o', 95, sound_status_t)
+#define FE_READ_TS                 _IOR('o', 96, int)
+//set & get the tuner parameters only atv
+#define FE_SET_PARAM_BOX           _IOWR('o', 97, tuner_param_t)
 #endif /*_DVBFRONTEND_H_*/

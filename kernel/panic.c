@@ -27,9 +27,9 @@
 #define PANIC_TIMER_STEP 100
 #define PANIC_BLINK_SPD 18
 
-#ifdef CONFIG_HARDWARE_WATCHDOG
-extern void enable_watchdog(void);
-#endif /* ONFIG_HARDWARE_WATCHDOG */
+#ifdef CONFIG_SUSPEND_WATCHDOG
+extern int aml_emergency_restart(int time_out);
+#endif
 
 /* Machine specific panic information string */
 char *mach_panic_string;
@@ -74,9 +74,6 @@ NORET_TYPE void panic(const char * fmt, ...)
 	long i, i_next = 0;
 	int state = 0;
 
-#ifdef CONFIG_HARDWARE_WATCHDOG
-	enable_watchdog();
-#endif /* CONFIG_HARDWARE_WATCHDOG */
 	/*
 	 * It's possible to come here directly from a panic-assertion and
 	 * not have preempt disabled. Some functions called from here want
@@ -117,6 +114,10 @@ NORET_TYPE void panic(const char * fmt, ...)
 	if (!panic_blink)
 		panic_blink = no_blink;
 
+#ifdef CONFIG_SUSPEND_WATCHDOG
+	aml_emergency_restart(20000); //system will restart 20000 ms later
+#endif
+	
 	if (panic_timeout > 0) {
 		/*
 		 * Delay timeout seconds before rebooting the machine.
@@ -249,8 +250,16 @@ void add_taint(unsigned flag)
 	 * Also we want to keep up lockdep for staging development and
 	 * post-warning case.
 	 */
-	if (flag != TAINT_CRAP && flag != TAINT_WARN && __debug_locks_off())
-		printk(KERN_WARNING "Disabling lock debugging due to kernel taint\n");
+	switch (flag) {
+	case TAINT_CRAP:
+	case TAINT_WARN:
+	case TAINT_FIRMWARE_WORKAROUND:
+		break;
+
+	default:
+		if (__debug_locks_off())
+			printk(KERN_WARNING "Disabling lock debugging due to kernel taint\n");
+	}
 
 	set_bit(flag, &tainted_mask);
 }

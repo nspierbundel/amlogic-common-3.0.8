@@ -1,5 +1,5 @@
 /*
- * Amlogic Ethernet Driver
+ * Amlogic OSD Driver
  *
  * Copyright (C) 2012 Amlogic, Inc.
  *
@@ -58,27 +58,21 @@ static osd_clone_t s_osd_clone;
 static void osd_clone_process(void)
 {
 	canvas_t cs, cd;
-	u32 width = 0;
-	u32 height = 0;
 	u32 x0 = 0;
 	u32 y0 = 0;
+	u32 y1 = 0;
 	unsigned char x_rev = 0;
 	unsigned char y_rev = 0;
 	unsigned char xy_swap = 0;
-	const vinfo_t *vinfo = NULL;
 	config_para_ex_t *ge2d_config = &s_osd_clone.ge2d_config;
 	ge2d_context_t *context = s_osd_clone.ge2d_context;
 
-	vinfo = get_current_vinfo2();
-	if (vinfo == NULL) {
-		printk("++ osd_clone vinfo2 NULL\n");
-		return;
-	}
-	width = vinfo->width;
-	height = vinfo->height;
+	canvas_read(OSD1_CANVAS_INDEX, &cs);
+	canvas_read(OSD3_CANVAS_INDEX, &cd);
 
 	if (s_osd_clone.pan == 1) {
-		y0 = height;
+		y0 = cs.height/2;
+		y1 = cd.height/2;
 	}
 
 	if (s_osd_clone.angle == 1) {
@@ -97,20 +91,19 @@ static void osd_clone_process(void)
 	ge2d_config->bitmask_en = 0;
 	ge2d_config->src1_gb_alpha = 0;
 	ge2d_config->dst_xy_swap = 0;
-	canvas_read(OSD1_CANVAS_INDEX, &cs);
+
 	ge2d_config->src_planes[0].addr = cs.addr;
-	ge2d_config->src_planes[0].w = cs.width / 4;
+	ge2d_config->src_planes[0].w = cs.width/4;
 	ge2d_config->src_planes[0].h = cs.height;
 
-	canvas_read(OSD3_CANVAS_INDEX, &cd);
 	ge2d_config->dst_planes[0].addr = cd.addr;
-	ge2d_config->dst_planes[0].w = cd.width / 4;
+	ge2d_config->dst_planes[0].w = cd.width/4;
 	ge2d_config->dst_planes[0].h = cd.height;
 
 	ge2d_config->src_para.canvas_index = OSD1_CANVAS_INDEX;
 	ge2d_config->src_para.mem_type = CANVAS_OSD0;
 	ge2d_config->dst_para.mem_type = CANVAS_TYPE_INVALID;
-	ge2d_config->dst_para.format = GE2D_FORMAT_S32_ABGR;
+	ge2d_config->dst_para.format = GE2D_FORMAT_S32_ARGB;
 	ge2d_config->src_para.fill_color_en = 0;
 	ge2d_config->src_para.fill_mode = 0;
 	ge2d_config->src_para.x_rev = 0;
@@ -118,21 +111,18 @@ static void osd_clone_process(void)
 	ge2d_config->src_para.color = 0xffffffff;
 	ge2d_config->src_para.top = 0;
 	ge2d_config->src_para.left = 0;
-	ge2d_config->src_para.width = width;
-	ge2d_config->src_para.height = height * 2;
+	ge2d_config->src_para.width = cs.width/4;
+	ge2d_config->src_para.height = cs.height;
 
 	ge2d_config->dst_para.canvas_index = OSD3_CANVAS_INDEX;
 	ge2d_config->dst_para.mem_type = CANVAS_TYPE_INVALID;
-	ge2d_config->dst_para.format = GE2D_FORMAT_S32_ABGR;
+	ge2d_config->dst_para.format = GE2D_FORMAT_S32_ARGB;
 	ge2d_config->dst_para.top = 0;
 	ge2d_config->dst_para.left = 0;
-	ge2d_config->dst_para.width = width;
-	ge2d_config->dst_para.height = height * 2;
+	ge2d_config->dst_para.width = cd.width/4;
+	ge2d_config->dst_para.height = cd.height;
 	ge2d_config->dst_para.fill_color_en = 0;
 	ge2d_config->dst_para.fill_mode = 0;
-	ge2d_config->dst_para.x_rev = 0;
-	ge2d_config->dst_para.y_rev = 0;
-	ge2d_config->dst_xy_swap = 0;
 	ge2d_config->dst_para.color = 0;
 	ge2d_config->dst_para.x_rev = x_rev;
 	ge2d_config->dst_para.y_rev = y_rev;
@@ -142,7 +132,7 @@ static void osd_clone_process(void)
 		printk("++ osd clone ge2d config error.\n");
 		return;
 	}
-	stretchblt_noalpha(context, x0, y0, width, height, x0, y0, width, height);
+	stretchblt_noalpha(context, x0, y0, cs.width/4, cs.height/2, x0, y1, cd.width/4, cd.height/2);
 }
 
 void osd_clone_update_pan(int pan)

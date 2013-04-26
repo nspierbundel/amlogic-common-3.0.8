@@ -779,6 +779,12 @@ _func_enter_;
 
 			if(IS_MCAST(prxattrib->ra))
 			{
+				if(psecuritypriv->binstallGrpkey==_FALSE)
+				{
+					res=_FAIL;				
+					DBG_8192C("%s:rx bc/mc packets,but didn't install group key!!!!!!!!!!\n",__FUNCTION__);
+					goto exit;
+				}
 				//DBG_871X("rx bc/mc packets, to perform sw rtw_tkip_decrypt\n");
 				//prwskey = psecuritypriv->dot118021XGrpKey[psecuritypriv->dot118021XGrpKeyid].skey;
 				prwskey = psecuritypriv->dot118021XGrpKey[prxattrib->key_index].skey;
@@ -826,6 +832,7 @@ _func_enter_;
 						
 	}
 _func_exit_;	
+exit:
 	return res;
 				
 }
@@ -1594,7 +1601,7 @@ static sint aes_decipher(u8 *key, uint	hdrlen,
 	static u8	message[MAX_MSG_SIZE];
 	uint	qc_exists, a4_exists, i, j, payload_remainder,
 			num_blocks, payload_index;
-
+	sint res = _SUCCESS;
 	u8 pn_vector[6];
 	u8 mic_iv[16];
 	u8 mic_header1[16];
@@ -1843,11 +1850,25 @@ _func_enter_;
 	//compare the mic
 	for(i=0;i<8;i++){
 		if(pframe[hdrlen+8+plen-8+i] != message[hdrlen+8+plen-8+i])
+		{
 			RT_TRACE(_module_rtl871x_security_c_,_drv_err_,("aes_decipher:mic check error mic[%d]: pframe(%x) != message(%x) \n",
 						i,pframe[hdrlen+8+plen-8+i],message[hdrlen+8+plen-8+i]));
+			DBG_871X("aes_decipher:mic check error mic[%d]: pframe(%x) != message(%x) \n",
+						i,pframe[hdrlen+8+plen-8+i],message[hdrlen+8+plen-8+i]);
+			res = _FAIL;
+		}
 	}
+
+	if(res == _FAIL)
+	{
+		int gg=0;
+		for(gg=0; gg < 32; gg++)
+			DBG_871X(" [%d]=%02x ", gg, pframe[gg]);
+		DBG_871X("error packet header \n");
+	}
+
 _func_exit_;	
-	return _SUCCESS;
+	return res;
 }
 
 u32	rtw_aes_decrypt(_adapter *padapter, u8 *precvframe)
@@ -1862,7 +1883,6 @@ u32	rtw_aes_decrypt(_adapter *padapter, u8 *precvframe)
 
 
 	sint 		length;
-	u32	prwskeylen;
 	u8	*pframe,*prwskey;	//, *payload,*iv
 	struct	sta_info		*stainfo;
 	struct	rx_pkt_attrib	 *prxattrib = &((union recv_frame *)precvframe)->u.hdr.attrib;
@@ -1883,20 +1903,30 @@ _func_enter_;
 				//in concurrent we should use sw descrypt in group key, so we remove this message			
 				//DBG_871X("rx bc/mc packets, to perform sw rtw_aes_decrypt\n");
 				//prwskey = psecuritypriv->dot118021XGrpKey[psecuritypriv->dot118021XGrpKeyid].skey;
+				if(psecuritypriv->binstallGrpkey==_FALSE)
+				{
+					res=_FAIL;				
+					DBG_8192C("%s:rx bc/mc packets,but didn't install group key!!!!!!!!!!\n",__FUNCTION__);
+					goto exit;
+				}
 				prwskey = psecuritypriv->dot118021XGrpKey[prxattrib->key_index].skey;
-				prwskeylen=16;
+
+				if(psecuritypriv->dot118021XGrpKeyid != prxattrib->key_index)
+				{
+					DBG_871X("not match packet_index=%d, install_index=%d \n"
+					, prxattrib->key_index, psecuritypriv->dot118021XGrpKeyid);
+					res=_FAIL;
+					goto exit;
+				}
 			}
 			else
 			{
 				prwskey=&stainfo->dot118021x_UncstKey.skey[0];
-			        prwskeylen=16;
 			}
 	
 			length= ((union recv_frame *)precvframe)->u.hdr.len-prxattrib->hdrlen-prxattrib->iv_len;
-				
-			aes_decipher(prwskey,prxattrib->hdrlen,pframe, length);
 
-
+			res= aes_decipher(prwskey,prxattrib->hdrlen,pframe, length);
 		}
 		else{
 			RT_TRACE(_module_rtl871x_security_c_,_drv_err_,("rtw_aes_encrypt: stainfo==NULL!!!\n"));
@@ -1904,7 +1934,8 @@ _func_enter_;
 		}
 						
 	}
-_func_exit_;		
+_func_exit_;	
+exit:
 	return res;
 }
 #ifndef PLATFORM_FREEBSD

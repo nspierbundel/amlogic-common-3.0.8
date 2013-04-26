@@ -3,7 +3,7 @@
 #
 
 # Common support
-obj-y := cpu.o clock.o gpio.o time.o usbclock.o usbsetting.o power_gate.o mod_gate.o
+obj-y := cpu.o clock.o gpio.o time.o usbclock.o usbsetting.o power_gate.o mod_gate.o watchdog.o
 obj-m :=
 obj-n :=
 obj-  :=
@@ -20,7 +20,6 @@ obj-$(CONFIG_MACH_MESON6_REF)	+= board-meson6-ref.o
 obj-$(CONFIG_MACH_MESON6_REF)	+= board-m6ref-panel.o
 obj-$(CONFIG_MACH_MESON6_SKT)	+= board-meson6-skt.o
 obj-$(CONFIG_MACH_MESON6_SKT)	+= board-m6skt-panel.o
-obj-$(CONFIG_MACH_MESON6_G02) += board-m6g02.o
 endif
 obj-$(CONFIG_HOTPLUG_CPU) += hotplug.o
 obj-$(CONFIG_SMP) += headsmp.o platsmp.o

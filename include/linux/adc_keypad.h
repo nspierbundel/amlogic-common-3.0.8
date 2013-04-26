@@ -7,6 +7,7 @@ struct adc_key{
 	int chan;
 	int value;	/* voltage/3.3v * 1023 */
 	int tolerance;
+	int gpio_code; 
 };
 
 struct adc_kp_platform_data{
@@ -17,6 +18,8 @@ struct adc_kp_platform_data{
 	int key_num;
 	int repeat_delay;
 	int repeat_period;
+	int (*gpio_key_scan)(void);
+	int sense_key_up;
 };
 
 #endif

@@ -81,7 +81,18 @@ typedef struct vf_log_s {
 
 #endif
 
+#define ISR_LOG_EN
+#ifdef  ISR_LOG_EN
+#define ISR_LOG_LEN		 2000
+typedef struct isr_log_s{
+        struct timeval isr_time[ISR_LOG_LEN];
+        unsigned int log_cur;
+        unsigned char isr_log_en;
+}isr_log_t;
+#endif
+
 #define VF_FLAG_NORMAL_FRAME		 0x00000001
+#define VF_FLAG_FREEZED_FRAME		 0x00000002
 
 
 typedef struct vf_entry {
@@ -91,24 +102,39 @@ typedef struct vf_entry {
 	unsigned int flag;
 } vf_entry_t;
 
+#define VDIN_VF_POOL_FREEZE              0x00000001
 typedef struct vf_pool {
+                unsigned int pool_flag;
 	unsigned int max_size, size;
 	struct vf_entry *master;
 	struct vf_entry *slave;
 	struct list_head wr_list; /* vf_entry */
+        spinlock_t       wr_lock;
 	unsigned int	 wr_list_size;
 	struct list_head *wr_next;
 	struct list_head rd_list; /* vf_entry */
+        spinlock_t       rd_lock;
 	unsigned int	 rd_list_size;
 	struct list_head wt_list; /* vframe_s */
+        spinlock_t       wt_lock;
+                unsigned int	 fz_list_size;
+                struct list_head fz_list;
+        spinlock_t fz_lock;
 	spinlock_t lock;
 #ifdef VF_LOG_EN
 	struct vf_log_s log;
+#endif
+#ifdef ISR_LOG_EN
+        struct isr_log_s isr_log;
 #endif
 } vf_pool_t;
 
 extern void vf_log_init(struct vf_pool *p);
 extern void vf_log_print(struct vf_pool *p);
+
+extern void isr_log_init(struct vf_pool *p);
+extern void isr_log_print(struct vf_pool *p);
+extern void isr_log(struct vf_pool *p);
 
 extern struct vf_entry *vf_get_master(struct vf_pool *p, int index);
 extern struct vf_entry *vf_get_slave(struct vf_pool *p, int index);
@@ -128,6 +154,9 @@ extern void receiver_vf_put(struct vframe_s *vf, struct vf_pool *p);
 extern struct vframe_s *vdin_vf_peek(void* op_arg);
 extern struct vframe_s *vdin_vf_get (void* op_arg);
 extern void vdin_vf_put(struct vframe_s *vf, void* op_arg);
+
+extern void vdin_vf_freeze(struct vf_pool *p, unsigned hold_num);
+extern void vdin_vf_unfreeze(struct vf_pool *p);
 
 #endif /* __VDIN_VF_H */
 

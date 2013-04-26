@@ -19,6 +19,7 @@
 #include <linux/platform_device.h>
 #include <linux/seq_file.h>
 #include <linux/i2c.h>
+#include <linux/delay.h>
 #include "axp-mfd.h"
 
 #include "axp-gpio.h"
@@ -30,75 +31,83 @@ struct virtual_gpio_data {
 	int value;				//0: low        1: high
 };
 
+static int axp_io_state = 0;
+
 int axp_gpio_set_io(int gpio, int io_state)
 {
-	if(io_state == 1){
-		switch(gpio)
-		{
-			case 0: return axp_clr_bits(&axp->dev,AXP20_GPIO0_CFG, 0x06);
-			case 1: return axp_clr_bits(&axp->dev,AXP20_GPIO1_CFG, 0x06);
-			case 2: return axp_clr_bits(&axp->dev,AXP20_GPIO2_CFG, 0x07);
-			case 3: return axp_clr_bits(&axp->dev,AXP20_GPIO3_CFG, 0x04);
-			default:return -ENXIO;
-		}
-	}
-	else if(io_state == 0){
-		switch(gpio)
-		{
-			case 0: axp_clr_bits(&axp->dev,AXP20_GPIO0_CFG,0x05);
-					return axp_set_bits(&axp->dev,AXP20_GPIO0_CFG,0x02);
-			case 1: axp_clr_bits(&axp->dev,AXP20_GPIO1_CFG,0x05);
-					return axp_set_bits(&axp->dev,AXP20_GPIO1_CFG,0x02);
-			case 2: axp_clr_bits(&axp->dev,AXP20_GPIO2_CFG,0x05);
-					return axp_set_bits(&axp->dev,AXP20_GPIO2_CFG,0x02);
-			case 3: return axp_set_bits(&axp->dev,AXP20_GPIO3_CFG,0x04);
-			default:return -ENXIO;
-		}
-	}
-	return -EINVAL;
+    if (!axp) {
+        printk("[AXP] driver has not ready now, wait...\n");
+		return -ENODEV;
+    }
+    if(io_state == 1){
+        axp_io_state |= (1 << gpio);
+        switch (gpio) {
+            /*
+             * for out put, set pin to high-z state, and remember to a variable
+             * in order to prevent unstable state on GPIO.
+             */
+        case 0: return axp_update(&axp->dev, AXP20_GPIO0_CFG, 0x07, 0x07);
+        case 1: return axp_update(&axp->dev, AXP20_GPIO1_CFG, 0x07, 0x07);
+        case 2: return axp_update(&axp->dev, AXP20_GPIO2_CFG, 0x07, 0x07);
+        case 3: return axp_update(&axp->dev, AXP20_GPIO3_CFG, 0x04, 0x04);
+        default: return -ENXIO;
+        }
+    } else if (io_state == 0) {
+        axp_io_state &= ~(1 << gpio);
+        switch (gpio) {
+        case 0: return axp_update(&axp->dev, AXP20_GPIO0_CFG, 0x02, 0x07);
+        case 1: return axp_update(&axp->dev, AXP20_GPIO1_CFG, 0x02, 0x07);
+        case 2: return axp_update(&axp->dev, AXP20_GPIO2_CFG, 0x02, 0x07);
+        case 3: return axp_update(&axp->dev, AXP20_GPIO3_CFG, 0x04, 0x04);
+        default: return -ENXIO;
+        }
+    }
+    return -EINVAL;
 }
 EXPORT_SYMBOL_GPL(axp_gpio_set_io);
 
+int check_io012(int gpio, int val, int *io_state)
+{
+    if (gpio > 2 || gpio < 0) {
+        return -1;    
+    }
+    if ((val & 0x07) == 0x07 && axp_io_state & (1 << gpio)) {
+        *io_state = 1;    
+    } else if (val == 0x02) {
+        *io_state = 0;    
+    } else {
+        return -1;    
+    }
+    return 0;
+}
 
 int axp_gpio_get_io(int gpio, int *io_state)
 {
 	uint8_t val;
-	switch(gpio)
-	{
-		case 0: axp_read(&axp->dev,AXP20_GPIO0_CFG,&val);val &= 0x07;
-				if(val < 0x02)
-					*io_state = 1;
-				else if (val == 0x02)
-					*io_state = 0;
-				else
-					return -EIO;
-				break;
-		case 1: axp_read(&axp->dev,AXP20_GPIO1_CFG,&val);val &= 0x07;
-				if(val < 0x02)
-					*io_state = 1;
-				else if (val == 0x02)
-					*io_state = 0;
-				else
-					return -EIO;
-				break;
-		case 2: axp_read(&axp->dev,AXP20_GPIO2_CFG,&val);val &= 0x07;
-				if(val == 0x0)
-					*io_state = 1;
-				else if (val == 0x02)
-					*io_state = 0;
-				else
-					return -EIO;
-				break;
-		case 3: axp_read(&axp->dev,AXP20_GPIO3_CFG,&val);val &= 0x04;
-				if(val == 0x0)
-					*io_state = 1;
-				else
-					*io_state = 0;
-				break;
-		default:return -ENXIO;
-	}
 
-	return 0;
+    if (!axp) {
+        printk("[AXP] driver has not ready now, wait...\n");
+		return -ENODEV;
+    }
+    switch (gpio) {
+    case 0: axp_read(&axp->dev, AXP20_GPIO0_CFG, &val);
+            return check_io012(gpio, val & 0x07, io_state);
+    case 1: axp_read(&axp->dev, AXP20_GPIO1_CFG, &val);
+            return check_io012(gpio, val & 0x07, io_state);
+    case 2: axp_read(&axp->dev, AXP20_GPIO2_CFG, &val);
+            return check_io012(gpio, val & 0x07, io_state);
+    case 3: axp_read(&axp->dev, AXP20_GPIO3_CFG, &val);
+            val &= 0x04;
+            if (val == 0x0) {
+                *io_state = 1;
+            } else {
+                *io_state = 0;
+            }
+            break;
+    default: return -ENXIO;
+    }
+
+    return 0;
 }
 EXPORT_SYMBOL_GPL(axp_gpio_get_io);
 
@@ -106,35 +115,34 @@ EXPORT_SYMBOL_GPL(axp_gpio_get_io);
 int axp_gpio_set_value(int gpio, int value)
 {
 	int io_state,ret;
-	ret = axp_gpio_get_io(gpio,&io_state);
-	if(ret)
-		return ret;
-	if(io_state){
-		if(value){
-			switch(gpio)
-			{
-				case 0: axp_clr_bits(&axp->dev,AXP20_GPIO0_CFG,0x06);
-						return axp_set_bits(&axp->dev,AXP20_GPIO0_CFG,0x01);
-				case 1: axp_clr_bits(&axp->dev,AXP20_GPIO1_CFG,0x06);
-						return axp_set_bits(&axp->dev,AXP20_GPIO1_CFG,0x01);
-				case 2: return -EINVAL;
-				case 3: return axp_set_bits(&axp->dev,AXP20_GPIO3_CFG,0x02);
-				default:break;
-			}
-		}
-		else{
-			switch(gpio)
-			{
-				case 0: return axp_clr_bits(&axp->dev,AXP20_GPIO0_CFG,0x03);
-				case 1: return axp_clr_bits(&axp->dev,AXP20_GPIO1_CFG,0x03);
-				case 2: return axp_clr_bits(&axp->dev,AXP20_GPIO2_CFG,0x03);
-				case 3: return axp_clr_bits(&axp->dev,AXP20_GPIO3_CFG,0x02);
-				default:break;
-			}
-		}
-		return -ENXIO;
-	}
-	return -ENXIO;
+
+    if (!axp) {
+        printk("[AXP] driver has not ready now, wait...\n");
+		return -ENODEV;
+    }
+    /*
+     * ignore preve io state, set gpio to what caller want
+     */
+
+    if(value){
+        switch (gpio) {
+        case 0: return axp_update(&axp->dev, AXP20_GPIO0_CFG, 0x01, 0x07);
+        case 1: return axp_update(&axp->dev, AXP20_GPIO1_CFG, 0x01, 0x07);
+        case 2: return axp_update(&axp->dev, AXP20_GPIO2_CFG, 0x01, 0x07);     // Need extern pull up resistor 
+        case 3: return axp_update(&axp->dev, AXP20_GPIO3_CFG, 0x02, 0x07);     // Need extern pull up resistor
+        default: break;
+        }
+    } else {
+        switch (gpio) {
+        case 0: return axp_update(&axp->dev, AXP20_GPIO0_CFG, 0x00, 0x07);
+        case 1: return axp_update(&axp->dev, AXP20_GPIO1_CFG, 0x00, 0x07);
+        case 2: return axp_update(&axp->dev, AXP20_GPIO2_CFG, 0x00, 0x07);
+        case 3: return axp_update(&axp->dev, AXP20_GPIO3_CFG, 0x00, 0x07);
+        default:break;
+        }
+    }
+    return -ENXIO;
+
 }
 EXPORT_SYMBOL_GPL(axp_gpio_set_value);
 
@@ -144,30 +152,32 @@ int axp_gpio_get_value(int gpio, int *value)
 	int io_state;
 	int ret;
 	uint8_t val;
-	ret = axp_gpio_get_io(gpio,&io_state);
-	if(ret)
-		return ret;
-	if(io_state){
-		switch(gpio)
-		{
-			case 0:ret = axp_read(&axp->dev,AXP20_GPIO0_CFG,&val);*value = val & 0x01;break;
-			case 1:ret =axp_read(&axp->dev,AXP20_GPIO1_CFG,&val);*value = val & 0x01;break;
-			case 2:ret = 0; *value = 0;break;
-			case 3:ret = axp_read(&axp->dev,AXP20_GPIO3_CFG,&val);val &= 0x02;*value = val>>1;break;
-			default:return -ENXIO;
-		}
-	}
-	else{
-		switch(gpio)
-		{
-			case 0:ret = axp_read(&axp->dev,AXP20_GPIO012_STATE,&val);val &= 0x10;*value = val>>4;break;
-			case 1:ret = axp_read(&axp->dev,AXP20_GPIO012_STATE,&val);val &= 0x20;*value = val>>5;break;
-			case 2:ret = axp_read(&axp->dev,AXP20_GPIO012_STATE,&val);val &= 0x40;*value = val>>6;break;
-			case 3:ret = axp_read(&axp->dev,AXP20_GPIO3_CFG,&val);*value = val & 0x01;break;
-			default:return -ENXIO;
-		}
-	}
-	return ret;
+
+    if (!axp) {
+        printk("[AXP] driver has not ready now, wait...\n");
+		return -ENODEV;
+    }
+    ret = axp_gpio_get_io(gpio,&io_state);
+    if(ret)
+        return ret;
+    if(io_state){
+        switch (gpio) {
+        case 0:ret = axp_read(&axp->dev, AXP20_GPIO0_CFG, &val);*value = val & 0x01;break;
+        case 1:ret = axp_read(&axp->dev, AXP20_GPIO1_CFG, &val);*value = val & 0x01;break;
+        case 2:ret = axp_read(&axp->dev, AXP20_GPIO2_CFG, &val);*value = val & 0x01;break; 
+        case 3:ret = axp_read(&axp->dev, AXP20_GPIO3_CFG, &val);val &= 0x02;*value = val>>1;break;
+        default: return -ENXIO;
+        }
+    } else {
+        switch (gpio) {
+        case 0:ret = axp_read(&axp->dev, AXP20_GPIO012_STATE, &val);val &= 0x10;*value = val>>4;break;
+        case 1:ret = axp_read(&axp->dev, AXP20_GPIO012_STATE, &val);val &= 0x20;*value = val>>5;break;
+        case 2:ret = axp_read(&axp->dev, AXP20_GPIO012_STATE, &val);val &= 0x40;*value = val>>6;break;
+        case 3:ret = axp_read(&axp->dev, AXP20_GPIO3_CFG, &val);*value = val & 0x01;break;
+        default: return -ENXIO;
+        }
+    }
+    return ret;
 }
 EXPORT_SYMBOL_GPL(axp_gpio_get_value);
 

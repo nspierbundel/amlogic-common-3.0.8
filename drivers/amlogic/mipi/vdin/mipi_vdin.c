@@ -63,7 +63,7 @@ static int time_count = 0;
 typedef struct vdin_ops_privdata_s {
     int                  dev_id;
     int                  vdin_num;
-
+	
     am_csi2_hw_t hw_info;
 
     am_csi2_input_t input;
@@ -71,7 +71,7 @@ typedef struct vdin_ops_privdata_s {
 
     struct mutex              buf_lock; /* lock for buff */
     unsigned                     watchdog_cnt;
-
+	
     mipi_buf_t                  out_buff;
 
     unsigned                    reset_flag;
@@ -109,7 +109,7 @@ extern void swap_vdin_uv(unsigned char* src, unsigned char* dst, unsigned int si
 static struct vdin_ops_privdata_s csi2_vdin_data[]=
 {
     {
-        .dev_id = -1,
+        .dev_id = -1,        
         .vdin_num = -1,
         .hw_info = {0},
         .input = {0},
@@ -142,7 +142,7 @@ const struct am_csi2_ops_s am_csi2_vdin =
 };
 
 
-static const struct am_csi2_pixel_fmt am_csi2_input_pix_formats_vdin[] =
+static const struct am_csi2_pixel_fmt am_csi2_input_pix_formats_vdin[] = 
 {
     {
         .name = "4:2:2, packed, UYVY",
@@ -194,34 +194,7 @@ static const struct am_csi2_pixel_fmt am_csi2_output_pix_formats_vdin[] =
         .depth = 12,
     },
 };
-static int mipi_vdin_receiver_event_fun(int type, void* data, void* private_data)
-{
-    vdin_ops_privdata_t*mipi_data = (vdin_ops_privdata_t*)private_data;
-    switch(type){
-        case VFRAME_EVENT_PROVIDER_VFRAME_READY:
-            if(mipi_data){
-                if(mipi_data->reset_flag == 1)
-                    mipi_data->reset_flag = 0;
-                if((mipi_vf_peek()!=NULL)&&(mipi_data->done_flag == false)){
-                    mipi_data->done_flag = true;
-                    wake_up_interruptible(&mipi_data->complete);
-                }
-            }
-            break;
-        case VFRAME_EVENT_PROVIDER_START:
-            break;
-        case VFRAME_EVENT_PROVIDER_UNREG:
-            break;
-        default:
-            break;
-    }
-    return 0;
-}
 
-static const struct vframe_receiver_op_s mipi_vf_receiver =
-{
-    .event_cb = mipi_vdin_receiver_event_fun
-};
 /* ------------------------------------------------------------------
        vframe receiver callback
    ------------------------------------------------------------------*/
@@ -266,7 +239,7 @@ static int mipi_vdin_receiver_event_fun(int type, void* data, void* private_data
         case VFRAME_EVENT_PROVIDER_UNREG:
             break;
         default:
-            break;
+            break;     
     }
     return 0;
 }
@@ -629,8 +602,8 @@ static int get_output_format(int v4l2_format)
             format = GE2D_FORMAT_S8_Y;
             break;
         default:
-            break;
-    }
+            break;            
+    }   
     return format;
 }
 
@@ -771,7 +744,35 @@ static int ge2d_process(vdin_ops_privdata_t* data, vframe_t* in, am_csi2_frame_t
     ge2d_config->src1_gb_alpha = 0;//0xff;
     ge2d_config->dst_xy_swap = 0;
 
-    canvas_r
+    canvas_read(in->canvas0Addr&0xff,&cs);
+    ge2d_config->src_planes[0].addr = cs.addr;
+    ge2d_config->src_planes[0].w = cs.width;
+    ge2d_config->src_planes[0].h = cs.height;
+    canvas_read(dst_canvas&0xff,&cd);
+    ge2d_config->dst_planes[0].addr = cd.addr;
+    ge2d_config->dst_planes[0].w = cd.width;
+    ge2d_config->dst_planes[0].h = cd.height;
+    ge2d_config->src_key.key_enable = 0;
+    ge2d_config->src_key.key_mask = 0;
+    ge2d_config->src_key.key_mode = 0;
+    ge2d_config->src_para.canvas_index=in->canvas0Addr;
+    ge2d_config->src_para.mem_type = CANVAS_TYPE_INVALID;
+    ge2d_config->src_para.format = get_input_format(data->input.fourcc);
+    ge2d_config->src_para.fill_color_en = 0;
+    ge2d_config->src_para.fill_mode = 0;
+    ge2d_config->src_para.x_rev = 0;
+    ge2d_config->src_para.y_rev = 0;
+    ge2d_config->src_para.color = 0xffffffff;
+    ge2d_config->src_para.top = 0;
+    ge2d_config->src_para.left = 0;
+    ge2d_config->src_para.width = in->width;
+    ge2d_config->src_para.height = in->height;
+    ge2d_config->src2_para.mem_type = CANVAS_TYPE_INVALID;
+    ge2d_config->dst_para.canvas_index = dst_canvas&0xff;
+
+    if(data->output.fourcc != V4L2_PIX_FMT_YUV420)
+        ge2d_config->dst_para.canvas_index = dst_canvas;
+
     ge2d_config->dst_para.mem_type = CANVAS_TYPE_INVALID;
     ge2d_config->dst_para.format = get_output_format(data->output.fourcc)|GE2D_LITTLE_ENDIAN;
     ge2d_config->dst_para.fill_color_en = 0;
@@ -1063,7 +1064,7 @@ static bool checkframe(int wr_id,am_csi2_input_t* input)
         mipi_dbg("[mipi_vdin]:checkframe---pixel cnt:%d, line cnt:%d. wr_index:%d, mem type:0x%x, status:0x%x\n",
                       frame.w,frame.h,wr_id,data1,data2);
         ret = true;
-    }
+    } 
     return ret;
 }
 
@@ -1082,7 +1083,7 @@ static int fill_buff_from_canvas(am_csi2_frame_t* frame, am_csi2_output_t* outpu
         mipi_error("[mipi_vdin]:fill_buff_from_canvas---pionter error\n");
         return ret;
     }
-
+	
     canvas_read(frame->index&0xff,&canvas_work_y);
     buffer_y_start = ioremap_wc(frame->ddr_address,output->frame_size);
     //buffer_y_start = ioremap_wc(canvas_work_y.addr,canvas_work_y.width*canvas_work_y.height);
@@ -1202,7 +1203,7 @@ static int am_csi2_vdin_streamon(am_csi2_t* dev)
     tvin_parm_t para;
     int i = 0;
     data = &data[dev->id];
-
+    
     data->hw_info.active_line = dev->input.active_line;
     data->hw_info.active_pixel= dev->input.active_pixel;
     data->hw_info.frame_size = dev->input.frame_size;
@@ -1270,6 +1271,7 @@ static int am_csi2_vdin_fillbuff(am_csi2_t* dev)
     data = &data[dev->id];
 
     mutex_lock(&data->buf_lock);
+
     data->output.vaddr = dev->output.vaddr;
     data->output.zoom = dev->output.zoom;
     data->output.angle= dev->output.angle;

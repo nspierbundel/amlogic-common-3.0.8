@@ -231,6 +231,7 @@ void tvin_smr(struct vdin_dev_s *devp)
                                                                 sm_ops->get_sig_propery(devp->frontend, &devp->prop);
                                                                 devp->parm.info.trans_fmt = devp->prop.trans_fmt;
                                                                 devp->parm.info.reserved = devp->prop.dvi_info;
+								devp->pre_prop.color_format = devp->prop.color_format;
                                                         }
                                                 }
                                                 else
@@ -384,6 +385,19 @@ void tvin_smr(struct vdin_dev_s *devp)
                                         }
                                 }
 
+                                if ((port >= TVIN_PORT_HDMI0) &&
+                                    (port <= TVIN_PORT_HDMI7) &&
+                                    (devp->flags & VDIN_FLAG_DEC_STARTED)) {
+                                    if (sm_ops->get_sig_propery) {
+                                        sm_ops->get_sig_propery(devp->frontend, &devp->prop);
+                                        if ((devp->prop.color_format != devp->pre_prop.color_format)) {
+                                            devp->pre_prop.color_format = devp->prop.color_format;
+                                            vdin_get_format_convert(devp);
+                                            vdin_set_matrix(devp);
+                                            pr_info("[smr.%d] : re config vdin color format for hdmi\n",devp->index);
+                                        }
+                                    }
+                                }
 #if 0
                                 if (sm_ops->pll_lock(devp->frontend)) {
                                         pll_lock = true;

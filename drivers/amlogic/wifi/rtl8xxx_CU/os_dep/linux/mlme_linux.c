@@ -216,7 +216,6 @@ void rtw_reset_securitypriv( _adapter *adapter )
 
 		psec_priv->ndisauthtype = Ndis802_11AuthModeOpen;
 		psec_priv->ndisencryptstatus = Ndis802_11WEPDisabled;
-		psec_priv->wps_phase = _FALSE;
 		//}
 	}
 }
@@ -406,7 +405,7 @@ static int mgnt_xmit_entry(struct sk_buff *skb, struct net_device *pnetdev)
 
 	//DBG_871X("%s\n", __FUNCTION__);
 
-	return padapter->HalFunc.hostap_mgnt_xmit_entry(padapter, skb);
+	return rtw_hal_hostap_mgnt_xmit_entry(padapter, skb);
 }
 
 static int mgnt_netdev_open(struct net_device *pnetdev)

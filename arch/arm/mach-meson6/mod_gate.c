@@ -21,6 +21,7 @@ typedef struct{
     int ref;
     int flag;
     int dc_en;
+    int no_share;
 }mod_record_t;
 
 DEFINE_SPINLOCK(mod_lock);
@@ -56,12 +57,14 @@ static mod_record_t mod_records[MOD_MAX_NUM + 1] = {
         .ref = 0,
         .flag = 1,
         .dc_en = 0,
+        .no_share = 1,
     },{
         .name = "lvds",
         .type = MOD_LVDS,
         .ref = 0,
         .flag = 1,
         .dc_en = 0,
+        .no_share = 1,
     },{
         .name = "mipi",
         .type = MOD_MIPI,
@@ -262,8 +265,10 @@ static int _switch_gate(mod_type_t type, int flag)
             PRINT_INFO("turn %s vdec module\n", flag?"on":"off");
             if (flag) {               
                 GATE_ON(DOS);
+                aml_set_reg32_mask(P_HHI_VDEC_CLK_CNTL, 1 << 8);
             } else {
                 GATE_OFF(DOS);
+                aml_clr_reg32_mask(P_HHI_VDEC_CLK_CNTL, 1 << 8);
             }
             break;
         case MOD_AUDIO:
@@ -338,19 +343,19 @@ static int _switch_gate(mod_type_t type, int flag)
                 GATE_OFF(VCLK2_VENCI);
                 GATE_OFF(VCLK2_VENCI1);
                 GATE_OFF(VCLK2_VENCP);
-           #ifndef CONFIG_MACH_MESON6_G02_DONGLE
+            #if !defined(CONFIG_MESON_POWER_PROFILE_LOW)
                 GATE_OFF(VCLK2_VENCP1);
-           #endif     
+            #endif
                 GATE_OFF(VENC_P_TOP);
                 GATE_OFF(VENC_I_TOP);
                 GATE_OFF(VENCI_INT);
-           #ifndef CONFIG_MACH_MESON6_G02_DONGLE    
+            #if !defined(CONFIG_MESON_POWER_PROFILE_LOW)
                 GATE_OFF(VENCP_INT);
-           #endif   
+            #endif
                 GATE_OFF(VCLK2_ENCI);
-           #ifndef CONFIG_MACH_MESON6_G02_DONGLE      
+            #if !defined(CONFIG_MESON_POWER_PROFILE_LOW)
                 GATE_OFF(VCLK2_ENCP);
-           #endif
+            #endif
                 GATE_OFF(VCLK2_VENCT);
                 GATE_OFF(VCLK2_VENCT1);
                 GATE_OFF(VCLK2_OTHER);
@@ -660,13 +665,17 @@ static int get_mod(mod_record_t* mod_record)
     unsigned long flags;
     PRINT_INFO("get mod  %s\n", mod_record->name);
     spin_lock_irqsave(&mod_lock, flags);
-    if(mod_record->ref > 0)
-        mod_record->ref++;
+    if (mod_record->no_share)
+    	ret = _switch_gate(mod_record->type, 1);
     else {
-        mod_record->ref = 1;
-        mod_record->flag = 1;
-        ret = _switch_gate(mod_record->type, 1);
-    }  
+        if(mod_record->ref > 0)
+            mod_record->ref++;
+        else {
+            mod_record->ref = 1;
+            mod_record->flag = 1;
+            ret = _switch_gate(mod_record->type, 1);
+        }  
+    }
     spin_unlock_irqrestore(&mod_lock, flags);
     return ret;
 }
@@ -677,11 +686,15 @@ static int put_mod(mod_record_t* mod_record)
     unsigned long flags;
     PRINT_INFO("put mod  %s\n", mod_record->name);
     spin_lock_irqsave(&mod_lock, flags);
-    mod_record->ref--;
-    if(mod_record->ref <= 0) {
-        ret = _switch_gate(mod_record->type, 0); 
-        mod_record->ref = 0;
-        mod_record->flag = 0;
+    if (mod_record->no_share) 
+    	ret = _switch_gate(mod_record->type, 0); 
+    else {
+        mod_record->ref--;
+        if(mod_record->ref <= 0) {
+            ret = _switch_gate(mod_record->type, 0); 
+            mod_record->ref = 0;
+            mod_record->flag = 0;
+        }
     }
     spin_unlock_irqrestore(&mod_lock, flags);
     return ret;

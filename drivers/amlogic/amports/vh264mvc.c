@@ -242,6 +242,7 @@ typedef struct {
 	int view1_buf_id;
 	int display_pos;
 	int slot;
+	unsigned stream_offset;
 } mvc_info_t;
 
 #define VF_POOL_SIZE        20
@@ -763,6 +764,8 @@ static void vh264mvc_isr(void)
 					if(display_view_id ==0){
 						vfpool_idx[fill_ptr].view0_buf_id = display_buff_id;
 						view0_vfbuf_use[display_buff_id]++;
+						vfpool_idx[fill_ptr].stream_offset = stream_offset ;
+
 					}
 					if(display_view_id == 1){
 						vfpool_idx[fill_ptr].view1_buf_id = display_buff_id;
@@ -775,13 +778,14 @@ static void vh264mvc_isr(void)
 					if(display_view_id ==0){
 						vfpool_idx[slot].view0_buf_id = display_buff_id;
 						view0_vfbuf_use[display_buff_id]++;
+						vfpool_idx[slot].stream_offset = stream_offset ;
 					}
 					if(display_view_id == 1){
 						vfpool_idx[slot].view1_buf_id = display_buff_id;
 						view1_vfbuf_use[display_buff_id]++;
 					}
 					vf = &vfpool[slot];
-					if (pts_lookup_offset(PTS_TYPE_VIDEO, stream_offset, &vf->pts, 0) != 0) {
+					if (pts_lookup_offset(PTS_TYPE_VIDEO, vfpool_idx[slot].stream_offset, &vf->pts, 0) != 0) {
                     	vf->pts = 0;
                     }
                     set_frame_info(vf);
@@ -810,11 +814,11 @@ static void vh264mvc_put_timer_func(unsigned long arg)
     	int view1_buf_id = vfpool_idx[put_ptr].view1_buf_id;
 		if(view0_vfbuf_use[view0_buf_id] == 1){
 			WRITE_VREG(BUFFER_RECYCLE, (0<<8)|( view0_buf_id +1));
-			view0_vfbuf_use[view0_buf_id]--;
+			view0_vfbuf_use[view0_buf_id] = 0;
 			vfpool_idx[put_ptr].view0_buf_id = -1;
 		}else if(view1_vfbuf_use[view1_buf_id] == 1){
 			 WRITE_VREG(BUFFER_RECYCLE, (1<<8)|( view1_buf_id +1));
-			 view1_vfbuf_use[view1_buf_id]--;
+			 view1_vfbuf_use[view1_buf_id] = 0;
 			 vfpool_idx[put_ptr].display_pos = -1;
 			 vfpool_idx[put_ptr].view1_buf_id = -1;
 			 INCPTR(put_ptr);

@@ -56,6 +56,62 @@ inline const char *op_state_str(dwc_otg_core_if_t * core_if)
 		   (core_if->op_state == B_HOST ? "b_host" : "unknown")))));
 }
 #endif
+#if 1
+static const char * bc_name[]={
+	"UNKNOWN (Disconnect)",
+	"SDP (PC)",
+	"DCP (Charger)",
+	"CDP (PC with Charger)",
+};
+static void charger_detect_work(void *_vp)
+{
+	dwc_otg_core_if_t * core_if = (dwc_otg_core_if_t *) _vp;
+	dwc_irqflags_t flags;
+	//dsts_data_t dsts = {.d32 = 0};
+	int delay, one_loop;
+
+	DWC_DEBUGPL(DBG_HCDV, "%s() %p\n", __func__, core_if);
+
+	DWC_SPINLOCK_IRQSAVE(core_if->lock,&flags);
+	if(core_if->session_valid){
+		/* Save status, turn on pull up */
+		core_if->dev_if->vbus_on = 1;
+		if(core_if->dev_if->pull_up){
+			dwc_otg_device_soft_connect(core_if);
+		}
+	}else{
+		core_if->dev_if->vbus_on = 0;
+		/* Disable Pull up, defaultly */
+		if(core_if->dev_if->pull_up)
+			dwc_otg_device_soft_disconnect(core_if);
+	}
+	DWC_SPINUNLOCK_IRQRESTORE(core_if->lock,flags);
+
+	if(core_if->charger_detect_cb){
+		if(!core_if->session_valid){
+			core_if->bc_mode = USB_BC_MODE_DISCONNECT;
+		}else{
+			one_loop = 100; // ms
+			delay = one_loop * 20; // MAX 2s
+
+			while(delay > 0){
+				if(core_if->device_connected){
+					core_if->bc_mode = USB_BC_MODE_SDP;	// PC
+					break;
+				}
+				DWC_MSLEEP(one_loop);
+				delay -= one_loop;
+			}
+
+			if(delay <= 0)	// Time out
+				core_if->bc_mode = USB_BC_MODE_DCP;	// Charger
+		}
+		DWC_PRINTF("Detected battery charger type: %s\n",bc_name[core_if->bc_mode]);
+		core_if->charger_detect_cb(core_if->bc_mode);
+	}
+
+}
+#else
 static void charger_detect_work(void *_vp)
 {
 	dwc_otg_core_if_t * core_if = (dwc_otg_core_if_t *) _vp;
@@ -86,6 +142,7 @@ static void charger_detect_work(void *_vp)
 	if(core_if->charger_detect_cb)
 		core_if->charger_detect_cb(core_if->bc_mode);
 }
+#endif
 /** This function will log a debug message
  *
  * @param core_if Programming view of DWC_otg controller.
@@ -141,6 +198,7 @@ int32_t dwc_otg_handle_otg_intr(dwc_otg_core_if_t * core_if)
 			}
 
 			core_if->session_valid = 0;
+			core_if->device_connected = 0;
 			DWC_WORKQ_SCHEDULE(core_if->wq_otg,
 					   charger_detect_work, core_if,
 					   "Charger detect");
@@ -1025,10 +1083,14 @@ int32_t dwc_otg_handle_disconnect_intr(dwc_otg_core_if_t * core_if)
 	} else {
 		if (core_if->op_state == A_HOST) {
 			/* A-Cable still connected but device disconnected. */
+			DWC_SPINUNLOCK(core_if->lock);
 			cil_hcd_disconnect(core_if);
+			DWC_SPINLOCK(core_if->lock);
 			if (core_if->adp_enable) {
 				gpwrdn_data_t gpwrdn = { .d32 = 0 };
+				DWC_SPINUNLOCK(core_if->lock);
 				cil_hcd_stop(core_if);
+				DWC_SPINLOCK(core_if->lock);
 				/* Enable Power Down Logic */
 				gpwrdn.b.pmuintsel = 1;
 				gpwrdn.b.pmuactv = 1;

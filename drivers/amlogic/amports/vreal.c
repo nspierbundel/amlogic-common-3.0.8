@@ -102,6 +102,8 @@
 #define STAT_TIMER_ARM      0x10
 #define STAT_VDEC_RUN       0x20
 
+#define PARSER_FATAL_ERROR  0x10
+
 #define REAL_RECYCLE_Q_BITS 3
 #define REAL_RECYCLE_Q_SIZE (1<<(REAL_RECYCLE_Q_BITS))
 #define REAL_RECYCLE_Q_MASK ((REAL_RECYCLE_Q_SIZE)-1)
@@ -148,6 +150,8 @@ static u32 real_err_count;
 static u32 real_recycle_q[REAL_RECYCLE_Q_SIZE];
 static u32 real_recycle_rd;
 static u32 real_recycle_wr;
+
+static u32 fatal_flag;
 
 static DEFINE_SPINLOCK(lock);
 
@@ -479,7 +483,8 @@ int vreal_dec_status(struct vdec_status *vstatus)
         vstatus->fps = 96000;
     }
     vstatus->error_count = real_err_count;
-    vstatus->status = (READ_VREG(STATUS_AMRISC) << 16) | stat;
+    vstatus->status = ((READ_VREG(STATUS_AMRISC) | fatal_flag)<< 16) | stat;
+    //printk("vreal_dec_status 0x%x\n", vstatus->status);
     return 0;
 }
 
@@ -659,6 +664,8 @@ static void vreal_local_init(void)
     real_recycle_wr = 0;
 
     pic_sz_tbl_map = 0;
+
+    fatal_flag = 0;
 }
 
 static void load_block_data(unsigned int dest, unsigned int count)
@@ -692,8 +699,14 @@ static void load_block_data(unsigned int dest, unsigned int count)
 s32 vreal_init(void)
 {
     int r;
+    dma_addr_t buf_start_map;
 
     printk("vreal_init\n");
+
+    memset(phys_to_virt(buf_start), 0, buf_size);
+
+    buf_start_map = dma_map_single(NULL, phys_to_virt(buf_start), buf_size, DMA_TO_DEVICE);
+    
     init_timer(&recycle_timer);
 
     stat |= STAT_TIMER_INIT;
@@ -738,6 +751,7 @@ s32 vreal_init(void)
         printk("unsurpported real format\n");
     }
 
+    dma_unmap_single(NULL, buf_start_map, buf_size, DMA_TO_DEVICE);
     stat |= STAT_MC_LOAD;
 
     /* enable AMRISC side protocol */
@@ -782,6 +796,13 @@ s32 vreal_init(void)
     printk("vreal init finished\n");
 
     return 0;
+}
+
+void vreal_set_fatal_flag(int flag)
+{
+    if (flag) {
+        fatal_flag = PARSER_FATAL_ERROR;
+    }
 }
 
 static int amvdec_real_probe(struct platform_device *pdev)

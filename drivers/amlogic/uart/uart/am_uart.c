@@ -124,7 +124,6 @@ struct am_uart_port {
 
 	struct mutex	info_mutex;
 
-    struct tasklet_struct	tlet;
 	struct work_struct	tqueue;
 	struct work_struct	tqueue_hangup;
 
@@ -139,7 +138,6 @@ struct am_uart_port {
 };
 
 static struct am_uart_port am_ports[UART_NR];
-
 /*
  * Output a single character, using UART polled mode.
  * This is used for console output.
@@ -147,15 +145,11 @@ static struct am_uart_port am_ports[UART_NR];
 void am_uart_put_char(int index,char ch)
 {
 	am_uart_t *uart = uart_addr[index];
-       unsigned int fifo_level = uart_FIFO_max_cnt[index];
 
-       fifo_level = (fifo_level-1)<<8;
-
-	while (!((readl(&uart->status) & 0xff00)< fifo_level)) ;
+	while ((readl(&uart->status) & UART_TXFULL)) ;
 	writel(ch, &uart->wdata);
 }
 
-int print_flag = 0;
 /*
  * This routine is used by the interrupt handler to schedule
  * processing in the software interrupt portion of the driver.
@@ -175,9 +169,6 @@ static void receive_chars(struct am_uart_port *info, struct pt_regs *regs,
 	int mode;
         char ch;
         unsigned long flag = TTY_NORMAL;
-        unsigned int fifo_level = uart_FIFO_max_cnt[info->line];
-
-       fifo_level = (fifo_level-1);
 
 	if (!tty) {
 		//printk("Uart : missing tty on line %d\n", info->line);
@@ -197,16 +188,15 @@ static void receive_chars(struct am_uart_port *info, struct pt_regs *regs,
 		mode = readl(&uart->mode) | UART_CLEAR_ERR;
 		writel(mode, &uart->mode);
 	}
-       spin_lock(&info->rd_lock);
 	do {
 		ch = (rx & 0x00ff);
-                tty_insert_flip_char(tty,ch,flag);
+              tty_insert_flip_char(tty,ch,flag);
 
 		info->rx_cnt++;
-		if ((status = readl(&uart->status) & fifo_level))
-			rx = readl(&uart->rdata);
-	} while (status);
-       spin_unlock(&info->rd_lock);
+		status = (readl(&uart->status) & UART_RXEMPTY);
+		if(!status)
+		    rx = readl(&uart->rdata);
+	} while (!status);
 clear_and_exit:
 	return;
 }
@@ -248,19 +238,16 @@ clear_and_exit:
 
         return;
 }
-#if 0
+
+
 static void transmit_chars(struct am_uart_port *info)
 {
     am_uart_t *uart = uart_addr[info->line];
     struct uart_port * up = &info->port;
     unsigned int ch;
     struct circ_buf *xmit = &up->state->xmit;
+    int count = 256;
 
-    unsigned int fifo_level = uart_FIFO_max_cnt[info->line];
-
-    fifo_level = (fifo_level-1)<<8;
-
-    mutex_lock(&info->info_mutex);
     if (up->x_char) {
         writel(up->x_char, &uart->wdata);
         up->x_char = 0;
@@ -271,24 +258,27 @@ static void transmit_chars(struct am_uart_port *info)
         goto clear_and_return;
 
     spin_lock(&info->wr_lock);
-    while(!uart_circ_empty(xmit))
+    while(!uart_circ_empty(xmit) && count-- > 0)
     {
-        if(((readl(&uart->status) & 0xff00) < fifo_level)) {
+        if((readl(&uart->status) & UART_TXFULL) ==0) {
             ch = xmit->buf[xmit->tail];
             writel(ch, &uart->wdata);
             xmit->tail = (xmit->tail+1) & (SERIAL_XMIT_SIZE - 1);
         }
+	 else
+	 {
+		break;
+	 }
     }
     spin_unlock(&info->wr_lock);
 clear_and_return:
-    mutex_unlock(&info->info_mutex);
-    if (!uart_circ_empty(xmit))
-        am_uart_sched_event(info, 0);
 
-    /* Clear interrupt (should be auto) */
+    if (uart_circ_chars_pending(xmit) < WAKEUP_CHARS)
+		uart_write_wakeup(up);
+
     return;
 }
-#endif
+
 
 /*
  * This is the serial driver's generic interrupt routine
@@ -312,11 +302,14 @@ static irqreturn_t am_uart_interrupt(int irq, void *dev, struct pt_regs *regs)
     if (!uart)
         goto out;
 
-    if ((readl(&uart->mode) & UART_RXENB)&& !(readl(&uart->status) & UART_RXEMPTY)){
+    if (!(readl(&uart->status) & UART_RXEMPTY)){
 
         receive_chars(info, 0, readl(&uart->rdata));
     }
 
+    if ((readl(&uart->mode) & UART_TXENB)&&!(readl(&uart->status) & UART_TXFULL)) {
+        transmit_chars(info);
+    }
 out:
     am_uart_sched_event(info, 0);
     return IRQ_HANDLED;
@@ -329,9 +322,6 @@ static void am_uart_workqueue(struct work_struct *work)
     struct am_uart_port *info=container_of(work,struct am_uart_port,tqueue);
     am_uart_t *uart = NULL;
     struct tty_struct *tty = NULL;
-    unsigned int fifo_level = uart_FIFO_max_cnt[info->line];
-
-    fifo_level = (fifo_level-1)<<8;
 
     if (!info)
         goto out;
@@ -349,59 +339,13 @@ static void am_uart_workqueue(struct work_struct *work)
     if (info->rx_cnt>0)
         BH_receive_chars(info);
 
-//actually,we don't use here to tx data.if have this code, maybe tx conflict
-#if 0
-    if ((readl(&uart->mode) & UART_TXENB)&&((readl(&uart->status) & 0xff00) < fifo_level)) {
-        transmit_chars(info);
-    }
-#endif
+
     if (readl(&uart->status) & UART_FRAME_ERR)
         writel(readl(&uart->status) & ~UART_FRAME_ERR,&uart->status);
     if (readl(&uart->status) & UART_OVERFLOW_ERR)
         writel(readl(&uart->status) & ~UART_OVERFLOW_ERR,&uart->status);
 out:
     return ;
-}
-
-static void uart_tasklet_action(unsigned long data)
-{
-	struct am_uart_port *info = (struct am_uart_port *)data;
-    am_uart_t *uart = uart_addr[info->line];
-//    unsigned long mode;
-    struct uart_port * up = &info->port;
-    unsigned int ch;
-    struct circ_buf *xmit = &up->state->xmit;
-    unsigned int fifo_level = uart_FIFO_max_cnt[info->line];
-    int count = 256;
-
-    fifo_level = (fifo_level-1)<<8;	
-    
-    //printk(KERN_DEBUG "%x %d#\n", readl(&uart->status), uart_circ_chars_pending(xmit));
-    //if(spin_trylock(&info->wr_lock)){
-
-        while(!uart_circ_empty(xmit) && (count-- > 0))
-        {
-            //printk(KERN_DEBUG "%x %d@\n", readl(&uart->status), count);
-            if (((readl(&uart->status) & 0xff00) < fifo_level)) {
-                ch = xmit->buf[xmit->tail];
-                writel(ch, &uart->wdata);
-                xmit->tail = (xmit->tail+1) & (SERIAL_XMIT_SIZE - 1);
-            }
-            else{
-                break;
-            }        
-        }
-        //mutex_unlock(&info->info_mutex);
-        //spin_unlock(&info->wr_lock);
-    //}
-
-    if (uart_circ_chars_pending(xmit) < WAKEUP_CHARS)
-		uart_write_wakeup(up);
-    
-    if(!uart_circ_empty(xmit)){
-        //printk(KERN_DEBUG "s t!\n");
-        tasklet_schedule(&info->tlet);
-    }    
 }
 
 static void am_uart_stop_tx(struct uart_port *port)
@@ -430,35 +374,28 @@ static void am_uart_start_tx(struct uart_port *port)
     struct uart_port * up = &info->port;
     unsigned int ch;
     struct circ_buf *xmit = &up->state->xmit;
-    unsigned int fifo_level = uart_FIFO_max_cnt[info->line];
-
+    unsigned long flags;
+	
 #ifdef PRINT_DEBUG
     if(info->line == DEBUG_PORT_ID)
         printk("%s\n", __FUNCTION__);
 #endif
-    fifo_level = (fifo_level-1)<<8;
-    //mutex_lock(&info->info_mutex);
-    /*don't set TXENB  again*/
-    //mode = readl(&uart->mode);
-    //mode |= UART_TXENB;
-    //writel(mode, &uart->mode);
-    if(info->line == 1){
-        tasklet_schedule(&info->tlet);
-        return;
-    }
 
-    spin_lock(&info->wr_lock);
+    spin_lock_irqsave(&info->wr_lock,flags);
 
     while(!uart_circ_empty(xmit))
     {
-        if (((readl(&uart->status) & 0xff00) < fifo_level)) {
+        if ((readl(&uart->status) & UART_TXFULL) ==0) {
             ch = xmit->buf[xmit->tail];
             writel(ch, &uart->wdata);
             xmit->tail = (xmit->tail+1) & (SERIAL_XMIT_SIZE - 1);
         }
+	  else
+        {
+		break;
+	  }
     }
-    //mutex_unlock(&info->info_mutex);
-    spin_unlock(&info->wr_lock);
+    spin_unlock_irqrestore(&info->wr_lock, flags);
 }
 
 static void am_uart_stop_rx(struct uart_port *port)
@@ -549,17 +486,13 @@ static int am_uart_get_poll_char(struct uart_port *port)
 {
     struct am_uart_port * info = &am_ports[port->line];
     am_uart_t *uart = uart_addr[info->line];
-    int status,rx;
-    unsigned int fifo_level = uart_FIFO_max_cnt[info->line];
+    int rx;
+    unsigned long flags;	
 
-    fifo_level = (fifo_level-1);
-
-    spin_lock(&info->rd_lock);
-    if ((status = readl(&uart->status) & fifo_level))
-	      rx = readl(&uart->rdata);
+    if (!(readl(&uart->status) & UART_RXEMPTY))
+	 rx = readl(&uart->rdata);
     else
         rx = 0;
-    spin_unlock(&info->rd_lock);
 
     return rx;
 }
@@ -570,14 +503,10 @@ static void am_uart_put_poll_char(struct uart_port *port,
 {
     struct am_uart_port * info = &am_ports[port->line];
     am_uart_t *uart = uart_addr[info->line];
-    unsigned int fifo_level = uart_FIFO_max_cnt[info->line];
+    unsigned long flags;	
 
-    fifo_level = (fifo_level-1)<<8;
-
-    spin_lock(&info->wr_lock);
-    while (!((readl(&uart->status) & 0xff00)< fifo_level)) ;
+    while (readl(&uart->status) & UART_TXFULL) ;
 	  writel(c, &uart->wdata);
-    spin_unlock(&info->wr_lock);
 
     return;
 }
@@ -596,6 +525,8 @@ static int am_uart_startup(struct uart_port *port)
 #endif
 
     mutex_lock(&info->info_mutex);
+    set_mask(&uart->mode, UART_RXRST|UART_TXRST|UART_CLEAR_ERR);
+    clear_mask(&uart->mode, UART_RXRST|UART_TXRST|UART_CLEAR_ERR);
     mode = readl(&uart->mode);
     mode |= UART_RXENB | UART_TXENB;
     writel(mode, &uart->mode);
@@ -606,15 +537,6 @@ static int am_uart_startup(struct uart_port *port)
 
 static void am_uart_shutdown(struct uart_port *port)
 {
- // struct am_uart_port * info = &am_ports[port->line];
- // am_uart_t *uart = uart_addr[info->line];
-//	unsigned int mode ;
-				/* All off! */
-//  mutex_lock(&info->info_mutex);
-//	mode = readl(&uart->mode);
-//	mode &= ~(UART_TXENB | UART_RXENB);
-//	writel(mode, &uart->mode);
-//  mutex_unlock(&info->info_mutex);
 #ifdef PRINT_DEBUG
     struct am_uart_port * info = &am_ports[port->line];
     if(info->line == DEBUG_PORT_ID)
@@ -626,17 +548,11 @@ static void am_uart_shutdown(struct uart_port *port)
 static void change_speed(struct am_uart_port *info, unsigned long newbaud)
 {
     am_uart_t *uart = uart_addr[info->line];
-//    struct tty_struct *tty;
     unsigned long tmp;
 	struct clk * clk81;
 #ifdef PRINT_DEBUG
     if(info->line == DEBUG_PORT_ID)
         printk("%s\n", __FUNCTION__);
-#endif
-#if 0
-    tty = info->port.state->port.tty;
-    if (!tty || !tty->termios)
-        return;
 #endif
 
     if (newbaud==0)
@@ -659,10 +575,14 @@ static void change_speed(struct am_uart_port *info, unsigned long newbaud)
     printk(KERN_INFO "Changing baud from %d to %d\n", info->baud, (int)newbaud);
     tmp = (clk_get_rate(clk81) / (newbaud * 4)) - 1;
     info->baud = (int)newbaud;
-
+#if MESON_CPU_TYPE < MESON_CPU_TYPE_MESON6
 	tmp = (readl(&uart->mode) & ~0xfff) | (tmp & 0xfff);
 	writel(tmp, &uart->mode);
-
+#else
+	  tmp = (readl(&uart->reg5) & ~0x7fffff) | (tmp & 0x7fffff);
+	  tmp |= 0x800000;
+	  writel(tmp, &uart->reg5); 
+#endif
     msleep(1);
 }
 
@@ -676,9 +596,6 @@ am_uart_set_termios(struct uart_port *port, struct ktermios *termios,
     if(info->line == DEBUG_PORT_ID)
         printk("%s\n", __FUNCTION__);
 #endif
-
-    //if (termios->c_cflag == old->c_cflag)
-    //    return;
 
     baud = tty_termios_baud_rate(termios);
     change_speed(info, baud);
@@ -812,6 +729,7 @@ static void am_uart_start_port(struct am_uart_port *am_port)
     struct uart_port *port = &am_port->port;
     int index = am_port->line;
     am_uart_t *uart = uart_addr[index];
+    unsigned int fifo_level = uart_FIFO_max_cnt[index];	
 
     am_port->magic = SERIAL_MAGIC;
 
@@ -830,18 +748,15 @@ static void am_uart_start_port(struct am_uart_port *am_port)
     mutex_init(&am_port->info_mutex);
     INIT_WORK(&am_port->tqueue,am_uart_workqueue);
 
-    tasklet_init(&am_port->tlet, uart_tasklet_action,
-			     (unsigned long)am_port);
-
-    set_mask(&uart->mode, UART_RXRST);
-    clear_mask(&uart->mode, UART_RXRST);
+    set_mask(&uart->mode, UART_RXRST|UART_TXRST|UART_CLEAR_ERR);
+    clear_mask(&uart->mode, UART_RXRST|UART_TXRST|UART_CLEAR_ERR);
 
     set_mask(&uart->mode, UART_RXINT_EN | UART_TXINT_EN);
 
 #if MESON_CPU_TYPE >= MESON_CPU_TYPE_MESON3
-     writel( 1 << 8 | 1, &uart->intctl);
+     writel( (fifo_level/2) << 8 | 1, &uart->intctl);
 #else
-     writel(1 << 7 | 1, &uart->intctl);
+     writel( (fifo_level/2)<< 7 | 1, &uart->intctl);
 #endif
     clear_mask(&uart->mode, (1 << 19)) ;
 
@@ -911,6 +826,7 @@ static void am_uart_console_write(struct console *co, const char *s, u_int count
 {
        int index = am_ports[co->index].line;
        spinlock_t  * wr_lock = &am_ports[co->index].wr_lock;
+	unsigned long flags;	
 
         if(inited_ports_flag==0)
             index =default_index;
@@ -918,13 +834,11 @@ static void am_uart_console_write(struct console *co, const char *s, u_int count
        if (index!=default_index)
 		am_uart_console_setup(co, NULL);
 
-       spin_lock(wr_lock);
 	while (count-- > 0) {
 		if (*s == '\n')
 			am_uart_put_char(index,'\r');
 		am_uart_put_char(index,*s++);
 	}
-       spin_unlock(wr_lock);
 }
 
 struct uart_driver am_uart_reg;
@@ -1166,9 +1080,8 @@ void raw_printk5(const char *str, uint n1, uint n2, uint n3, uint n4)
 	if (cr) {
 		am_uart_put_char(default_index,'\r');
 		am_uart_put_char(default_index,'\n');
-
-		local_irq_restore(flags);
 	}
+	local_irq_restore(flags);
 }
 
 EXPORT_SYMBOL(raw_printk5);

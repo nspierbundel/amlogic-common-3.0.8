@@ -15,5 +15,11 @@ config AM_LCD_OUTPUT
 	help  
 		LCD output module
 
+config AML_GAMMA_DEBUG
+	tristate "AML Gamma debug"
+	default y
+	depends on  AM_LCD_OUTPUT
+	help
+		AML gamma debug
+
 endmenu
-	

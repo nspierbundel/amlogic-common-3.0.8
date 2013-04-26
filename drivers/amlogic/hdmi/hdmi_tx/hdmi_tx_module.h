@@ -33,9 +33,25 @@ typedef struct rx_cap_
     unsigned char RxSpeakerAllocation;
     /*vendor*/    
     unsigned int IEEEOUI;
+    unsigned char ReceiverBrandName[4];
+    unsigned char ReceiverProductName[16];
     unsigned int ColorDeepSupport;
     unsigned int Max_TMDS_Clock; 
-    
+    unsigned int Video_Latency;
+    unsigned int Audio_Latency;
+    unsigned int Interlaced_Video_Latency;
+    unsigned int Interlaced_Audio_Latency;
+    unsigned int threeD_present;
+    unsigned int threeD_Multi_present;
+    unsigned int HDMI_VIC_LEN;
+    unsigned int HDMI_3D_LEN;
+    unsigned int threeD_Structure_ALL_15_0;
+    unsigned int threeD_MASK_15_0;
+    struct {
+        unsigned char frame_packing;
+        unsigned char top_and_bottom;
+        unsigned char side_by_side;
+    } support_3d_format[VIC_MAX_NUM];
 }rx_cap_t;
 
 
@@ -69,7 +85,8 @@ typedef struct hdmi_tx_dev_s {
     /*EDID*/
     unsigned cur_edid_block;
     unsigned cur_phy_block_ptr;
-    unsigned char EDID_buf[EDID_MAX_BLOCK*128]; 
+    unsigned char EDID_buf[EDID_MAX_BLOCK*128];
+    unsigned char EDID_hash[20];
     rx_cap_t RXCap;
     int vic_count;
     /*audio*/
@@ -91,6 +108,7 @@ typedef struct hdmi_tx_dev_s {
     HDMI_TX_INFO_t hdmi_info;
     unsigned char tmp_buf[HDMI_TMP_BUF_SIZE];
     unsigned int  log;
+    unsigned int  internal_mode_change;
 }hdmitx_dev_t;
 
 // HDMI LOG
@@ -108,12 +126,12 @@ typedef struct hdmi_tx_dev_s {
 #define HDMI_PROCESS_DELAY  AVTimeDly(500)
 #define AUTH_PROCESS_TIME   (4000/500)
 #else
-#define HDMI_PROCESS_DELAY  msleep(100)
-#define AUTH_PROCESS_TIME   (4000/100)
+#define HDMI_PROCESS_DELAY  msleep(10)
+#define AUTH_PROCESS_TIME   (1000/100)       // reduce a little time, previous setting is 4000/10
 #endif        
 
 
-#define HDMITX_VER "2012Nov6a"
+#define HDMITX_VER "2013Mar4a"
 
 /************************************
 *    hdmitx protocol level interface
@@ -169,6 +187,8 @@ extern unsigned char hdmi_audio_off_flag;
 #define HDMITX_HWCMD_TURN_ON_PRBS           0x7
 #define HDMITX_FORCE_480P_CLK                0x8
 #define HDMITX_OUTPUT_ENABLE                 0x9
+    #define HDMITX_SET_AVMUTE                0x0
+    #define HDMITX_CLEAR_AVMUTE              0x1
 #define HDMITX_GET_AUTHENTICATE_STATE        0xa
 #define HDMITX_SW_INTERNAL_HPD_TRIG          0xb
 #define HDMITX_HWCMD_OSD_ENABLE              0xf
@@ -178,6 +198,30 @@ extern unsigned char hdmi_audio_off_flag;
     #define IS_HDCP_ON  0x2
 #define HDMITX_HDCP_MONITOR                  0x11
 #define HDMITX_IP_INTR_MASN_RST              0x12
+#define HDMITX_HWCMD_HPD_RESET               0X13
+#define HDMITX_EARLY_SUSPEND_RESUME_CNTL     0x14
+    #define HDMITX_EARLY_SUSPEND             0x1
+    #define HDMITX_LATE_RESUME               0x2
+#define HDMITX_IP_SW_RST                     0x15   // Refer to HDMI_OTHER_CTRL0 in hdmi_tx_reg.h
+    #define TX_CREG_SW_RST      (1<<5)
+    #define TX_SYS_SW_RST       (1<<4)
+    #define CEC_CREG_SW_RST     (1<<3)
+    #define CEC_SYS_SW_RST      (1<<2)
+#define HDMITX_TMDS_PHY_CNTL                 0x16   // Refer to HDMI_OTHER_CTRL0 in hdmi_tx_reg.h
+    #define PHY_OFF             0
+    #define PHY_ON              1
+#define HDMITX_AUDIO_CNTL                    0x17
+    #define AUDIO_OFF           0
+    #define AUDIO_ON            1
+#define HMDITX_PHY_SUSPEND                   0x18
+#define HDMITX_AVMUTE_CNTL                   0x19
+    #define AVMUTE_SET          0   // set AVMUTE to 1
+    #define AVMUTE_CLEAR        1   // set AVunMUTE to 1
+    #define AVMUTE_OFF          2   // set both AVMUTE and AVunMUTE to 0
+#define HDMITX_CBUS_RST                      0x1A
+#define HDMITX_INTR_MASKN_CNTL               0x1B
+    #define INTR_MASKN_ENABLE   0
+    #define INTR_MASKN_DISABLE  1
 
 #define HDMI_HDCP_DELAYTIME_AFTER_DISPLAY    20      // unit: ms
 

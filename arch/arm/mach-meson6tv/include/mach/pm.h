@@ -16,6 +16,7 @@ struct meson_pm_config {
     int sleepcount;
     void (*set_vccx2)(int power_on);
     void (*set_exgpio_early_suspend)(int power_on);
+    void (*set_pinmux)(int power_on);
 };
 
 extern unsigned int meson_cpu_suspend_sz;

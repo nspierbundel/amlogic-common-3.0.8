@@ -1,6 +1,7 @@
 #ifndef __USB_CLK_M6TV_HEADER_
 #define __USB_CLK_M6TV_HEADER_
 
+#include <plat/lm.h>
 
 typedef struct usb_peri_reg {
 	volatile uint32_t config;

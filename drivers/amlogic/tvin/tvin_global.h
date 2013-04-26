@@ -43,8 +43,29 @@
 //#define ACD_REG_NUM2            0x39  //the sum of the part2 acd register 
 #define ACD_REG_NUM            0xff//the sum all of the acd register
 
-#define CRYSTAL_25M
+#define CRYSTAL_24M
 
+#ifndef CRYSTAL_24M
+#define CRYSTAL_25M
+#endif
+
+#ifdef CRYSTAL_24M
+#define CVD2_CHROMA_DTO_NTSC_M   0x262e8ba2
+#define CVD2_CHROMA_DTO_NTSC_443 0x2f4abc24
+#define CVD2_CHROMA_DTO_PAL_I    0x2f4abc24
+#define CVD2_CHROMA_DTO_PAL_M    0x2623cd98
+#define CVD2_CHROMA_DTO_PAL_CN   0x263566cf
+#define CVD2_CHROMA_DTO_PAL_60   0x2f4abc24
+#define CVD2_CHROMA_DTO_SECAM    0x2db7a328
+#define CVD2_HSYNC_DTO_NTSC_M    0x24000000
+#define CVD2_HSYNC_DTO_NTSC_443  0x24000000
+#define CVD2_HSYNC_DTO_PAL_I     0x24000000
+#define CVD2_HSYNC_DTO_PAL_M     0x24000000
+#define CVD2_HSYNC_DTO_PAL_CN    0x24000000
+#define CVD2_HSYNC_DTO_PAL_60    0x24000000
+#define CVD2_HSYNC_DTO_SECAM     0x24000000
+#define CVD2_DCRESTORE_ACCUM     0x98       // [5:0] = 24(MHz)
+#endif
 
 #ifdef CRYSTAL_25M
 #define CVD2_CHROMA_DTO_NTSC_M   0x24a7904a

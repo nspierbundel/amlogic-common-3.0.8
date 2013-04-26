@@ -85,7 +85,12 @@ static char * base_addr_type(char base)
 	case 's':
 	case 'S':
 		return "SECBUS";
-#endif // CONFIG_ARCH_MESON6
+#endif // CONFIG_ARCH_MESON6		
+#if MESON_CPU_TYPE >= MESON_CPU_TYPE_MESON6TV	
+	case 'h':
+	case 'H':
+		return "HDEC";
+#endif
 	default:
 		break;
 	}
@@ -121,6 +126,12 @@ static unsigned int  base_addr_convert(char base,unsigned int address)
 		address = SECBUS_REG_ADDR(address);
 		break;
 #endif // CONFIG_ARCH_MESON6
+#if MESON_CPU_TYPE >= MESON_CPU_TYPE_MESON6TV		
+	case 'h':
+	case 'H':
+		address = HDEC_REG_ADDR(address);
+		break;					
+#endif
 	default:
 		break;
 	}

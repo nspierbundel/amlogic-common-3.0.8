@@ -57,4 +57,17 @@ config AML_CARD_KEY
 	default n
 	help
 	  Support key variable store in card device
+
+config CARD_DEFERRED_MONITOR
+	bool "card deffer monitor to init card(except inand)"
+	default n
+	depends on DEFERRED_MODULE_INIT
+	
+config CARD_NO_POWER_DELAY
+	bool "No power delay in init function when no external power control the card"
+	default n
+
+config CARD_MUTE_INIT_INFO
+	bool "card mute init info"
+	default n
 endmenu

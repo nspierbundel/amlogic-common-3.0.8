@@ -3,6 +3,7 @@
 #include <linux/list.h>
 #include <linux/irqreturn.h>
 #include <mach/am_regs.h>
+#include <linux/io.h>
 typedef   irqreturn_t (*bridge_handle_t)(int irq, void *dev_id);
 typedef  struct{
 	
@@ -16,8 +17,8 @@ typedef  struct{
 
 static LIST_HEAD(fiq_bridge_list);  
 
-#define BRIDGE_IRQ INT_TIMER_D
-#define BRIDGE_IRQ_SET() WRITE_CBUS_REG(ISA_TIMERD, 1)
+#define BRIDGE_IRQ INT_TIMER_C
+#define BRIDGE_IRQ_SET() WRITE_CBUS_REG(ISA_TIMERC, 1)
 
 extern int fiq_bridge_pulse_trigger(bridge_item_t *c_item);
 extern int register_fiq_bridge_handle(bridge_item_t *c_item);

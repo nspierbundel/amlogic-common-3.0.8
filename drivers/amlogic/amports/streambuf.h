@@ -31,7 +31,8 @@
 #define BUF_TYPE_VIDEO      0
 #define BUF_TYPE_AUDIO      1
 #define BUF_TYPE_SUBTITLE   2
-#define BUF_MAX_NUM         3
+#define BUF_TYPE_USERDATA   3
+#define BUF_MAX_NUM         4
 
 #define INVALID_PTS 0xffffffff
 
@@ -48,6 +49,8 @@ typedef struct stream_buf_s {
     wait_queue_head_t   wq;
     struct timer_list timer;
     u32   wcnt;
+	u32	buf_wp;
+	u32	buf_rp;
 } stream_buf_t;
 
 typedef struct stream_port_s {
@@ -90,6 +93,7 @@ extern u32 stbuf_sub_rp_get(void);
 extern void stbuf_sub_rp_set(unsigned int sub_rp);
 extern u32 stbuf_sub_wp_get(void);
 extern u32 stbuf_sub_start_get(void);
+extern u32 stbuf_userdata_start_get(void);
 extern stream_buf_t* get_stream_buffer(int id);
 
 #endif /* STREAMBUF_H */

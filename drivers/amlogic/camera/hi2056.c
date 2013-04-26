@@ -31,6 +31,7 @@
 #include <media/videobuf-vmalloc.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-ioctl.h>
+#include <linux/wakelock.h>
 
 #include <linux/i2c.h>
 #include <media/v4l2-chip-ident.h>
@@ -41,10 +42,6 @@
 #include <mach/am_regs.h>
 #include <mach/pinmux.h>
 #include "common/plat_ctrl.h"
-#ifdef CONFIG_HAS_EARLYSUSPEND
-#include <linux/earlysuspend.h>
-static struct early_suspend hi2056_early_suspend;
-#endif
 
 #define HI2056_CAMERA_MODULE_NAME "mipi-hi2056"
 
@@ -228,7 +225,13 @@ static struct hi2056_fmt formats[] =
 		.fourcc   = V4L2_PIX_FMT_YUV420,
 		.depth    = 12,
 	},
+	{
+		.name     = "YVU420P",
+		.fourcc   = V4L2_PIX_FMT_YVU420,
+		.depth    = 12,
+	}
 };
+
 #if 0
 static struct hi2056_fmt input_formats_mem[] = 
 {
@@ -332,6 +335,9 @@ struct hi2056_device {
 
 	/* platform device data from board initting. */
 	aml_plat_cam_data_t platform_dev_data;
+	
+	/* wake lock */
+	struct wake_lock	wake_lock;
 
 	/* Control 'registers' */
 	int 			   qctl_regs[ARRAY_SIZE(hi2056_qctrl)];
@@ -1649,7 +1655,7 @@ static void free_buffer(struct videobuf_queue *vq, struct hi2056_buffer *buf)
 }
 
 #define norm_maxw() 1920
-#define norm_maxh() 1200
+#define norm_maxh() 1600
 static int
 buffer_prepare(struct videobuf_queue *vq, struct videobuf_buffer *vb,
 						enum v4l2_field field)
@@ -1950,7 +1956,11 @@ static int vidioc_enum_framesizes(struct file *file, void *fh,struct v4l2_frmsiz
 	}
 	if (fmt == NULL)
 		return -EINVAL;
-	if (fmt->fourcc == V4L2_PIX_FMT_NV21){
+	if ((fmt->fourcc == V4L2_PIX_FMT_NV21)
+		||(fmt->fourcc == V4L2_PIX_FMT_NV12)
+		||(fmt->fourcc == V4L2_PIX_FMT_YUV420)
+		||(fmt->fourcc == V4L2_PIX_FMT_YVU420)
+		){
 		if (fsize->index >= ARRAY_SIZE(hi2056_prev_resolution))
 			return -EINVAL;
 		frmsize = &hi2056_prev_resolution[fsize->index];
@@ -2113,6 +2123,7 @@ static int hi2056_open(struct file *file)
 	if (retval)
 		return retval;
 
+	wake_lock(&(dev->wake_lock));
 	file->private_data = fh;
 	fh->dev      = dev;
 
@@ -2206,6 +2217,7 @@ static int hi2056_close(struct file *file)
 	}
 
 	msleep(10);
+	wake_unlock(&(dev->wake_lock));
 	return 0;
 }
 
@@ -2287,30 +2299,6 @@ static const struct v4l2_subdev_ops hi2056_ops = {
 	.core = &hi2056_core_ops,
 };
 
-#ifdef CONFIG_HAS_EARLYSUSPEND
-static void aml_hi2056_early_suspend(struct early_suspend *h)
-{
-	printk("enter -----> %s \n",__FUNCTION__);
-	if(h && h->param) {
-		aml_plat_cam_data_t* plat_dat= (aml_plat_cam_data_t*)h->param;
-		if (plat_dat && plat_dat->early_suspend) {
-			plat_dat->early_suspend();
-		}
-	}
-}
-
-static void aml_hi2056_late_resume(struct early_suspend *h)
-{
-	printk("enter -----> %s \n",__FUNCTION__);
-	if(h && h->param) {
-		aml_plat_cam_data_t* plat_dat= (aml_plat_cam_data_t*)h->param;
-		if (plat_dat && plat_dat->late_resume) {
-			plat_dat->late_resume();
-		}
-	}
-}
-#endif
-
 static int hi2056_probe(struct i2c_client *client,
 			const struct i2c_device_id *id)
 {
@@ -2337,6 +2325,8 @@ static int hi2056_probe(struct i2c_client *client,
 	memcpy(t->vdev, &hi2056_template, sizeof(*t->vdev));
 
 	video_set_drvdata(t->vdev, t);
+	
+	wake_lock_init(&(t->wake_lock),WAKE_LOCK_SUSPEND, "hi2056");
 
 	/* Register it */
 	plat_dat= (aml_plat_cam_data_t*)client->dev.platform_data;
@@ -2353,14 +2343,6 @@ static int hi2056_probe(struct i2c_client *client,
 		return err;
 	}
 
-#ifdef CONFIG_HAS_EARLYSUSPEND
-	hi2056_early_suspend.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN;
-	hi2056_early_suspend.suspend = aml_hi2056_early_suspend;
-	hi2056_early_suspend.resume = aml_hi2056_late_resume;
-	hi2056_early_suspend.param = plat_dat;
-	register_early_suspend(&hi2056_early_suspend);
-#endif
-
 	return 0;
 }
 
@@ -2371,45 +2353,10 @@ static int hi2056_remove(struct i2c_client *client)
 
 	video_unregister_device(t->vdev);
 	v4l2_device_unregister_subdev(sd);
+	wake_lock_destroy(&(t->wake_lock));
 	kfree(t);
 	return 0;
 }
-
-static int hi2056_suspend(struct i2c_client *client, pm_message_t state)
-{
-	struct v4l2_subdev *sd = i2c_get_clientdata(client);
-	struct hi2056_device *t = to_dev(sd);
-	struct hi2056_fh  *fh = to_fh(t);
-	if(fh->stream_on == 1){
-		stop_mipi_csi2_service(&hi2056_para);
-	}
-	power_down_hi2056(t);
-	return 0;
-}
-
-static int hi2056_resume(struct i2c_client *client)
-{
-    struct v4l2_subdev *sd = i2c_get_clientdata(client);
-    struct hi2056_device *t = to_dev(sd);
-    struct hi2056_fh  *fh = to_fh(t);
-    hi2056_para.output_line= hi2056_v_output;
-    hi2056_para.output_pixel = hi2056_h_output;
-    hi2056_para.active_line = hi2056_v_active;
-    hi2056_para.active_pixel = hi2056_h_active;
-    hi2056_para.frame_rate = hi2056_frame_rate;
-    hi2056_para.clock_lane_mode = 0;
-    hi2056_para.out_fmt = (struct am_csi2_pixel_fmt*)(fh->fmt);
-    if(hi2056_para.out_fmt->fourcc == V4L2_PIX_FMT_RGB24)
-        hi2056_para.in_fmt = (struct am_csi2_pixel_fmt*)&input_formats_vdin[0];
-    else
-        hi2056_para.in_fmt = (struct am_csi2_pixel_fmt*)&input_formats_vdin[1];
-    HI2056_init_regs(t);
-    if(fh->stream_on == 1){
-        start_mipi_csi2_service(&hi2056_para);
-    }
-    return 0;
-}
-
 
 static const struct i2c_device_id hi2056_id[] = {
 	{ "hi2056_i2c", 0 },
@@ -2421,8 +2368,6 @@ static struct v4l2_i2c_driver_data v4l2_i2c_data = {
 	.name = "mipi-hi2056",
 	.probe = hi2056_probe,
 	.remove = hi2056_remove,
-	.suspend = hi2056_suspend,
-	.resume = hi2056_resume,
 	.id_table = hi2056_id,
 };
 

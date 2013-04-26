@@ -102,3 +102,14 @@ int ll_deinit(void);
 int ath_init(void);
 int ath_deinit(void);
 #endif
+#if CONFIG_MTK_DISCRETE_BT_HW_CTL
+#ifdef BT_INFO
+#undef BT_INFO
+#define BT_INFO(fmt, arg...) printk(KERN_DEBUG "%s " fmt "\n", __FUNCTION__, ##arg)
+#endif
+#define HCI_UART_LOUD_DEBUG  1
+#ifdef BT_DBG
+#undef BT_DBG
+#define BT_DBG(fmt, arg...) printk(KERN_DEBUG "%s " fmt "\n", __FUNCTION__, ##arg)
+#endif
+#endif

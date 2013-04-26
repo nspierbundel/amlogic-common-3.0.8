@@ -28,7 +28,7 @@
 extern unsigned char MCS_rate_2R[16];
 extern unsigned char MCS_rate_1R[16];
 extern void process_wmmps_data(_adapter *padapter, union recv_frame *precv_frame);
-extern void rtw_dump_xframe(_adapter *padapter, struct xmit_frame *pxmitframe);
+extern s32 rtw_dump_xframe(_adapter *padapter, struct xmit_frame *pxmitframe);
 
 void rtw_reset_tdls_info(_adapter* padapter)
 {
@@ -361,15 +361,15 @@ u8 *rtw_tdls_set_ht_cap(_adapter *padapter, u8 *pframe, struct pkt_attrib *pattr
 
 	{
 		u32 rx_packet_offset, max_recvbuf_sz;
-		padapter->HalFunc.GetHalDefVarHandler(padapter, HAL_DEF_RX_PACKET_OFFSET, &rx_packet_offset);
-		padapter->HalFunc.GetHalDefVarHandler(padapter, HAL_DEF_MAX_RECVBUF_SZ, &max_recvbuf_sz);
+		rtw_hal_get_def_var(padapter, HAL_DEF_RX_PACKET_OFFSET, &rx_packet_offset);
+		rtw_hal_get_def_var(padapter, HAL_DEF_MAX_RECVBUF_SZ, &max_recvbuf_sz);
 		if(max_recvbuf_sz-rx_packet_offset>(8191-256))
 			ht_capie.cap_info = ht_capie.cap_info |IEEE80211_HT_CAP_MAX_AMSDU;
 	}
 	
 	ht_capie.ampdu_params_info = (IEEE80211_HT_CAP_AMPDU_FACTOR&0x03);
 
-	padapter->HalFunc.GetHwRegHandler(padapter, HW_VAR_RF_TYPE, (u8 *)(&rf_type));
+	rtw_hal_get_hwreg(padapter, HW_VAR_RF_TYPE, (u8 *)(&rf_type));
 	switch(rf_type)
 	{
 		case RF_1T1R:
@@ -483,7 +483,7 @@ void issue_tunneled_probe_req(_adapter *padapter)
 	pattrib->qsel=pattrib->priority;
 	if (rtw_xmit_tdls_coalesce(padapter, pmgntframe, TUNNELED_PROBE_REQ) != _SUCCESS) {
 		rtw_free_xmitbuf(pxmitpriv, pmgntframe->pxmitbuf);
-		rtw_free_xmitframe_ex(pxmitpriv, pmgntframe);
+		rtw_free_xmitframe(pxmitpriv, pmgntframe);
 		goto exit;
 	}
 	rtw_dump_xframe(padapter, pmgntframe);
@@ -526,7 +526,7 @@ void issue_tunneled_probe_rsp(_adapter *padapter, union recv_frame *precv_frame)
 	pattrib->qsel=pattrib->priority;
 	if (rtw_xmit_tdls_coalesce(padapter, pmgntframe, TUNNELED_PROBE_RSP) != _SUCCESS) {
 		rtw_free_xmitbuf(pxmitpriv, pmgntframe->pxmitbuf);
-		rtw_free_xmitframe_ex(pxmitpriv, pmgntframe);
+		rtw_free_xmitframe(pxmitpriv, pmgntframe);
 		goto exit;
 	}
 	rtw_dump_xframe(padapter, pmgntframe);
@@ -592,7 +592,7 @@ void issue_tdls_setup_req(_adapter *padapter, u8 *mac_addr)
 		else
 		{
 			rtw_free_xmitbuf(pxmitpriv,pmgntframe->pxmitbuf);
-			rtw_free_xmitframe_ex(pxmitpriv, pmgntframe);
+			rtw_free_xmitframe(pxmitpriv, pmgntframe);
 			goto exit;
 		}
 	}
@@ -609,7 +609,7 @@ void issue_tdls_setup_req(_adapter *padapter, u8 *mac_addr)
 	pattrib->qsel=pattrib->priority;
 	if(rtw_xmit_tdls_coalesce(padapter, pmgntframe, TDLS_SETUP_REQUEST) !=_SUCCESS ){
 		rtw_free_xmitbuf(pxmitpriv,pmgntframe->pxmitbuf);
-		rtw_free_xmitframe_ex(pxmitpriv, pmgntframe);
+		rtw_free_xmitframe(pxmitpriv, pmgntframe);
 		goto exit;
 	}
 	rtw_dump_xframe(padapter, pmgntframe);
@@ -659,7 +659,7 @@ void issue_tdls_teardown(_adapter *padapter, u8 *mac_addr)
 	pattrib->qsel=pattrib->priority;
 	if (rtw_xmit_tdls_coalesce(padapter, pmgntframe, TDLS_TEARDOWN) != _SUCCESS) {
 		rtw_free_xmitbuf(pxmitpriv, pmgntframe->pxmitbuf);
-		rtw_free_xmitframe_ex(pxmitpriv, pmgntframe);
+		rtw_free_xmitframe(pxmitpriv, pmgntframe);
 		goto exit;
 	}
 	rtw_dump_xframe(padapter, pmgntframe);
@@ -717,7 +717,7 @@ void issue_tdls_dis_req(_adapter *padapter, u8 *mac_addr)
 	pattrib->qsel=pattrib->priority;
 	if (rtw_xmit_tdls_coalesce(padapter, pmgntframe, TDLS_DISCOVERY_REQUEST) != _SUCCESS) {
 		rtw_free_xmitbuf(pxmitpriv, pmgntframe->pxmitbuf);
-		rtw_free_xmitframe_ex(pxmitpriv, pmgntframe);
+		rtw_free_xmitframe(pxmitpriv, pmgntframe);
 		goto exit;
 	}
 	rtw_dump_xframe(padapter, pmgntframe);
@@ -760,7 +760,7 @@ void issue_tdls_setup_rsp(_adapter *padapter, union recv_frame *precv_frame)
 	pattrib->qsel=pattrib->priority;
 	if (rtw_xmit_tdls_coalesce(padapter, pmgntframe, TDLS_SETUP_RESPONSE) != _SUCCESS) {
 		rtw_free_xmitbuf(pxmitpriv, pmgntframe->pxmitbuf);
-		rtw_free_xmitframe_ex(pxmitpriv, pmgntframe);
+		rtw_free_xmitframe(pxmitpriv, pmgntframe);
 		goto exit;
 	}
 	rtw_dump_xframe(padapter, pmgntframe);
@@ -804,7 +804,7 @@ void issue_tdls_setup_cfm(_adapter *padapter, union recv_frame *precv_frame)
 	pattrib->qsel=pattrib->priority;
 	if (rtw_xmit_tdls_coalesce(padapter, pmgntframe, TDLS_SETUP_CONFIRM) != _SUCCESS) {
 		rtw_free_xmitbuf(pxmitpriv, pmgntframe->pxmitbuf);
-		rtw_free_xmitframe_ex(pxmitpriv, pmgntframe);
+		rtw_free_xmitframe(pxmitpriv, pmgntframe);
 		goto exit;		
 	}
 
@@ -910,7 +910,7 @@ void issue_tdls_peer_traffic_indication(_adapter *padapter, struct sta_info *ptd
 	pattrib->qsel=pattrib->priority;
 	if (rtw_xmit_tdls_coalesce(padapter, pmgntframe, TDLS_PEER_TRAFFIC_INDICATION) != _SUCCESS) {
 		rtw_free_xmitbuf(pxmitpriv, pmgntframe->pxmitbuf);
-		rtw_free_xmitframe_ex(pxmitpriv, pmgntframe);
+		rtw_free_xmitframe(pxmitpriv, pmgntframe);
 		goto exit;
 	}
 	rtw_dump_xframe(padapter, pmgntframe);
@@ -950,7 +950,7 @@ void issue_tdls_ch_switch_req(_adapter *padapter, u8 *mac_addr)
 	pattrib->qsel=pattrib->priority;
 	if(rtw_xmit_tdls_coalesce(padapter, pmgntframe, TDLS_CHANNEL_SWITCH_REQUEST) !=_SUCCESS ){
 		rtw_free_xmitbuf(pxmitpriv,pmgntframe->pxmitbuf);
-		rtw_free_xmitframe_ex(pxmitpriv, pmgntframe);
+		rtw_free_xmitframe(pxmitpriv, pmgntframe);
 		goto exit;
 	}
 	rtw_dump_xframe(padapter, pmgntframe);
@@ -999,7 +999,7 @@ void issue_tdls_ch_switch_rsp(_adapter *padapter, u8 *mac_addr)
 */
 	if(rtw_xmit_tdls_coalesce(padapter, pmgntframe, TDLS_CHANNEL_SWITCH_RESPONSE) !=_SUCCESS ){
 		rtw_free_xmitbuf(pxmitpriv,pmgntframe->pxmitbuf);
-		rtw_free_xmitframe_ex(pxmitpriv, pmgntframe);
+		rtw_free_xmitframe(pxmitpriv, pmgntframe);
 		goto exit;	
 	}
 	rtw_dump_xframe(padapter, pmgntframe);
@@ -1072,7 +1072,7 @@ sint On_TDLS_Dis_Rsp(_adapter *adapter, union recv_frame *precv_frame)
 			}
 		}
 
-		adapter->HalFunc.GetHalDefVarHandler(adapter, HAL_DEF_UNDERCORATEDSMOOTHEDPWDB, &UndecoratedSmoothedPWDB);
+		rtw_hal_get_def_var(adapter, HAL_DEF_UNDERCORATEDSMOOTHEDPWDB, &UndecoratedSmoothedPWDB);
 
 		if( pattrib->RxPWDBAll + TDLS_SIGNAL_THRESH >= UndecoratedSmoothedPWDB);
 		{
@@ -1731,7 +1731,7 @@ sint On_TDLS_Peer_Traffic_Rsp(_adapter *adapter, union recv_frame *precv_frame)
 					pxmitframe->attrib.eosp = 1;
 				}
 				//pxmitframe->attrib.triggered = 1;	//maybe doesn't need in TDLS
-				if(adapter->HalFunc.hal_xmit(adapter, pxmitframe) == _TRUE)
+				if(rtw_hal_xmit(adapter, pxmitframe) == _TRUE)
 				{		
 					rtw_os_xmit_complete(adapter, pxmitframe);
 				}
@@ -1824,7 +1824,7 @@ sint On_TDLS_Ch_Switch_Req(_adapter *adapter, union recv_frame *precv_frame)
 	ptdls_sta->stat_code=0;
 	ptdls_sta->tdls_sta_state |= TDLS_CH_SWITCH_ON_STATE;
 
-	issue_nulldata(adapter, 1);
+	issue_nulldata(adapter, NULL, 1, 0, 0);
 
 	issue_tdls_ch_switch_rsp(adapter, psa);
 
@@ -1930,6 +1930,7 @@ sint On_TDLS_Ch_Switch_Rsp(_adapter *adapter, union recv_frame *precv_frame)
 #ifdef CONFIG_WFD
 void wfd_ie_tdls(_adapter * padapter, u8 *pframe, u32 *pktlen )
 {
+	struct mlme_priv		*pmlmepriv = &padapter->mlmepriv;
 	struct wifi_display_info	*pwfd_info = padapter->tdlsinfo.wfd_info;
 	u8 wfdie[ MAX_WFD_IE_LEN] = { 0x00 };
 	u32 wfdielen = 0;
@@ -1974,6 +1975,26 @@ void wfd_ie_tdls(_adapter * padapter, u8 *pframe, u32 *pktlen )
 	//	300Mbps is the maximum throughput
 	RTW_PUT_BE16(wfdie + wfdielen, 300);
 	wfdielen += 2;
+
+	//	Associated BSSID ATTR
+	//	Type:
+	wfdie[ wfdielen++ ] = WFD_ATTR_ASSOC_BSSID;
+
+	//	Length:
+	//	Note: In the WFD specification, the size of length field is 2.
+	RTW_PUT_BE16(wfdie + wfdielen, 0x0006);
+	wfdielen += 2;
+
+	//	Value:
+	//	Associated BSSID
+	if ( check_fwstate( pmlmepriv, _FW_LINKED) == _TRUE )
+	{
+		_rtw_memcpy( wfdie + wfdielen, &pmlmepriv->assoc_bssid[ 0 ], ETH_ALEN );
+	}
+	else
+	{
+		_rtw_memset( wfdie + wfdielen, 0x00, ETH_ALEN );
+	}
 
 	//	Local IP Address ATTR
 	wfdie[ wfdielen++ ] = WFD_ATTR_LOCAL_IP_ADDR;
@@ -2605,14 +2626,13 @@ void rtw_build_tunneled_probe_req_ies(_adapter * padapter, struct xmit_frame * p
 {
 
 	struct pkt_attrib	*pattrib = &pxmitframe->attrib;
+	struct wifidirect_info *pwdinfo = &padapter->wdinfo;
+	struct wifidirect_info *pbuddy_wdinfo = &padapter->pbuddy_adapter->wdinfo;
 	u8 payload_type = 0x02;
 	u8 category = RTW_WLAN_CATEGORY_P2P;
 	u8 WFA_OUI[3] = { 0x50, 0x6f, 0x9a};
 	u8 probe_req = 4;
-#if 0
-	unsigned char			bssrate[NumRates];
-	int	bssrate_len = 0;
-#endif
+	u8 wfdielen = 0;
 
 	//payload type
 	pframe = rtw_set_fixed_ie(pframe, 1, &(payload_type), &(pattrib->pktlen));		
@@ -2621,23 +2641,18 @@ void rtw_build_tunneled_probe_req_ies(_adapter * padapter, struct xmit_frame * p
 	pframe = rtw_set_fixed_ie(pframe, 3, WFA_OUI, &(pattrib->pktlen));
 	pframe = rtw_set_fixed_ie(pframe, 1, &(probe_req), &(pattrib->pktlen));
 
-	wfd_ie_tdls( padapter, pframe, &(pattrib->pktlen) );
-
-#if 0
-	pframe = rtw_set_ie(pframe, _SSID_IE_, 0, NULL, &(pattrib->pktlen));
-
-	get_rate_set(padapter, bssrate, &bssrate_len);
-
-	if (bssrate_len > 8)
+	if(!rtw_p2p_chk_state(pwdinfo, P2P_STATE_NONE))
 	{
-		pframe = rtw_set_ie(pframe, _SUPPORTEDRATES_IE_ , 8, bssrate, &(pattrib->pktlen));
-		pframe = rtw_set_ie(pframe, _EXT_SUPPORTEDRATES_IE_ , (bssrate_len - 8), (bssrate + 8), &(pattrib->pktlen));
+		wfdielen = build_probe_req_wfd_ie(pwdinfo, pframe);
+		pframe += wfdielen;
+		pattrib->pktlen += wfdielen;
 	}
-	else
+	else if(!rtw_p2p_chk_state(pbuddy_wdinfo, P2P_STATE_NONE))
 	{
-		pframe = rtw_set_ie(pframe, _SUPPORTEDRATES_IE_ , bssrate_len , bssrate, &(pattrib->pktlen));
+		wfdielen = build_probe_req_wfd_ie(pbuddy_wdinfo, pframe);
+		pframe += wfdielen;
+		pattrib->pktlen += wfdielen;
 	}
-#endif	
 	
 }
 
@@ -2645,10 +2660,13 @@ void rtw_build_tunneled_probe_rsp_ies(_adapter * padapter, struct xmit_frame * p
 {
 
 	struct pkt_attrib	*pattrib = &pxmitframe->attrib;
+	struct wifidirect_info *pwdinfo = &padapter->wdinfo;
+	struct wifidirect_info *pbuddy_wdinfo = &padapter->pbuddy_adapter->wdinfo;
 	u8 payload_type = 0x02;
 	u8 category = RTW_WLAN_CATEGORY_P2P;
 	u8 WFA_OUI[3] = { 0x50, 0x6f, 0x9a};
 	u8 probe_rsp = 5;
+	u8 wfdielen = 0;
 
 	//payload type
 	pframe = rtw_set_fixed_ie(pframe, 1, &(payload_type), &(pattrib->pktlen));		
@@ -2657,7 +2675,18 @@ void rtw_build_tunneled_probe_rsp_ies(_adapter * padapter, struct xmit_frame * p
 	pframe = rtw_set_fixed_ie(pframe, 3, WFA_OUI, &(pattrib->pktlen));
 	pframe = rtw_set_fixed_ie(pframe, 1, &(probe_rsp), &(pattrib->pktlen));
 
-	wfd_ie_tdls( padapter, pframe, &(pattrib->pktlen) );
+	if(!rtw_p2p_chk_state(pwdinfo, P2P_STATE_NONE))
+	{
+		wfdielen = build_probe_resp_wfd_ie(pwdinfo, pframe, 1);
+		pframe += wfdielen;
+		pattrib->pktlen += wfdielen;
+	}
+	else if(!rtw_p2p_chk_state(pbuddy_wdinfo, P2P_STATE_NONE))
+	{
+		wfdielen = build_probe_resp_wfd_ie(pbuddy_wdinfo, pframe, 1);
+		pframe += wfdielen;
+		pattrib->pktlen += wfdielen;
+	}
 
 }
 #endif //CONFIG_WFD
@@ -2876,7 +2905,7 @@ u32 update_mask_tdls(_adapter *padapter, struct sta_info *psta)
 	//n mode ra_bitmap
 	if(psta_ht->ht_option) 
 	{
-		padapter->HalFunc.GetHwRegHandler(padapter, HW_VAR_RF_TYPE, (u8 *)(&rf_type));
+		rtw_hal_get_hwreg(padapter, HW_VAR_RF_TYPE, (u8 *)(&rf_type));
 		if(rf_type == RF_2T2R)
 			limit=16;// 2R
 		else

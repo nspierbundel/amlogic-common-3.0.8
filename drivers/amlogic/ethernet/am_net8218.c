@@ -91,7 +91,7 @@ static char DEFMAC[] = "\x00\x01\x23\xcd\xee\xaf";
 void start_test(struct net_device *dev);
 static void write_mac_addr(struct net_device *dev, char *macaddr);
 static int ethernet_reset(struct net_device *dev);
-static void set_phy_mode();
+static void set_phy_mode(void);
 /* --------------------------------------------------------------------------*/
 /**
  * @brief  mdio_read 
@@ -480,6 +480,10 @@ static int phy_linked(struct am_net_private *np)
 		val = mdio_read(np->dev, np->phys[0], 17);
 		val = (val & (1 << 10));
 		break;
+	case PHY_ID_KS8081:
+		val = mdio_read(np->dev, np->phys[0], 1);
+		val = (val & (1 << 2));
+		break;
 	case PHY_SMSC_8700:
 	case PHY_SMSC_8720:
 	default:
@@ -551,6 +555,11 @@ static void phy_auto_negotiation_set(struct am_net_private *np)
 		s100 = rint & (1 << 14);
 		full = ((rint) & (1 << 13));
         break;
+	case PHY_ID_KS8081:
+		rint = mdio_read(np->dev, np->phys[0], 0x1E);
+		s100 = rint & 0x07;
+		full = ((rint >> 1) & 3);
+		break;
 	case PHY_IC_IP101ALF:
 		rint = mdio_read(np->dev, np->phys[0], 0);
 		s100 = (rint & (0x1 << 8)) ? 1 : 0;
@@ -608,8 +617,10 @@ static void netdev_timer(unsigned long data)
 		if (error_num > 30) {
 			error_num = 0;
 			spin_lock_irq(&np->lock);
-			val = (1 << 14) | (7 << 5) | np->phys[0];
-			mdio_write(dev, np->phys[0], 18, val);
+			if(np->phy_Identifier == PHY_SMSC_8720){
+				val = (1 << 14) | (7 << 5) | np->phys[0];
+				mdio_write(dev, np->phys[0], 18, val);
+			}
 			// Auto negotiation restart
 			val = mdio_read(dev, np->phys[0], MII_BMCR);
 
@@ -819,10 +830,8 @@ void net_tasklet(unsigned long dev_instance)
 	}
 
 	/* handle pmt event */
-	spin_lock_irqsave(&np->lock, flags);
 	result = np->pmt;
 	np->pmt = 0;
-	spin_unlock_irqrestore(&np->lock, flags);
 	if (result & (1 << 5)) {
 		printk("*******************************\n");
 		printk("******** Magic Packet Received!\n");
@@ -835,10 +844,8 @@ void net_tasklet(unsigned long dev_instance)
 	}
 
 	/* handle normal tx-rx */
-	spin_lock_irqsave(&np->lock, flags);
 	result = np->int_rx_tx;
 	np->int_rx_tx = 0;
-	spin_unlock_irqrestore(&np->lock, flags);
 
 	if (result & 1) {
 		struct _tx_desc *c_tx, *tx = NULL;
@@ -849,7 +856,10 @@ void net_tasklet(unsigned long dev_instance)
 		CACHE_RSYNC(tx, sizeof(struct _tx_desc));
 		while (tx != NULL && tx != c_tx && !(tx->status & DescOwnByDma)) {
 #ifdef DMA_USE_SKB_BUF
-			spin_lock_irqsave(&np->lock, flags);
+			if(unlikely(!spin_trylock_irqsave(&np->lock,flags)))
+                        {
+                            break;
+                        }
 			if (tx->skb != NULL) {
 				//clear to next send;
 				if (np->tx_full) {
@@ -919,21 +929,22 @@ void net_tasklet(unsigned long dev_instance)
 					printk("NET skb pointer error!!!\n");
 					break;
 				}
-				if (rx->skb->len > 0) {
-					printk("skb have data before,skb=%p,len=%d\n", rx->skb, rx->skb->len);
-					rx->skb = NULL;
-					goto to_next;
-				}
-				skb_put(rx->skb, len);
-				rx->skb->dev = dev;
-				rx->skb->protocol =
-				    eth_type_trans(rx->skb, dev);
-				/*we have checked in hardware;
-				   we not need check again */
-				rx->skb->ip_summed = ip_summed;
+				
 				if (rx->buf_dma != 0) {
-					dma_unmap_single(&dev->dev, rx->buf_dma, np->rx_buf_sz, DMA_FROM_DEVICE);
+					dma_unmap_single(&dev->dev, rx->buf_dma,/* np->rx_buf_sz*/len, DMA_FROM_DEVICE);
 				}
+				if (rx->skb->len > 0) {
+                                        printk("skb have data before,skb=%p,len=%d\n", rx->skb, rx->skb->len);
+                                        rx->skb = NULL;
+                                        goto to_next;
+                                }
+                                skb_put(rx->skb, len);
+                                rx->skb->dev = dev;
+                                rx->skb->protocol =
+                                    eth_type_trans(rx->skb, dev);
+                                /*we have checked in hardware;
+                                   we not need check again */
+                                rx->skb->ip_summed = ip_summed;
 				rx->buf_dma = 0;
 				netif_rx(rx->skb);
 				if (g_debug > 3) {
@@ -941,7 +952,7 @@ void net_tasklet(unsigned long dev_instance)
 				}
 				rx->skb = NULL;
 #else
-				skb = dev_alloc_skb(len + 4);
+				skb = dev_alloc_skb(len);
 				if (skb == NULL) {
 					np->stats.rx_dropped++;
 					printk("error to alloc skb\n");
@@ -971,7 +982,7 @@ to_next:
 				if (rx->skb) {
 					dev_kfree_skb_any(rx->skb);
 				}
-				rx->skb = dev_alloc_skb(np->rx_buf_sz + 4);
+				rx->skb = dev_alloc_skb(np->rx_buf_sz );
 				if (rx->skb == NULL) {
 					printk(KERN_ERR "error to alloc the skb\n");
 					rx->buf = 0;
@@ -1021,11 +1032,11 @@ static irqreturn_t intr_handler(int irq, void *dev_instance)
 	unsigned long status = 0;
 	unsigned long mask = 0;
 	IO_WRITE32(0, (np->base_addr + ETH_DMA_7_Interrupt_Enable));//disable irq
-	tasklet_schedule(&np->rx_tasklet);
 	np->pmt = IO_READ32(np->base_addr + ETH_MAC_PMT_Control_and_Status);
 	status = IO_READ32(np->base_addr + ETH_DMA_5_Status);
 	mask = IO_READ32(np->base_addr + ETH_MAC_Interrupt_Mask);
 	np->int_rx_tx |= update_status(dev, status, mask);
+	tasklet_schedule(&np->rx_tasklet);
 	return IRQ_HANDLED;
 }
 
@@ -1107,12 +1118,16 @@ static int mac_pmt_enable(unsigned int enable)
  * @return 
  */
 /* --------------------------------------------------------------------------*/
+extern int get_aml_key_kernel(const char* key_name, unsigned char* data, int ascii_flag);
+extern int extenal_api_key_set_version(char *devvesion);
+static char print_buff[1025];
+
 static int phy_reset(struct net_device *ndev)
 {
 	struct am_net_private *np = netdev_priv(ndev);
 	unsigned long val;
 	int k;
-
+	printk("phy_reset!\n");
 #if MESON_CPU_TYPE >= MESON_CPU_TYPE_MESON6
 	/* make sure PHY power-on */
 	set_phy_mode();
@@ -1130,8 +1145,10 @@ static int phy_reset(struct net_device *ndev)
 		goto error_reset;
 	}
 	//set for RMII mode;
-	val = (1 << 14) | (7 << 5) | np->phys[0];
-	mdio_write(ndev, np->phys[0], 18, val);
+	if(np->phy_Identifier == PHY_SMSC_8720){
+		val = (1 << 14) | (7 << 5) | np->phys[0];
+		mdio_write(ndev, np->phys[0], 18, val);
+	}
 	val = BMCR_RESET;
 	mdio_write(ndev, np->phys[0], MII_BMCR, val);
 	//waiting to phy reset ok....
@@ -1144,8 +1161,10 @@ static int phy_reset(struct net_device *ndev)
 		goto error_reset;
 	}
 
-	val = (1 << 14) | (7 << 5) | np->phys[0];
-	mdio_write(ndev, np->phys[0], 18, val);
+	if(np->phy_Identifier == PHY_SMSC_8720){
+		val = (1 << 14) | (7 << 5) | np->phys[0];
+		mdio_write(ndev, np->phys[0], 18, val);
+	}
 	// Auto negotiation restart
 	val = BMCR_ANENABLE | BMCR_ANRESTART;
 	mdio_write(ndev, np->phys[0], MII_BMCR, val);
@@ -1154,7 +1173,28 @@ static int phy_reset(struct net_device *ndev)
 	}
 
 	IO_WRITE32(0x00100800, np->base_addr + ETH_DMA_0_Bus_Mode);
-
+	printk("--1--write mac add to:");
+	data_dump(ndev->dev_addr, 6);
+	int ret,j;
+	int use_nand_mac=0;
+	u8 mac[ETH_ALEN];
+	char *endp;
+#ifdef CONFIG_AML_NAND_KEY
+	extenal_api_key_set_version("nand3");
+	ret = get_aml_key_kernel("mac", print_buff, 0);
+	printk("ret = %d\nprint_buff=%s\n", ret, print_buff);
+	if (ret >= 0) {
+		strcpy(ndev->dev_addr, print_buff);
+	for(j=0; j < ETH_ALEN; j++)
+	{
+		mac[j] = simple_strtol(&ndev->dev_addr[3 * j], &endp, 16);
+		printk("%d : %d\n", j, mac[j]);
+	}
+	memcpy(ndev->dev_addr, mac, ETH_ALEN);
+	}
+#endif	
+	printk("--2--write mac add to:");
+	data_dump(ndev->dev_addr, 6);
 	write_mac_addr(ndev, ndev->dev_addr);
 
 	val = 0xc80c |		//8<<8 | 8<<17; //tx and rx all 8bit mode;
@@ -1358,7 +1398,9 @@ static int start_tx(struct sk_buff *skb, struct net_device *dev)
 	if (g_debug > 2) {
 		printk(KERN_DEBUG "%s: Transmit frame queued\n", dev->name);
 	}
+	tasklet_disable(&np->rx_tasklet);
 	spin_lock_irqsave(&np->lock, flags);
+	IO_WRITE32(0, (np->base_addr + ETH_DMA_7_Interrupt_Enable));
 
 	if (np->last_tx != NULL) {
 		tx = np->last_tx->next;
@@ -1367,7 +1409,7 @@ static int start_tx(struct sk_buff *skb, struct net_device *dev)
 	}
 	CACHE_RSYNC(tx, sizeof(*tx));
 	if (tx->status & DescOwnByDma) {
-		spin_unlock_irqrestore(&np->lock, flags);
+		//spin_unlock_irqrestore(&np->lock, flags);
 		if (g_debug > 2) {
 			printk("tx queue is full \n");
 		}
@@ -1407,13 +1449,18 @@ static int start_tx(struct sk_buff *skb, struct net_device *dev)
 		//ETH_DMA_1_Tr_Poll_Demand
 		IO_WRITE32(1, np->base_addr + ETH_DMA_1_Tr_Poll_Demand);
 	}
+	IO_WRITE32(np->irq_mask, (np->base_addr + ETH_DMA_7_Interrupt_Enable));	
 	spin_unlock_irqrestore(&np->lock, flags);
-	return 0;
+	tasklet_enable(&np->rx_tasklet);
+	return NETDEV_TX_OK;
 err:
 	np->tx_full = 1;
 	np->stats.tx_dropped++;
 	netif_stop_queue(dev);
-	return -1;
+	IO_WRITE32(np->irq_mask, (np->base_addr + ETH_DMA_7_Interrupt_Enable));
+	spin_unlock_irqrestore(&np->lock, flags);
+	tasklet_enable(&np->rx_tasklet);
+	return NETDEV_TX_BUSY;
 }
 
 #ifdef LOOP_BACK_TEST
@@ -1523,6 +1570,33 @@ static void tx_timeout(struct net_device *dev)
  * @param  macaddr
  */
 /* --------------------------------------------------------------------------*/
+/*static void get_mac_from_nand(struct net_device *dev, char *macaddr)
+{
+	int ret;
+	int use_nand_mac=0;
+	u8 mac[ETH_ALEN];
+	
+	extenal_api_key_set_version("nand3");
+	ret = get_aml_key_kernel("mac_wifi", print_buff, 0);
+	printk("ret = %d\nprint_buff=%s\n", ret, print_buff);
+	if (ret >= 0) {
+		strcpy(mac_addr, print_buff);
+	}
+	for(; j < ETH_ALEN; j++)
+		{
+		mac[j] = simple_strtol(&mac_addr[3 * j], &endp, 16);
+		printk("%d : %d\n", j, mac[j]);
+	}
+	memcpy(macaddr, mac, ETH_ALEN);
+}
+static void print_mac(char *macaddr)
+{
+	printk("write mac add to:");
+	data_dump(macaddr, 6);
+}*/
+
+
+
 static void write_mac_addr(struct net_device *dev, char *macaddr)
 {
 	struct am_net_private *np = netdev_priv(dev);
@@ -1756,10 +1830,8 @@ static int setup_net_device(struct net_device *dev)
 	return res;
 }
 
-static void set_phy_mode()
+static void set_phy_mode(void)
 {
-	unsigned int val;
-
 	struct am_net_private *priv = netdev_priv(my_ndev);
 
 	if (priv == NULL) {
@@ -1855,7 +1927,9 @@ static int probe_init(struct net_device *ndev)
 		res = -EIO;
 		goto error0;
 	}
-	mdio_write(ndev, priv->phys[0], 18, priv->phys[0] | (1 << 14 | 7 << 5));
+	if(priv->mii == PHY_SMSC_8720){
+		mdio_write(ndev, priv->phys[0], 18, priv->phys[0] | (1 << 14 | 7 << 5));
+	}
 
 	val = mdio_read(ndev, priv->phys[0], 2); //phy_rw(0, phyad, 2, &val);
 	priv->phy_Identifier = val << 16;
@@ -2102,6 +2176,7 @@ static int am_net_read_macreg(int argc, char **argv)
 {
 	int reg = 0;
 	int val = 0;
+	printk("am_net_read_macreg\n");
 	struct am_net_private *np = netdev_priv(my_ndev);
 
 	if ((np == NULL) || (np->dev == NULL))
@@ -2136,6 +2211,7 @@ static int am_net_write_macreg(int argc, char **argv)
 {
 	int reg = 0;
 	int val = 0;
+	printk("am_net_write_macreg\n");
 	struct am_net_private *np = netdev_priv(my_ndev);
 
 	if ((np == NULL) || (np->dev == NULL))
@@ -2450,6 +2526,63 @@ static ssize_t eth_wol_store(struct class *class, struct class_attribute *attr, 
 
 	return count;
 }
+static void get_phy_linkspeed(char *buf)
+{
+	struct am_net_private *np = netdev_priv(my_ndev);
+	unsigned int rint, link;
+	int s100, full, linkflag = 0,speed;
+	switch (np->phy_Identifier) {
+	case PHY_ATHEROS_8032:
+	case PHY_ATHEROS_8035:
+		link = mdio_read(np->dev, np->phys[0], 17);
+		linkflag = (link & (1 << 10));
+		rint = mdio_read(np->dev, np->phys[0], 0x11);
+		s100 = rint & (1 << 14);
+		full = ((rint) & (1 << 13));
+        break;
+	case PHY_IC_IP101ALF:
+		rint = mdio_read(np->dev, np->phys[0], 0);
+		s100 = (rint & (0x1 << 8)) ? 1 : 0;
+		rint = mdio_read(np->dev, np->phys[0], 5);
+		full = (rint & (0x1 << 7)) ? 1 : 0;
+		break;
+	case PHY_SMSC_8700:
+	case PHY_SMSC_8720:
+	default:
+		link = mdio_read(np->dev, np->phys[0], 1);
+		linkflag = (link & (1 << 2));
+		rint = mdio_read(np->dev, np->phys[0], 31);
+		s100 = rint & (1 << 3);
+		full = ((rint >> 4) & 1);
+		break;
+	}
+        if (linkflag) {
+                        strcpy(buf,"link status: link\n");
+        } else {
+                        strcpy(buf,"link status: unlink\n");
+        }
+        if (full) {
+                        strcat(buf,"duplex\n");
+        } else {
+                        strcat(buf,"half duplex\n");
+        }
+        speed =(s100?100:10);
+        if(speed == 100){
+                        strcat(buf,"speed : 100\n");
+        }
+        else if(speed  == 10)
+        {
+                        strcat(buf,"speed : 10\n");
+        }
+}
+static ssize_t eth_linkspeed_show(struct class *class, struct class_attribute *attr, char *buf)
+{
+        int ret;
+	char buff[100];
+	get_phy_linkspeed(buff);
+        ret = sprintf(buf, "%s\n", buff);
+	return ret;
+}
 
 static struct class *eth_sys_class;
 static CLASS_ATTR(mdcclk, S_IWUSR | S_IRUGO, eth_mdcclk_show, eth_mdcclk_store);
@@ -2458,6 +2591,7 @@ static CLASS_ATTR(count, S_IWUSR | S_IRUGO, eth_count_show, eth_count_store);
 static CLASS_ATTR(phyreg, S_IWUSR | S_IRUGO, eth_phyreg_help, eth_phyreg_func);
 static CLASS_ATTR(macreg, S_IWUSR | S_IRUGO, eth_macreg_help, eth_macreg_func);
 static CLASS_ATTR(wol, S_IWUSR | S_IRUGO, eth_wol_show, eth_wol_store);
+static CLASS_ATTR(linkspeed, S_IWUSR | S_IRUGO, eth_linkspeed_show, NULL);
 
 /* --------------------------------------------------------------------------*/
 /**
@@ -2478,6 +2612,7 @@ static int __init am_eth_class_init(void)
 	ret = class_create_file(eth_sys_class, &class_attr_phyreg);
 	ret = class_create_file(eth_sys_class, &class_attr_macreg);
 	ret = class_create_file(eth_sys_class, &class_attr_wol);
+	ret = class_create_file(eth_sys_class, &class_attr_linkspeed);
 
 	return ret;
 }

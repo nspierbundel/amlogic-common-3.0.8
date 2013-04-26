@@ -159,7 +159,7 @@ typedef  struct {
 #define  FBIOPUT_OSD_SRCKEY_ENABLE	0x46fa
 #define  FBIOPUT_OSD_SET_GBL_ALPHA	0x4500
 #define  FBIOGET_OSD_GET_GBL_ALPHA	0x4501
-#define  FBIOPUT_OSD_2X_SCALE		0x4502	
+#define  FBIOPUT_OSD_2X_SCALE		0x4502
 #define  FBIOPUT_OSD_ENABLE_3D_MODE	0x4503
 #define  FBIOPUT_OSD_FREE_SCALE_ENABLE	0x4504
 #define  FBIOPUT_OSD_FREE_SCALE_WIDTH	0x4505
@@ -173,13 +173,44 @@ typedef  struct {
 #define  FBIOGET_OSD_BLOCK_MODE		0x450d
 #define  FBIOPUT_OSD_BLOCK_MODE		0x450e
 #define  FBIOGET_OSD_FREE_SCALE_AXIS 0x450f
-#define  FBIOPUT_OSD_FREE_SCALE_AXIS 0x4510
+#define  FBIOPUT_OSD_FREE_SCALE_AXIS  0x4510
+#define  FBIOPUT_OSD_FREE_SCALE_MODE  0x4511
+#define  FBIOGET_OSD_WINDOW_AXIS  	0x4512
+#define  FBIOPUT_OSD_WINDOW_AXIS  	0x4513
+#define  FBIOGET_OSD_FLUSH_RATE	0x4514
+#define  FBIOPUT_OSD_REVERSE		0x4515
 
+#define  OSD_INVALID_INFO   		0xffffffff
 
+#define  OSD_FIRST_GROUP_START   	1
+#define  OSD_SECOND_GROUP_START 	4
+#define  OSD_END			5
 
+typedef  struct {
+	u32 index;
+	u32 osd_reverse;
+}osd_info_t;
 
+typedef  struct {
+	char *name;
+	u32   info;
+	u32   prev_idx;
+	u32   next_idx;
+	u32   cur_group_start;
+	u32   cur_group_end;
+}para_osd_info_t;
 
+typedef enum{
+	DEV_OSD0 = 0,
+	DEV_OSD1,
+	DEV_ALL,
+	DEV_MAX
+}osd_dev_t;
 
-
+typedef enum{
+	REVERSE_FALSE = 0,
+	REVERSE_TRUE,
+	REVERSE_MAX
+}reverse_info_t;
 
 #endif /* OSD_MAIN_H */

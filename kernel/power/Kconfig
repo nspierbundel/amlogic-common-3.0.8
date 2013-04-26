@@ -59,6 +59,13 @@ config EARLYSUSPEND
 	  Call early suspend handlers when the user requested sleep state
 	  changes.
 
+config SUSPEND_STATE_VAL
+	bool "Suspend state value"
+	depends on EARLYSUSPEND
+	default n
+	---help---
+	  Creat a node named suspend_state_value for user space to indicate the late resume is done.
+
 choice
 	prompt "User-space screen access"
 	default FB_EARLYSUSPEND if !FRAMEBUFFER_CONSOLE
@@ -211,6 +218,15 @@ config PM_TEST_SUSPEND
 	You probably want to have your system's RTC driver statically
 	linked, ensuring that it's available when this test runs.
 
+config DEVICE_SUSPEND_RESUME_TIME_DEBUG
+        bool "Print warnning when device suspend/resume time exceed threashold"
+        depends on SUSPEND && PM_DEBUG
+        ---help---
+          This option will check each device suspend time consumption, If the 
+          device driver takes more time than threshold (default 500 us), it will
+          print out warning message. The threshold can be modified in 
+          "/sys/power/device_suspend_resume_time_threshold" and unit is in microsecond.
+
 config CAN_PM_TRACE
 	def_bool y
 	depends on PM_DEBUG && PM_SLEEP
@@ -301,3 +317,4 @@ config SUSPEND_TIME
 	  Prints the time spent in suspend in the kernel log, and
 	  keeps statistics on the time spent in suspend in
 	  /sys/kernel/debug/suspend_time
+

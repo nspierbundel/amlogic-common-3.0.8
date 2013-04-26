@@ -190,6 +190,7 @@ static irqreturn_t audiodsp_mailbox_irq(int irq, void *data)
 			if(fmt->data.pcm_encoded_info){
 				set_pcminfo_data(fmt->data.pcm_encoded_info);
 			}
+			DSP_PRNT("audio info from dsp:sample_rate=%d channel_num=%d\n",priv->frame_format.sample_rate,priv->frame_format.channel_num);
 		}
         if(status & (1<<M1B_IRQ8_IEC958_INFO)){
             struct digit_raw_output_info* info;
@@ -291,6 +292,35 @@ int audiodsp_init_mailbox(struct audiodsp_priv *priv)
 	INIT_WORK(&audiodsp_work.audiodsp_workqueue, audiodsp_mailbox_work_queue);
 	
 	return 0;
+}
+int audiodsp_get_audioinfo(struct audiodsp_priv *priv)
+{
+	int ret = -1;
+	int audio_info = 0;
+       audio_info = DSP_RD(DSP_AUDIO_FORMAT_INFO);	
+	if(priv->frame_format.valid == (CHANNEL_VALID|DATA_WIDTH_VALID|SAMPLE_RATE_VALID)){
+		ret = 0;
+		goto exit;
+	}
+	else if(audio_info){
+		priv->frame_format.channel_num = audio_info&0xf;
+		if(priv->frame_format.channel_num)
+			priv->frame_format.valid |= CHANNEL_VALID;
+		priv->frame_format.data_width= (audio_info>>4)&0x3f;
+		if(priv->frame_format.data_width)
+			priv->frame_format.valid |= DATA_WIDTH_VALID;
+		priv->frame_format.sample_rate = (audio_info>>10);
+		if(priv->frame_format.sample_rate)
+			priv->frame_format.valid |= SAMPLE_RATE_VALID;
+		ret = 0;
+	}
+	if(ret == 0){
+		DSP_PRNT(" audiodsp got audioinfo:[ch num %d],[sr  %d]", \
+		priv->frame_format.channel_num,priv->frame_format.sample_rate);
+	}
+exit:
+	return ret;
+
 }
 int audiodsp_release_mailbox(struct audiodsp_priv *priv)
 {

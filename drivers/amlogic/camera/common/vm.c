@@ -38,7 +38,6 @@
 #include "vm.h"
 #include <linux/amlog.h>
 #include <linux/ctype.h>
-#include <linux/io.h>
 #include <linux/videodev2.h>
 #include <media/videobuf-core.h>
 #include <media/videobuf-dma-contig.h>
@@ -773,8 +772,8 @@ int get_canvas_index_res(int v4l2_format, int *depth, int width, int height, uns
 
 int vm_fill_buffer(struct videobuf_buffer* vb , vm_output_para_t* para)
 {
-	vm_contig_memory_t *mem = NULL;
-	char *buf_start,*vbuf_start;
+	//vm_contig_memory_t *mem = NULL;
+	resource_size_t buf_start;
 	int buf_size;
 	int depth=0;
 	int ret = -1;
@@ -782,7 +781,7 @@ int vm_fill_buffer(struct videobuf_buffer* vb , vm_output_para_t* para)
 	int v4l2_format = V4L2_PIX_FMT_YUV444;
 	int magic = 0;
 	struct videobuf_buffer buf={0};
-	get_vm_buf_info((const char **)&buf_start,&buf_size,&vbuf_start); 
+	get_vm_buf_info( &buf_start,&buf_size, NULL);
 	if(!para)
 		return -1;
 #if 0    
@@ -1104,15 +1103,22 @@ int vm_sw_post_process(int canvas , int addr)
 	void __iomem * buffer_y_start;
 	void __iomem * buffer_u_start;
 	void __iomem * buffer_v_start = 0;
+	struct io_mapping *mapping_wc;
+	int offset = 0;
 	canvas_t canvas_work_y;
 	canvas_t canvas_work_u;
 	canvas_t canvas_work_v;
-
-	if(!addr)
+    if(!addr){
+        return -1;
+    }
+	get_vm_buf_info( NULL, NULL, &mapping_wc);
+	if(!mapping_wc){
 		return -1;
-
+	}
+	
 	canvas_read(canvas&0xff,&canvas_work_y);
-	buffer_y_start = ioremap_wc(canvas_work_y.addr,canvas_work_y.width*canvas_work_y.height);
+	offset = 0;
+	buffer_y_start = io_mapping_map_atomic_wc( mapping_wc, offset);
 	if(buffer_y_start == NULL) {
 		printk(" vm.postprocess:mapping buffer error\n");
 		return -1;
@@ -1125,6 +1131,8 @@ int vm_sw_post_process(int canvas , int addr)
 			poss+=output_para.bytesperline;
 			posd+= canvas_work_y.width;
 		}
+		io_mapping_unmap_atomic( buffer_y_start );
+
 	} else if (output_para.v4l2_format== V4L2_PIX_FMT_NV12||
 				output_para.v4l2_format== V4L2_PIX_FMT_NV21) {
 #ifdef GE2D_NV
@@ -1136,23 +1144,24 @@ int vm_sw_post_process(int canvas , int addr)
 			poss+=output_para.width;
 			posd+= canvas_work_y.width;
 		}
+		io_mapping_unmap_atomic( buffer_y_start );
 
 		posd=0;
 		canvas_read((canvas>>8)&0xff,&canvas_work_u);
-		buffer_u_start = ioremap_wc(canvas_work_u.addr,canvas_work_u.width*canvas_work_u.height);
-		for(i=uv_height; i > 0; i--) { /* copy y */
+		offset = canvas_work_u.addr - canvas_work_y.addr;
+		buffer_u_start = io_mapping_map_atomic_wc( mapping_wc, offset);
+		for(i=uv_height; i > 0; i--) { /* copy uv */
 			memcpy((void *)(addr+poss), (void *)(buffer_u_start+posd), uv_width);
 			poss += uv_width;
 			posd+= canvas_work_u.width;
 		}
-		iounmap(buffer_u_start);
+
+		io_mapping_unmap_atomic( buffer_u_start );
 #else
 		char* dst_buff=NULL;
 		char* src_buff=NULL;
 		char* src2_buff=NULL;
 		canvas_read((canvas>>8)&0xff,&canvas_work_u);
-		buffer_u_start = ioremap_wc(canvas_work_u.addr,canvas_work_u.width*canvas_work_u.height);
-
 		poss = posd = 0 ;
 		for(i=0;i<output_para.height;i+=2) { /* copy y */
 			memcpy((void *)(addr+poss),(void *)(buffer_y_start+posd),output_para.width);
@@ -1161,11 +1170,16 @@ int vm_sw_post_process(int canvas , int addr)
 			memcpy((void *)(addr+poss),(void *)(buffer_y_start+posd),output_para.width);
 			poss+=output_para.width;
 			posd+= canvas_work_y.width;
-		}
+		}	
+		io_mapping_unmap_atomic( buffer_y_start );
 
 		posd=0;
 		canvas_read((canvas>>16)&0xff,&canvas_work_v);
-		buffer_v_start = ioremap_wc(canvas_work_v.addr,canvas_work_v.width*canvas_work_v.height);
+		offset = canvas_work_u.addr - canvas_work_y.addr;
+		buffer_u_start = io_mapping_map_atomic_wc( mapping_wc, offset);
+		offset = canvas_work_v.addr - canvas_work_y.addr;
+		buffer_v_start = io_mapping_map_atomic_wc( mapping_wc, offset );
+
 		dst_buff= (char*)addr+output_para.width* output_para.height;
 		src_buff = (char*)buffer_u_start;
 		src2_buff= (char*)buffer_v_start;
@@ -1185,8 +1199,9 @@ int vm_sw_post_process(int canvas , int addr)
 			}
 		}
 
-		iounmap(buffer_u_start);
-		iounmap(buffer_v_start);
+
+		io_mapping_unmap_atomic( buffer_u_start );
+		io_mapping_unmap_atomic( buffer_v_start );
 #endif
 	} else if ( (output_para.v4l2_format == V4L2_PIX_FMT_YUV420)
 			||(output_para.v4l2_format == V4L2_PIX_FMT_YVU420)){
@@ -1199,12 +1214,17 @@ int vm_sw_post_process(int canvas , int addr)
 			poss+=output_para.width;
 			posd+= canvas_work_y.width;
 		}
-
+		io_mapping_unmap_atomic( buffer_y_start );
+    	
 		posd=0;
 		canvas_read((canvas>>8)&0xff,&canvas_work_u);
-		buffer_u_start = ioremap_wc(canvas_work_u.addr,canvas_work_u.width*canvas_work_u.height);
+		offset = canvas_work_u.addr - canvas_work_y.addr;
+		buffer_u_start = io_mapping_map_atomic_wc( mapping_wc, offset);
+
 		canvas_read((canvas>>16)&0xff,&canvas_work_v);
-		buffer_v_start = ioremap_wc(canvas_work_v.addr,canvas_work_v.width*canvas_work_v.height);
+		offset = canvas_work_v.addr - canvas_work_y.addr;
+		buffer_v_start = io_mapping_map_atomic_wc( mapping_wc, offset );
+
 		if(output_para.v4l2_format == V4L2_PIX_FMT_YUV420){
 			for(i=uv_height;i>0;i--) { /* copy y */
 				memcpy((void *)(addr+poss),(void *)(buffer_u_start+posd),uv_width);
@@ -1230,10 +1250,9 @@ int vm_sw_post_process(int canvas , int addr)
 				posd+= canvas_work_u.width;
 			}
 		}
-		iounmap(buffer_u_start);
-		iounmap(buffer_v_start);
+		io_mapping_unmap_atomic( buffer_u_start );
+		io_mapping_unmap_atomic( buffer_v_start );
 	}
-	iounmap(buffer_y_start);
 	return 0;
 }
 
@@ -1351,12 +1370,12 @@ int vm_buffer_init(void)
 	int i;
 	u32 canvas_width, canvas_height;
 	u32 decbuf_size;
-	char *buf_start,*vbuf_start;
-	int buf_size;
+	resource_size_t buf_start;
+	unsigned int buf_size;
 	int buf_num = 0;
 	int local_pool_size = 0;
 
-	get_vm_buf_info((const char **)&buf_start,&buf_size,&vbuf_start);
+	get_vm_buf_info(&buf_start,&buf_size, NULL);
 	sema_init(&vb_start_sema,0);
 	sema_init(&vb_done_sema,0);
 
@@ -1494,24 +1513,26 @@ typedef  struct {
 	unsigned  int 		dbg_enable;
 	struct class 		*cla;
 	struct device		*dev;
-	char *buffer_start;
+	resource_size_t buffer_start;
 	unsigned int buffer_size;
-	void __iomem *buffer_v_start;
+	struct io_mapping *mapping;
 }vm_device_t;
 
 static vm_device_t  vm_device;
-
-void set_vm_buf_info(char* start,unsigned int size) {
+void set_vm_buf_info(resource_size_t start,unsigned int size) {
 	vm_device.buffer_start=start;
 	vm_device.buffer_size=size;
-	vm_device.buffer_v_start = ioremap_wc((unsigned long)start,size);
-	amlog_level(LOG_LEVEL_HIGH,"#############%x\n",vm_device.buffer_v_start);
+	vm_device.mapping = io_mapping_create_wc( start, size );
+	amlog_level(LOG_LEVEL_HIGH,"#############%p\n",vm_device.mapping);
 }
 
-void get_vm_buf_info(const char** start,unsigned int* size,char** vaddr) {
-	*start = vm_device.buffer_start;
-	*size = vm_device.buffer_size;
-	*vaddr = vm_device.buffer_v_start;
+void get_vm_buf_info(resource_size_t* start,unsigned int* size,struct io_mapping **mapping) {
+	if(start)
+		*start = vm_device.buffer_start;
+	if(size)
+		*size = vm_device.buffer_size;
+	if( mapping )
+		*mapping = vm_device.mapping;
 }
 
 static int vm_open(struct inode *inode, struct file *file)
@@ -1648,7 +1669,7 @@ static int vm_driver_probe(struct platform_device *pdev)
 		buf_start = (char *)mem->start;
 		buf_size = mem->end - mem->start + 1;
 	}
-	set_vm_buf_info((char *)mem->start,buf_size);
+	set_vm_buf_info(mem->start,buf_size);
 	init_vm_device();
 	return 0;
 }
@@ -1656,7 +1677,7 @@ static int vm_driver_probe(struct platform_device *pdev)
 static int vm_drv_remove(struct platform_device *plat_dev)
 {
 	uninit_vm_device();
-	iounmap(vm_device.buffer_v_start);
+	io_mapping_free( vm_device.mapping);
 	return 0;
 }
 

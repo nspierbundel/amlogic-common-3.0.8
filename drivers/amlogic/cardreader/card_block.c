@@ -73,7 +73,7 @@ void card_cleanup_queue(struct card_queue *cq)
 {
 	struct request_queue *q = cq->queue;
 	unsigned long flags;
-
+	
 	card_queue_resume(cq);
 
 	/*should unregister reboot notifier before kthread stop*/
@@ -82,12 +82,12 @@ void card_cleanup_queue(struct card_queue *cq)
 	/* Then terminate our worker thread */
 	kthread_stop(cq->thread);
 
-	/* Empty the queue */
+	/* Empty the queue */   
 	spin_lock_irqsave(q->queue_lock, flags);
 	q->queuedata = NULL;
 	blk_start_queue(q);
 	spin_unlock_irqrestore(q->queue_lock, flags);
-
+	
  	if (cq->bounce_sg)
  		kfree(cq->bounce_sg);
  	cq->bounce_sg = NULL;
@@ -143,8 +143,8 @@ static int card_blk_open(struct block_device *bdev, fmode_t mode)
 			check_disk_change(bdev);
 		ret = 0;
 
-             /*
-               * it would return -EROFS when FS/USB open card with O_RDWR.
+             /* 
+               * it would return -EROFS when FS/USB open card with O_RDWR. 
                * set sd_mmc_info->write_protected_flag in func sd_mmc_check_wp
                * set card->state |= CARD_STATE_READONLY in func sd_open
                * set card_data->read_only = 1 in func card_blk_alloc
@@ -197,7 +197,7 @@ static int card_prep_request(struct request_queue *q, struct request *req)
 		//printk(KERN_ERR "[card_prep_request] %s: killing request - no device/host\n", req->rq_disk->disk_name);
 		return BLKPREP_KILL;
 	}
-
+	
 	if (blk_special_request(req)) {
 		/*
 		 * Special commands already have the command
@@ -228,7 +228,7 @@ static int card_prep_request(struct request_queue *q, struct request *req)
 static void card_request(struct request_queue *q)
 {
 	struct card_queue *cq = q->queuedata;
-    struct request* req;
+    struct request* req; 
 
 	if (!cq) {
 		while ((req = blk_fetch_request(q)) != NULL) {
@@ -253,7 +253,7 @@ void card_queue_suspend(struct card_queue *cq)
 		spin_lock_irqsave(q->queue_lock, flags);
 		blk_stop_queue(q);
 		spin_unlock_irqrestore(q->queue_lock, flags);
-		down(&cq->thread_sem);
+		down(&cq->thread_sem);	
 	}
 }
 
@@ -315,7 +315,12 @@ static int card_queue_thread(void *d)
 		cq->issue_fn(cq, req);
 		cond_resched();
 	} while (1);
+	/*Stop queue*/
+	spin_lock_irq(q->queue_lock);
+	queue_flag_set_unlocked(QUEUE_FLAG_STOPPED, cq->queue);
+	spin_unlock_irq(q->queue_lock);
 	up(&cq->thread_sem);
+	cq->thread = NULL;
 	return 0;
 }
 
@@ -363,13 +368,13 @@ static void card_queue_bounce_pre(struct card_queue *cq)
 
 	if (rq_data_dir(cq->req) != WRITE)
 		return;
-
+	
 	local_irq_save(flags);
-
+		
 	sg_copy_to_buffer(cq->bounce_sg, cq->bounce_sg_len,
 		cq->bounce_buf, cq->sg[0].length);
-
-	local_irq_restore(flags);
+	
+	local_irq_restore(flags);	
 }
 
 /*
@@ -385,21 +390,21 @@ static void card_queue_bounce_post(struct card_queue *cq)
 
 	if (rq_data_dir(cq->req) != READ)
 		return;
-
+	
 	local_irq_save(flags);
-
+	
 	sg_copy_from_buffer(cq->bounce_sg, cq->bounce_sg_len,
 		cq->bounce_buf, cq->sg[0].length);
 
 	local_irq_restore(flags);
-
+	
 	bio_flush_dcache_pages(cq->req->bio);
 }
 
 /*
  * Alloc bounce buf for read/write numbers of pages in one request
  */
-static int card_init_bounce_buf(struct card_queue *cq,
+static int card_init_bounce_buf(struct card_queue *cq, 
 			struct memory_card *card)
 {
 	int ret=0;
@@ -429,7 +434,7 @@ static int card_init_bounce_buf(struct card_queue *cq,
 
 		cq->queue->queuedata = cq;
 		cq->req = NULL;
-
+	
 		cq->sg = kmalloc(sizeof(struct scatterlist),
 			GFP_KERNEL);
 		if (!cq->sg) {
@@ -468,7 +473,7 @@ static void card_queue_bounce_post(struct card_queue *cq)
 {
 }
 
-static int card_init_bounce_buf(struct card_queue *cq,
+static int card_init_bounce_buf(struct card_queue *cq, 
 			struct memory_card *card)
 {
 }
@@ -509,7 +514,7 @@ int card_init_queue(struct card_queue *cq, struct memory_card *card,
 
 	blk_queue_prep_rq(cq->queue, card_prep_request);
 	card_init_bounce_buf(cq, card);
-
+	
 	if(!cq->bounce_buf){
 		blk_queue_bounce_limit(cq->queue, limit);
 		blk_queue_max_hw_sectors(cq->queue, host->max_sectors);
@@ -562,7 +567,7 @@ static struct card_blk_data *card_blk_alloc(struct memory_card *card)
 
 	if(card->card_type == CARD_INAND)
 		devidx = CARD_INAND_START_MINOR>>CARD_SHIFT;
-
+	
 	if (devidx >= CARD_NUM_MINORS)
 		return ERR_PTR(-ENOSPC);
 	__set_bit(devidx, dev_use);
@@ -667,13 +672,13 @@ static int card_blk_issue_rq(struct card_queue *cq, struct request *req)
 		//brq.card_data.sg_len = blk_rq_map_sg(req->q, req, brq.card_data.sg);
 
 		card->host->card_type = card->card_type;
-
+		
 		card_queue_bounce_pre(cq);
 
 		card_wait_for_req(card->host, &brq);
-
+		
 		card_queue_bounce_post(cq);
-
+			
 		/*
 		 *the request issue failed
 		 */
@@ -701,7 +706,7 @@ static int card_blk_issue_rq(struct card_queue *cq, struct request *req)
 		spin_lock_irq(&card_data->lock);
 		brq.card_data.bytes_xfered = brq.card_data.blk_size * brq.card_data.blk_nums;
 		ret = __blk_end_request(req, 0, brq.card_data.bytes_xfered);
-		//if(!ret)
+		//if(!ret) 
 		//{
 		/*
 		 * The whole request completed successfully.
@@ -748,8 +753,8 @@ static int card_blk_suspend(struct memory_card *card, pm_message_t state)
 {
 	struct card_blk_data *card_data = card_get_drvdata(card);
 	struct card_host *host = card->host;
-
-	if (card_data)
+	
+	if (card_data) 
 	{
 		card_queue_suspend(&card_data->queue);
 	}
@@ -767,7 +772,7 @@ static int card_blk_suspend(struct memory_card *card, pm_message_t state)
 	}
 	if(card->card_type == CARD_SDIO)
 		return 0;
-
+		
 	card->unit_state = CARD_UNIT_RESUMED;
 	return 0;
 }
@@ -776,7 +781,7 @@ static int card_blk_resume(struct memory_card *card)
 {
 	struct card_blk_data *card_data = card_get_drvdata(card);
 	struct card_host *host = card->host;
-
+	
 	if(card->card_resume)
 	{
 		card->card_resume(card);
@@ -897,7 +902,7 @@ int add_last_partition(struct memory_card* card, uint64_t offset ,uint64_t size)
             return ret;
       }
 
-      card->part_offset=offset>>card_data->block_bits;
+      card->part_offset=offset;
       card_data->queue.prep_fn = card_blk_prep_rq;
       card_data->queue.issue_fn = card_blk_issue_rq;
       card_data->queue.data = card_data;
@@ -974,7 +979,7 @@ void card_remove_inand_lp(struct card_host* host)
 
 
 /**
- * add_card_partition : add card partition , refer to
+ * add_card_partition : add card partition , refer to 
  * board-****.c  inand_partition_info[]
  * @disk: add partitions in which disk
  * @part: partition table
@@ -987,7 +992,7 @@ int add_card_partition(struct memory_card* card, struct gendisk * disk,
 	struct hd_struct * ret=NULL;
 	uint64_t cur_offset=0;
 	uint64_t offset, size;
-
+	
 	if(!part)
 		return 0;
 
@@ -1016,7 +1021,7 @@ int add_card_partition(struct memory_card* card, struct gendisk * disk,
 		//	return ERR_PTR(ret);
 		//}
 		cur_offset = offset + size;
-
+		
 		card_table[i] = &part[i];
 		card_table[i]->offset = offset<<9;
 		card_table[i]->size = size<<9;

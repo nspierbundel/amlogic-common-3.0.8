@@ -13,11 +13,13 @@
 #include <linux/types.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
+#include <linux/printk.h>
 #include <linux/moduleparam.h>
 
 #include <mach/am_regs.h>
 
 #include <linux/tvin/tvin.h>
+#include "../vdin/vdin_regs.h"
 #include "../tvin_global.h"
 #include "../tvin_format_table.h"
 #include "tvafe_regs.h"
@@ -166,7 +168,7 @@ bool tvafe_adc_check_frame_skip(struct tvafe_adc_s *adc)
 {
 	bool ret = false;
 	unsigned long flags;
-	spin_lock_irqsave(&skip_cnt_lock, flags);
+	//spin_lock_irqsave(&skip_cnt_lock, flags);
 	if (adc->skip_frame_cnt > 0) {
 		adc->skip_frame_cnt--;
 		ret = true;
@@ -174,7 +176,7 @@ bool tvafe_adc_check_frame_skip(struct tvafe_adc_s *adc)
 	else {
 		ret = false;
 	}
-	spin_unlock_irqrestore(&skip_cnt_lock, flags);
+	//spin_unlock_irqrestore(&skip_cnt_lock, flags);
 
 	return ret;
 }
@@ -187,6 +189,11 @@ static void tvafe_adc_set_clamp_para(enum tvin_sig_fmt_e fmt)
 {
 	int clamp_calculate = 0, clamp_range = 0;
 	const struct tvin_format_s *fmt_info = tvin_get_fmt_info(fmt);
+
+    if(!fmt_info) {
+        pr_err("[tvafe..] %s: error,fmt is null!!! \n",__func__);
+        return;
+    }
 
 	clamp_range = fmt_info->hs_bp - READ_APB_REG(ADC_REG_03) - 18;
 	clamp_calculate = fmt_info->pixel_clk / 200;
@@ -228,12 +235,13 @@ static int tvafe_comp_get_sync_path(void)
  */
 inline bool tvafe_adc_fmt_chg(struct tvin_parm_s *parm, struct tvafe_adc_s *adc)
 {
+        const struct tvin_format_s *fmt_info_p;
 	enum tvin_sig_fmt_e fmt = parm->info.fmt;
 	enum tvin_port_e port = parm->port;
 	enum tvin_sig_status_e status = parm->info.status;
-	struct tvin_format_s *hw_info = &adc->hw_info;
+	struct tvin_format_s *hw_info = &adc->hw_info;                
 	unsigned short tmp0 = 0, tmp1 = 0;
-	unsigned int   h_cnt_offset = 0,  v_cnt_offset = 0, v_cnt_offset1 = 0;
+	unsigned int   h_cnt_offset = 0, h_cnt_offset1 =0, v_cnt_offset = 0, v_cnt_offset1 = 0;
 	unsigned int   hs_cnt_offset = 0, vs_cnt_offset = 0;
 	unsigned int   h_cnt_wobble = 0, v_cnt_wobble = 0;
 	unsigned int   hs_cnt_wobble = 0, vs_cnt_wobble = 0, flag;
@@ -248,11 +256,19 @@ inline bool tvafe_adc_fmt_chg(struct tvin_parm_s *parm, struct tvafe_adc_s *adc)
 		return true;
 	}
 
+        fmt_info_p = tvin_get_fmt_info(fmt);
+        if(fmt_info_p){
+                h_cnt_wobble  = fmt_info_p->h_cnt_offset;
+	        v_cnt_wobble  = fmt_info_p->v_cnt_offset;
+	        hs_cnt_wobble = fmt_info_p->hs_cnt_offset;                       
+        }else{
+                h_cnt_wobble  = 10;
+	        v_cnt_wobble  = 10;
+                hs_cnt_wobble = 2;
+        }
+                        
 	if ((port >= TVIN_PORT_VGA0) && (port <= TVIN_PORT_VGA7))
-	{
-		h_cnt_wobble = tvin_vga_fmt_tbl[fmt-TVIN_SIG_FMT_VGA_512X384P_60HZ_D147].h_cnt_offset;
-		v_cnt_wobble = tvin_vga_fmt_tbl[fmt-TVIN_SIG_FMT_VGA_512X384P_60HZ_D147].v_cnt_offset;
-		hs_cnt_wobble = tvin_vga_fmt_tbl[fmt-TVIN_SIG_FMT_VGA_512X384P_60HZ_D147].hs_cnt_offset;
+	{		
 		vs_cnt_wobble = TVIN_FMT_CHG_VGA_VS_CNT_WOBBLE;
 		flag = READ_APB_REG(TVFE_SYNCTOP_INDICATOR3);
 
@@ -293,15 +309,16 @@ inline bool tvafe_adc_fmt_chg(struct tvin_parm_s *parm, struct tvafe_adc_s *adc)
 				SPOL_HCNT_NEG_BIT, SPOL_HCNT_NEG_WID);
 		tmp1 = (unsigned short)READ_APB_REG_BITS(TVFE_SYNCTOP_INDICATOR1_HCNT,
 				SPOL_HCNT_POS_BIT, SPOL_HCNT_POS_WID);
-		tmp0 = (tmp0 < tmp1) ? tmp0 : tmp1;
+		tmp0 = min(tmp0, tmp1);
 		hs_cnt_offset = abs((signed int)hw_info->hs_cnt - (signed int)tmp0);
 		hw_info->hs_cnt = tmp0;
+
 		// vs_cnt
 		tmp0 = (unsigned short)READ_APB_REG_BITS(TVFE_SYNCTOP_INDICATOR2_VCNT,
 				SPOL_VCNT_NEG_BIT, SPOL_VCNT_NEG_WID);
 		tmp1 = (unsigned short)READ_APB_REG_BITS(TVFE_SYNCTOP_INDICATOR2_VCNT,
 				SPOL_VCNT_POS_BIT, SPOL_VCNT_POS_WID);
-		tmp0 = (tmp0 < tmp1) ? tmp0 : tmp1;
+		tmp0 = min(tmp0, tmp1);
 		vs_cnt_offset = abs((signed int)hw_info->vs_width - (signed int)tmp0);
 		hw_info->vs_width = tmp0;
 		// h_cnt
@@ -319,13 +336,10 @@ inline bool tvafe_adc_fmt_chg(struct tvin_parm_s *parm, struct tvafe_adc_s *adc)
 
 	}
 	else if ((port >= TVIN_PORT_COMP0) && (port <= TVIN_PORT_COMP7))
-	{
-		h_cnt_wobble = tvin_comp_fmt_tbl[fmt-TVIN_SIG_FMT_COMP_480P_60HZ_D000].h_cnt_offset;
-		v_cnt_wobble = tvin_comp_fmt_tbl[fmt-TVIN_SIG_FMT_COMP_480P_60HZ_D000].v_cnt_offset;
+	{		
 		hs_cnt_wobble = TVIN_FMT_CHG_COMP_HS_CNT_WOBBLE;
 		vs_cnt_wobble = TVIN_FMT_CHG_COMP_VS_CNT_WOBBLE;
 		adc->hs_sog_sw_cnt++;
-
 
 		if(adc->hs_sog_sw_cnt > TVIN_FMT_CHK_HS_SOG_DLY_CNT)
 		{
@@ -333,8 +347,8 @@ inline bool tvafe_adc_fmt_chg(struct tvin_parm_s *parm, struct tvafe_adc_s *adc)
 			tmp0 = READ_APB_REG_BITS(TVFE_SYNCTOP_INDICATOR4,
 					SAM_HCNT_BIT, SAM_HCNT_WID);
 
-			if (status == TVIN_SIG_STATUS_STABLE)
-				hw_info->h_cnt = tvin_comp_fmt_tbl[fmt-TVIN_SIG_FMT_COMP_480P_60HZ_D000].h_cnt;
+			if ((status == TVIN_SIG_STATUS_STABLE)&&(fmt_info_p))
+				hw_info->h_cnt = fmt_info_p->h_cnt;
 			h_cnt_offset = abs((signed int)hw_info->h_cnt - (signed int)tmp0);
 
 			adc->hs_sog_sw_cnt = 0;
@@ -343,8 +357,14 @@ inline bool tvafe_adc_fmt_chg(struct tvin_parm_s *parm, struct tvafe_adc_s *adc)
 			tmp1 += READ_APB_REG_BITS(TVFE_SOG_MON_INDICATOR1,
 					SOG_CNT_NEG_BIT, SOG_CNT_NEG_WID);
 			//the difference between h_cnt  from sog and h_cnt from hs_out2
-			h_cnt_offset = abs((signed int)tmp1 - (signed int)tmp0);
-
+			h_cnt_offset1 = abs((signed int)hw_info->h_cnt - (signed int)tmp1);
+                        hw_info->h_cnt = tmp0;
+                        if(h_cnt_offset < h_cnt_offset1){
+                                h_cnt_offset = h_cnt_offset1;
+                                hw_info->h_cnt = tmp1;
+                                if(adc_fmt_chg_dbg)
+                                        pr_info("[tvafe..] %s:sogout hcnt %u, hsyncout hcnt %u.\n",__func__,tmp1,tmp0);
+                        }
 
 			//pr_info("[tvafe..] %s: hw:%d, hw.hcnt:%d fmt is:%s\n",__func__, tmp0,
 			//    hw_info->h_cnt, tvin_sig_fmt_str(fmt));
@@ -367,32 +387,29 @@ inline bool tvafe_adc_fmt_chg(struct tvin_parm_s *parm, struct tvafe_adc_s *adc)
 					pr_info("[tvafe..] %s: fmt change!! adc reset clock!!! \n",__func__);
 #endif
 			}
-			hw_info->h_cnt = tmp0;
 
-			flag = tvafe_comp_get_sync_path();
-			if(!flag)
-			{
-				// v_cnt
-				tmp0 = READ_APB_REG_BITS(TVFE_SYNCTOP_INDICATOR4,
-						SAM_VCNT_BIT, SAM_VCNT_WID);
-
-				if (status == TVIN_SIG_STATUS_STABLE)
-					hw_info->v_total = tvin_comp_fmt_tbl[fmt-TVIN_SIG_FMT_COMP_480P_60HZ_D000].v_total;
-				v_cnt_offset = abs((signed int)hw_info->v_total - (signed int)tmp0);
-				hw_info->v_total = tmp0;
-
-				tmp1 = READ_APB_REG_BITS(TVFE_SOG_MON_INDICATOR2,
-						SOG_VTOTAL_BIT, SOG_VTOTAL_WID);
+			// v_cnt
+			tmp0 = READ_APB_REG_BITS(TVFE_SYNCTOP_INDICATOR4,SAM_VCNT_BIT, SAM_VCNT_WID);
+			v_cnt_offset = abs((signed int)hw_info->v_total - (signed int)tmp0);
+                        hw_info->v_total = tmp0;
+                        
+			if ((status == TVIN_SIG_STATUS_STABLE)&&(fmt_info_p)){
+				hw_info->v_total = fmt_info_p->v_total;
+				tmp1 = READ_APB_REG_BITS(TVFE_SOG_MON_INDICATOR2,SOG_VTOTAL_BIT, SOG_VTOTAL_WID);
+                                /*during vsync sog cnt is double of vsync width*/
+                                tmp1 -= hw_info->vs_width;
 				v_cnt_offset1= abs((signed int)hw_info->v_total - (signed int)tmp1);
 				//chose the correct v_total from sog and v_hs
-				if(v_cnt_offset < v_cnt_offset1)
-				{
+				if(v_cnt_offset < v_cnt_offset1){
 					hw_info->v_total = tmp1;
 					v_cnt_offset = v_cnt_offset1;
+                                        if(adc_fmt_chg_dbg)
+                                        pr_info("[tvafe..] %s:sogout vcnt %u, vsyncout vcnt %u.\n",__func__,tmp1,tmp0);
+                                                                                
 				}                    
-
-			}
-		}
+			
+		        }
+	        }
 	}
 	else
 	{
@@ -413,13 +430,13 @@ inline bool tvafe_adc_fmt_chg(struct tvin_parm_s *parm, struct tvafe_adc_s *adc)
 		if(adc_fmt_chg_dbg)
 		{
 			if(h_cnt_offset > h_cnt_wobble)
-				pr_info("[tvafe..] h_cnt_offset > h_cnt_wobble fmt change.\n");
+				pr_info("[tvafe..] h_cnt_offset %u > %u h_cnt_wobble fmt change.\n",h_cnt_offset,h_cnt_wobble);
 			if(v_cnt_offset > v_cnt_wobble)
-				pr_info("[tvafe..] v_cnt_offset > v_cnt_wobble fmt change.\n");
+				pr_info("[tvafe..] v_cnt_offset %u > %u v_cnt_wobble fmt change.\n",v_cnt_offset,v_cnt_wobble);
 			if(hs_cnt_offset > hs_cnt_wobble)
-				pr_info("[tvafe..] hs_cnt_offset > hs_cnt_wobble fmt change.\n");
+				pr_info("[tvafe..] hs_cnt_offset %u.hs_cnt_offset > hs_cnt_wobble fmt change.\n",hs_cnt_offset);
 			if(vs_cnt_offset > vs_cnt_wobble)
-				pr_info("[tvafe..] vs_cnt_offset > vs_cnt_wobble fmt change.\n");
+				pr_info("[tvafe..] vs_cnt_offset %u > %u vs_cnt_wobble fmt change.\n",vs_cnt_offset,vs_cnt_wobble);
 			if(h_pol_chg)
 				pr_info("[tvafe..] h_pol_chg fmt change.\n");
 			if(v_pol_chg)
@@ -991,7 +1008,89 @@ static void tvafe_vga_auto_clock_handler(enum tvin_sig_fmt_e fmt, struct tvafe_a
 
 	return;
 }
+void tvin_vdin_bar_detect(enum tvin_sig_fmt_e fmt, struct tvafe_adc_s *adc)
+{
+        unsigned int barhstart, barhend,hleft1,hleft2,hright1,hright2;
+        const struct tvin_format_s *fmt_info_p;
+        fmt_info_p = tvin_get_fmt_info(fmt);
+        if(!fmt_info_p){
+                pr_info("[tvafe]%s: null pointer error.\n",__func__);
+                return;
+        }
+        
+        barhstart = READ_CBUS_REG_BITS(VDIN_BLKBAR_H_START_END,BLKBAR_HSTART_BIT,BLKBAR_HSTART_WID);
+        barhend   = READ_CBUS_REG_BITS(VDIN_BLKBAR_H_START_END,BLKBAR_HEND_BIT,BLKBAR_HEND_WID);
 
+        if(barhstart > 5){
+                adc->cmd_status = TVAFE_CMD_STATUS_SUCCESSFUL;
+                pr_err("[vdin..]%s: vdin border detection failed.\n",__func__);
+        }
+                 
+        barhend--;
+        barhstart++;   
+                   
+        hleft1 = READ_CBUS_REG_BITS(VDIN_BLKBAR_IND_LEFT1_CNT,BLKBAR_LEFT1_CNT_BIT,BLKBAR_LEFT1_CNT_WID);                      
+        hleft2 = READ_CBUS_REG_BITS(VDIN_BLKBAR_IND_LEFT2_CNT,BLKBAR_LEFT2_CNT_BIT,BLKBAR_LEFT2_CNT_WID);
+        
+        if(hleft1 >= (fmt_info_p->v_active -20) && (hleft2 <= 20)){   
+                adc->cmd_status = TVAFE_CMD_STATUS_SUCCESSFUL;
+                adc->vga_parm.hpos_step += barhstart;
+                if(adc_dbg_en)
+                        pr_info("[vdin..]%s: detect end left border %u.\n",__func__,barhstart);
+                                        
+        }
+
+        hright1 = READ_CBUS_REG_BITS(VDIN_BLKBAR_IND_RIGHT1_CNT,BLKBAR_RIGHT1_CNT_BIT,BLKBAR_RIGHT1_CNT_WID);                      
+        hright2 = READ_CBUS_REG_BITS(VDIN_BLKBAR_IND_RIGHT2_CNT,BLKBAR_RIGHT2_CNT_BIT,BLKBAR_RIGHT2_CNT_WID);
+        
+        if((hright2 >= fmt_info_p->v_active -20) &&( hright1 <= 20)){                
+                 adc->cmd_status = TVAFE_CMD_STATUS_SUCCESSFUL;
+                 adc->vga_parm.hpos_step -= barhstart; 
+                 if(adc_dbg_en)
+                        pr_info("[vdin..]%s: detect end right border %u.\n",__func__,barhstart);
+        }
+        if(adc->cmd_status == TVAFE_CMD_STATUS_SUCCESSFUL){
+                //reset adc digital pll after vga auto done 
+                adc->vga_auto.phase_state = VGA_PHASE_IDLE;
+	        tvafe_adc_digital_reset();  
+	        tvafe_adc_set_frame_skip_number(adc, 4);
+        } else {        
+                //disable vdin blank bar detection
+                WRITE_CBUS_REG_BITS(VDIN_BLKBAR_CTRL0,0, BLKBAR_DET_SOFT_RST_N_BIT, BLKBAR_DET_SOFT_RST_N_WID);
+                WRITE_CBUS_REG(VDIN_BLKBAR_H_START_END,barhend|barhstart<<16); 
+                //enable vdin blank bar detection 
+                WRITE_CBUS_REG_BITS(VDIN_BLKBAR_CTRL0,1, BLKBAR_DET_SOFT_RST_N_BIT, BLKBAR_DET_SOFT_RST_N_WID);
+        }
+        if(adc_dbg_en)
+                pr_info("[vdin..]%s: hleft1 cnt %u, hleft2 cnt %u, hright1 cnt %u,hright2 cnt %u,barhend %u,barhstart %u.\n",
+                        __func__,hleft1,hleft2,hright1,hright2,barhend,barhstart);
+}
+/*
+*use vdin black bar detection to detect border
+*/
+void tvin_vdin_bbar_init(enum tvin_sig_fmt_e fmt)
+{
+        const struct tvin_format_s *fmt_info_p;
+        fmt_info_p = tvin_get_fmt_info(fmt);
+        if(!fmt_info_p){
+                pr_info("[tvafe]%s: null pointer error.\n",__func__);
+                return;
+        }
+        //disable 
+        WRITE_CBUS_REG_BITS(VDIN_BLKBAR_CTRL0,0, BLKBAR_DET_SOFT_RST_N_BIT, BLKBAR_DET_SOFT_RST_N_WID);
+
+        WRITE_CBUS_REG_BITS(VDIN_BLKBAR_CTRL0,1, BLKBAR_H_WIDTH_BIT, BLKBAR_H_WIDTH_WID);
+        WRITE_CBUS_REG_BITS(VDIN_BLKBAR_CTRL0,1, BLKBAR_SW_STAT_EN_BIT, BLKBAR_SW_STAT_EN_WID);
+        WRITE_CBUS_REG_BITS(VDIN_BLKBAR_H_START_END,(fmt_info_p->h_active - 1), BLKBAR_HEND_BIT, BLKBAR_HEND_WID);        
+        WRITE_CBUS_REG_BITS(VDIN_BLKBAR_H_START_END,0, BLKBAR_HSTART_BIT, BLKBAR_HSTART_WID);
+        // win_ve
+        WRITE_CBUS_REG_BITS(VDIN_BLKBAR_V_START_END,(fmt_info_p->v_active - 1), BLKBAR_VEND_BIT, BLKBAR_VEND_WID);
+        WRITE_CBUS_REG_BITS(VDIN_BLKBAR_V_START_END,0, BLKBAR_VSTART_BIT, BLKBAR_VSTART_WID);
+        WRITE_CBUS_REG_BITS(VDIN_BLKBAR_CTRL0,1, BLKBAR_DET_TOP_EN_BIT, BLKBAR_DET_TOP_EN_WID);
+        WRITE_CBUS_REG_BITS(VDIN_BLKBAR_CTRL0,1, BLKBAR_DET_TOP_EN_BIT, BLKBAR_DET_TOP_EN_WID);
+        // manual reset, rst = 0 & 1, raising edge mode        
+        WRITE_CBUS_REG_BITS(VDIN_BLKBAR_CTRL0,1, BLKBAR_DET_SOFT_RST_N_BIT, BLKBAR_DET_SOFT_RST_N_WID);
+}
 /*
  * tvafe vga auto phase funtion
  */
@@ -1155,14 +1254,19 @@ static void tvafe_vga_auto_phase_handler(enum tvin_sig_fmt_e fmt, struct tvafe_a
 				tvafe_vga_border_detect_disable();
 				// disable auto phase
 				tvafe_vga_auto_phase_disable();
-				adc->cmd_status = TVAFE_CMD_STATUS_SUCCESSFUL;
-				vga_auto->phase_state = VGA_PHASE_IDLE;
-				vga_auto->vs_cnt = 0;
-				//reset adc digital pll
-				//tvafe_adc_digital_reset();  //added for phase abnormal bug.
-				//tvafe_adc_set_frame_skip_number(adc, 4);
+				//adc->cmd_status = TVAFE_CMD_STATUS_SUCCESSFUL;
+				
+				vga_auto->phase_state = VGA_BORDER_DET;
+				vga_auto->vs_cnt = 0;				
+                                tvin_vdin_bbar_init(fmt);
 			}
 			break;
+                case VGA_BORDER_DET:
+                        if(vga_auto->vs_cnt > 30){
+                                vga_auto->vs_cnt  = 0;
+                                vga_auto->phase_state = VGA_VDIN_BORDER_DET;
+                        }
+                        break;
 		default:
 			break;
 	}
@@ -1268,18 +1372,24 @@ void tvafe_adc_configure(enum tvin_sig_fmt_e fmt)
 	tvafe_adc_clear(TVAFE_ADC_CONFIGURE_NORMAL, 1);
 	tvafe_adc_clear(TVAFE_ADC_CONFIGURE_RESET_ON, 1);
 
-	if (fmt < TVIN_SIG_FMT_VGA_MAX) // VGA formats
+	if (fmt < TVIN_SIG_FMT_VGA_MAX && fmt > TVIN_SIG_FMT_NULL) // VGA formats
 	{
 		buff_t = adc_vga_table[fmt-TVIN_SIG_FMT_VGA_512X384P_60HZ_D147];
 	}
-	else if (fmt < TVIN_SIG_FMT_COMP_MAX) // Component formats
+	else if (fmt < TVIN_SIG_FMT_COMP_MAX && fmt > TVIN_SIG_FMT_VGA_THRESHOLD) // Component formats
 	{
 		buff_t = adc_component_table[fmt-TVIN_SIG_FMT_COMP_480P_60HZ_D000];
 	}
-	else // CVBS formats
+	// CVBS formats
+        else if(fmt < TVIN_SIG_FMT_CVBS_MAX && fmt > TVIN_SIG_FMT_HDMI_THRESHOLD)
 	{
 		buff_t = adc_cvbs_table;
 	}
+        else
+        {
+                pr_err("[tvafe..]%s: invaild fmt %s.\n",__func__,tvin_sig_fmt_str(fmt));
+                return;
+        }
 
 	for (i=0; i<ADC_REG_NUM; i++)
 	{
@@ -1363,12 +1473,12 @@ void tvafe_adc_set_param(struct tvin_parm_s *parm, struct tvafe_adc_s *adc)
 	if (tmp != tvafe_vga_get_phase())
 	{
 		tvafe_vga_set_phase(tmp);
-		/*removed and keep adc_15 7'b 0 in m2c
+		/*removed and keep adc_15 7'b 0 in m2c*/
 		  if(!adc->auto_enable) 
 		  {
 		  tvafe_adc_digital_reset();
 		  tvafe_adc_set_frame_skip_number(adc, 4);
-		  }*/
+		  }
 		if (adc_parm_en)
 			pr_info("[tvafe..] %s: set phase=%d \n",__func__, tmp);
 	}

@@ -93,7 +93,11 @@
 #define NFC_SET_TIMING_SYNC(bus_tim,bus_cyc,sync_mode)  WRITE_CBUS_REG_BITS(NAND_CFG,(bus_cyc&31)|((bus_tim&31)<<5)|((sync_mode&2)<<10),0,12)
 #define NFC_SET_TIMING_SYNC_ADJUST() 
 #define NFC_SET_DMA_MODE(is_apb,spare_only)        WRITE_CBUS_REG_BITS(NAND_CFG,((spare_only<<1)|(is_apb)),14,2)
-
+#define NFC_ENABLE_TOSHIBA_TOGGLE_MODE()       	SET_CBUS_REG_MASK(NAND_CFG,1<<11)
+#define NFC_EXIT_TOSHIBA_TOGGLE_MODE() 			CLEAR_CBUS_REG_MASK(NAND_CFG,1<<11)
+#define NFC_ENABLE_MICRON_TOGGLE_MODE()      		 SET_CBUS_REG_MASK(NAND_CFG,1<<10)
+#define NFC_SYNC_ADJ()      							SET_CBUS_REG_MASK(NAND_CFG,1<<16)
+#define NFC_EXIT_SYNC_ADJ()      							CLEAR_CBUS_REG_MASK(NAND_CFG,1<<16)
 /**
     CMD relative Macros
     Shortage word . NFCC
@@ -468,16 +472,17 @@ struct aml_nand_bch_desc{
 #define	HYNIX_26NM_4GB 		2		//H27UBG8T2BTR
 #define	HYNIX_20NM_8GB 		3		//
 #define	HYNIX_20NM_4GB 		4		//
+#define	HYNIX_20NM_LGA_8GB 		5		//
 //for Toshiba
 #define	TOSHIBA_24NM 			20		//TC58NVG5D2HTA00
 										//TC58NVG6D2GTA00
 //for SAMSUNG
 #define	SUMSUNG_2XNM 			30	
 
-//for SANDISK
-#define      SANDISK_19NM			40
+#define   MICRON_20NM			40
 
-#define      MICRON_20NM			10
+//for SANDISK
+#define    SANDISK_19NM			50
 
 #define      DYNAMIC_REG_NUM        3
 #define      DYNAMIC_REG_INIT_NUM        9
@@ -498,8 +503,13 @@ struct aml_nand_bch_desc{
 
 #define	NAND_CMD_SANDISK_DYNAMIC_ENABLE			0xB6
 #define	NAND_CMD_SANDISK_DYNAMIC_DISABLE			0xD6
-#define 	NAND_CMD_SANDISK_SLC  						0xA2    
+#define 	NAND_CMD_SANDISK_SLC  						0xA2     
+#define   NAND_CMD_SANDISK_SET_VALUE					0XEF
+#define   NAND_CMD_SANDISK_GET_VALUE					0XEE
+#define	NAND_CMD_SANDISK_SET_OUTPUT_DRV			0x10
+#define	NAND_CMD_SANDISK_SET_VENDOR_SPC			0x80
 
+#define	NAND_CMD_MICRON_SET_TOGGLE_SPC			0x01
 
 
 
@@ -575,6 +585,7 @@ struct aml_nand_chip {
 	u8 internal_chipnr;
 	unsigned internal_page_nums;
 
+	unsigned int update_env_flag;
 	unsigned int		  ran_mode; 			   //def close, for all part
 	unsigned int		  rbpin_mode;				   //may get from romboot 
 	unsigned int		  rbpin_detect;				   //add for rbpin auto detect
@@ -603,8 +614,9 @@ struct aml_nand_chip {
 	u8 ecc_cnt_limit;
 	u8 ecc_cnt_cur;
 	u8 ecc_max;
-    unsigned zero_cnt;
-
+	unsigned int 		 toggle_mode;
+   	 unsigned zero_cnt;
+	unsigned oob_fill_cnt;
 	struct mtd_info			mtd;
 	struct nand_chip		chip;
 	struct aml_nandenv_info_t *aml_nandenv_info;
@@ -672,7 +684,7 @@ struct aml_nand_device {
 static pinmux_item_t nand_set_pins[] = {
     {
         .reg = PINMUX_REG(2),
-        .setmask = (0xf<<18)|(1 << 17)|(0x3 << 25),
+        .setmask = (0xf<<18)|(1 << 17)|(0x3 << 25)| (1<<27),
     },
     {
        .reg = PINMUX_REG(5),

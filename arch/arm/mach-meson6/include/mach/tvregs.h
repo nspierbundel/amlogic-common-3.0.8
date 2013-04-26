@@ -106,8 +106,8 @@ static const  reg_t tvregs_720p[] = {
     {VENC_SYNC_ROUTE,            0,     },
     {VENC_INTCTRL,               0x200, },
     {VFIFO2VD_CTL,               0,     },
-#ifdef CONFIG_MACH_MESON6_G02_DONGLE
-    {VENC_VDAC_SETTING,          0x07,     },
+#if defined(CONFIG_MESON_POWER_PROFILE_LOW)
+    {VENC_VDAC_SETTING,          0x07,  },
 #else
     {VENC_VDAC_SETTING,          0,     },
 #endif
@@ -200,12 +200,21 @@ static const  reg_t tvregs_720p_50hz[] = {
     {VENC_SYNC_ROUTE,            0,     },
     {VENC_INTCTRL,               0x200, },
     {VFIFO2VD_CTL,               0,     },
-#ifdef CONFIG_MACH_MESON6_G02_DONGLE
-    {VENC_VDAC_SETTING,          0x07,     },
+#if defined(CONFIG_MESON_POWER_PROFILE_LOW)
+    {VENC_VDAC_SETTING,          0x07,  },
 #else
     {VENC_VDAC_SETTING,          0,     },
 #endif
     {VPU_VIU_VENC_MUX_CTRL,      0x000a,},
+    {VENC_VDAC_FIFO_CTRL,        0x1000,},
+    {ENCP_DACSEL_0,              0x3102,},
+    {ENCP_DACSEL_1,              0x0054,},    
+    {VENC_VDAC_DACSEL0,          0x0001,},
+    {VENC_VDAC_DACSEL1,          0x0001,},
+    {VENC_VDAC_DACSEL2,          0x0001,},
+    {VENC_VDAC_DACSEL3,          0x0001,},
+    {VENC_VDAC_DACSEL4,          0x0001,},
+    {VENC_VDAC_DACSEL5,          0x0001,},
     {ENCP_VIDEO_EN,              1,     },
     {ENCI_VIDEO_EN,              0,     },
     {MREG_END_MARKER,            0      }
@@ -254,10 +263,10 @@ static const reg_t tvregs_480i[] = {
     {ENCI_DBG_PX_RST,              0,     },
     {VENC_INTCTRL,                 0x2,   },
     {ENCI_VFIFO2VD_CTL,            0x4e01,},
-#ifdef CONFIG_MACH_MESON6_G02_DONGLE
-    {VENC_VDAC_SETTING,          0x07,     },
+#if defined(CONFIG_MESON_POWER_PROFILE_LOW)
+    {VENC_VDAC_SETTING,            0x07,   },
 #else
-    {VENC_VDAC_SETTING,          0,     },
+    {VENC_VDAC_SETTING,            0,     },
 #endif
     {VENC_UPSAMPLE_CTRL0,          0x0061,},
     {VENC_UPSAMPLE_CTRL1,          0x4061,},
@@ -320,10 +329,10 @@ static const reg_t tvregs_480cvbs[] = {
     {ENCI_DBG_PX_RST,              0,     },
     {VENC_INTCTRL,                 0x2,   },
     {ENCI_VFIFO2VD_CTL,            0x4e01,},
-#ifdef CONFIG_MACH_MESON6_G02_DONGLE
-    {VENC_VDAC_SETTING,          0x07,     },
+#if defined(CONFIG_MESON_POWER_PROFILE_LOW)
+    {VENC_VDAC_SETTING,            0x07,  },
 #else
-    {VENC_VDAC_SETTING,          0,     },
+    {VENC_VDAC_SETTING,            0,     },
 #endif
     {VENC_UPSAMPLE_CTRL0,          0x0061,},
     {VENC_UPSAMPLE_CTRL1,          0x4061,},
@@ -393,8 +402,8 @@ static const reg_t tvregs_480p[] = {
     {VENC_SYNC_ROUTE,            0,     },
     {VENC_INTCTRL,               0x200, },
     {VFIFO2VD_CTL,               0,     },
-#ifdef CONFIG_MACH_MESON6_G02_DONGLE
-    {VENC_VDAC_SETTING,          0x07,     },
+#if defined(CONFIG_MESON_POWER_PROFILE_LOW)
+    {VENC_VDAC_SETTING,          0x07,   },
 #else
     {VENC_VDAC_SETTING,          0,     },
 #endif
@@ -459,10 +468,10 @@ static const reg_t tvregs_576i[] = {
     {ENCI_DBG_PX_RST,                 0,         },
     {VENC_INTCTRL,                    0x2,       },
     {ENCI_VFIFO2VD_CTL,               0x4e01,    },
-#ifdef CONFIG_MACH_MESON6_G02_DONGLE
-    {VENC_VDAC_SETTING,          0x07,     },
+#if defined(CONFIG_MESON_POWER_PROFILE_LOW)
+    {VENC_VDAC_SETTING,               0x07,      },
 #else
-    {VENC_VDAC_SETTING,          0,     },
+    {VENC_VDAC_SETTING,               0,         },
 #endif
     {VENC_UPSAMPLE_CTRL0,             0x0061,    },
     {VENC_UPSAMPLE_CTRL1,             0x4061,    },
@@ -525,10 +534,10 @@ static const reg_t tvregs_576cvbs[] = {
     {ENCI_DBG_PX_RST,                 0,         },
     {VENC_INTCTRL,                    0x2,       },
     {ENCI_VFIFO2VD_CTL,               0x4e01,    },
-#ifdef CONFIG_MACH_MESON6_G02_DONGLE
-    {VENC_VDAC_SETTING,          0x07,     },
+#if defined(CONFIG_MESON_POWER_PROFILE_LOW)
+    {VENC_VDAC_SETTING,               0x07,      },
 #else
-    {VENC_VDAC_SETTING,          0,     },
+    {VENC_VDAC_SETTING,               0,         },
 #endif
     {VENC_UPSAMPLE_CTRL0,             0x0061,    },
     {VENC_UPSAMPLE_CTRL1,             0x4061,    },
@@ -545,6 +554,12 @@ static const reg_t tvregs_576cvbs[] = {
     {ENCI_DACSEL_1,                   0x11       },
     {ENCP_VIDEO_EN,                   0,         },
     {ENCI_VIDEO_EN,                   1,         },
+    {VENC_VDAC_SETTING,				  0x5		 },
+    {VENC_VDAC_DAC1_GAINCTRL,		  0x1b		 },
+    {ENCI_YC_DELAY,					  0x333		 },
+    {ENCI_VIDEO_SAT,				  0x5		 },
+    {VENC_VDAC_DAC1_FILT_CTRL0,		  0x1		 },
+    {VENC_VDAC_DAC1_FILT_CTRL1,		  0xfc48	 },
     {MREG_END_MARKER,                 0          }
 };
 
@@ -598,10 +613,10 @@ static const reg_t tvregs_576p[] = {
     {VENC_SYNC_ROUTE,            0,         },
     {VENC_INTCTRL,               0x200,     },
     {VFIFO2VD_CTL,               0,         },
-#ifdef CONFIG_MACH_MESON6_G02_DONGLE
-    {VENC_VDAC_SETTING,          0x07,     },
+#if defined(CONFIG_MESON_POWER_PROFILE_LOW)
+    {VENC_VDAC_SETTING,          0x07,      },
 #else
-    {VENC_VDAC_SETTING,          0,     },
+    {VENC_VDAC_SETTING,          0,         },
 #endif
     {VENC_UPSAMPLE_CTRL0,        0x9061,    },
     {VENC_UPSAMPLE_CTRL1,        0xa061,    },
@@ -672,8 +687,8 @@ static const reg_t tvregs_1080i[] = {
     {VENC_INTCTRL,               0x200, },
     {VFIFO2VD_CTL,               0,     },
     {VENC_VDAC_FIFO_CTRL,        0x1000,},
-#ifdef CONFIG_MACH_MESON6_G02_DONGLE
-    {VENC_VDAC_SETTING,          0x07,     },
+#if defined(CONFIG_MESON_POWER_PROFILE_LOW)
+    {VENC_VDAC_SETTING,          0x07,  },
 #else
     {VENC_VDAC_SETTING,          0,     },
 #endif
@@ -763,8 +778,8 @@ static const reg_t tvregs_1080i_50hz[] = {
     {VENC_INTCTRL,               0x200, },
     {VFIFO2VD_CTL,               0,     },
     {VENC_VDAC_FIFO_CTRL,        0x1000,},
-#ifdef CONFIG_MACH_MESON6_G02_DONGLE
-    {VENC_VDAC_SETTING,          0x07,     },
+#if defined(CONFIG_MESON_POWER_PROFILE_LOW)
+    {VENC_VDAC_SETTING,          0x07,  },
 #else
     {VENC_VDAC_SETTING,          0,     },
 #endif
@@ -827,8 +842,8 @@ static const reg_t tvregs_1080p[] = {
     {VENC_SYNC_ROUTE,            0,     },
     {VENC_INTCTRL,               0x200, },
     {VFIFO2VD_CTL,               0,     },
-#ifdef CONFIG_MACH_MESON6_G02_DONGLE
-    {VENC_VDAC_SETTING,          0x07,     },
+#if defined(CONFIG_MESON_POWER_PROFILE_LOW)
+    {VENC_VDAC_SETTING,          0x07,  },
 #else
     {VENC_VDAC_SETTING,          0,     },
 #endif
@@ -906,7 +921,7 @@ static const reg_t tvregs_1080p_50hz[] = {
     {ENCP_VIDEO_YFP1_HTIME,      271,   },
     {ENCP_VIDEO_YFP2_HTIME,      2190,  },
     {VENC_VIDEO_PROG_MODE,       0x100, },
-    {ENCP_VIDEO_MODE,            0x0040,},
+    {ENCP_VIDEO_MODE,            0x4040,},
     {ENCP_VIDEO_MODE_ADV,        0x0018,},
 
     {ENCP_VIDEO_SYNC_MODE,       0x7, }, //bit[15:8] -- adjust the vsync vertical position
@@ -919,8 +934,8 @@ static const reg_t tvregs_1080p_50hz[] = {
     {VENC_INTCTRL,               0x200, },
     {VFIFO2VD_CTL,               0,     },
     {VENC_VDAC_FIFO_CTRL,        0x1000,},
-#ifdef CONFIG_MACH_MESON6_G02_DONGLE
-    {VENC_VDAC_SETTING,          0x07,     },
+#if defined(CONFIG_MESON_POWER_PROFILE_LOW)
+    {VENC_VDAC_SETTING,          0x07,  },
 #else
     {VENC_VDAC_SETTING,          0,     },
 #endif
@@ -937,6 +952,99 @@ static const reg_t tvregs_1080p_50hz[] = {
     {ENCP_VIDEO_EN,              1,     },
     {MREG_END_MARKER,            0      }
 };
+
+static const reg_t tvregs_1080p_24hz[] = {
+    {VENC_VDAC_SETTING,          0xff,  },
+    {HHI_VID_CLK_CNTL,           0x0,},
+    {HHI_VID_PLL_CNTL2,          0x814d3928},
+    {HHI_VID_PLL_CNTL3,          0x6b425012},
+    {HHI_VID_PLL_CNTL4,          0x110},
+    {HHI_VID_PLL_CNTL,           0x0001043e,},
+    {HHI_VID_DIVIDER_CNTL,       0x00010843,},
+    {HHI_VID_CLK_DIV,            0x100},
+    {HHI_VID_CLK_CNTL,           0x80000,},
+    {HHI_VID_CLK_CNTL,           0x88001,},
+    {HHI_VID_CLK_CNTL,           0x80003,},
+    {HHI_VIID_CLK_DIV,           0x00000101,},
+    {ENCP_VIDEO_FILT_CTRL,       0x1052,},
+
+    // bit 13    1          (delayed prog_vs)
+    // bit 5:4:  2          (pixel[0])
+    // bit 3:    1          invert vsync or not
+    // bit 2:    1          invert hsync or not
+    // bit1:     1          (select viu sync)
+    // bit0:     1          (progressive)
+    {VENC_DVI_SETTING,           0x000d,},
+    {ENCP_VIDEO_MAX_PXCNT,       2749,  },
+    {ENCP_VIDEO_MAX_LNCNT,       1124,  },
+    /* horizontal timing settings */
+    {ENCP_VIDEO_HSPULS_BEGIN,    44,  },//1980
+    {ENCP_VIDEO_HSPULS_END,      132,    },
+    {ENCP_VIDEO_HSPULS_SWITCH,   44,    },
+
+    //DE position in horizontal
+    {ENCP_VIDEO_HAVON_BEGIN,     271,   },
+    {ENCP_VIDEO_HAVON_END,       2190,  },
+
+    //ditital hsync positon in horizontal
+    {ENCP_VIDEO_HSO_BEGIN,       79 ,    },
+    {ENCP_VIDEO_HSO_END,         123,  },
+
+    /* vsync horizontal timing */
+    {ENCP_VIDEO_VSPULS_BEGIN,    220,   },
+    {ENCP_VIDEO_VSPULS_END,      2140,  },
+
+    /* vertical timing settings */
+    {ENCP_VIDEO_VSPULS_BLINE,    0,     },
+    {ENCP_VIDEO_VSPULS_ELINE,    4,     },//35
+    {ENCP_VIDEO_EQPULS_BLINE,    0,     },
+    {ENCP_VIDEO_EQPULS_ELINE,    4,     },//35
+    {ENCP_VIDEO_VAVON_BLINE,     41,    },
+    {ENCP_VIDEO_VAVON_ELINE,     1120,  },
+
+    //adjust the hsync & vsync start point and end point
+    {ENCP_VIDEO_VSO_BEGIN,       79,  },
+    {ENCP_VIDEO_VSO_END,         79,  },
+
+    //adjust the vsync start line and end line
+    {ENCP_VIDEO_VSO_BLINE,       0,     },
+    {ENCP_VIDEO_VSO_ELINE,       5,     },
+
+    {ENCP_VIDEO_YFP1_HTIME,      271,   },
+    {ENCP_VIDEO_YFP2_HTIME,      2190,  },
+    {VENC_VIDEO_PROG_MODE,       0x100, },
+    {ENCP_VIDEO_MODE,            0x4040,},
+    {ENCP_VIDEO_MODE_ADV,        0x0018,},
+
+    {ENCP_VIDEO_SYNC_MODE,       0x7, }, //bit[15:8] -- adjust the vsync vertical position
+
+    {ENCP_VIDEO_YC_DLY,          0,     },      //Y/Cb/Cr delay
+
+    {ENCP_VIDEO_RGB_CTRL, 2,},       // enable sync on B
+
+    {VENC_SYNC_ROUTE,            0,     },
+    {VENC_INTCTRL,               0x200, },
+    {VFIFO2VD_CTL,               0,     },
+    {VENC_VDAC_FIFO_CTRL,        0x1000,},
+#if defined(CONFIG_MESON_POWER_PROFILE_LOW)
+    {VENC_VDAC_SETTING,          0x07,  },
+#else
+    {VENC_VDAC_SETTING,          0,     },
+#endif
+    {VPU_VIU_VENC_MUX_CTRL,      0x000a,},
+    {ENCP_DACSEL_0,              0x3102,},
+    {ENCP_DACSEL_1,              0x0054,},
+    {VENC_VDAC_DACSEL0,          0x0001,},
+    {VENC_VDAC_DACSEL1,          0x0001,},
+    {VENC_VDAC_DACSEL2,          0x0001,},
+    {VENC_VDAC_DACSEL3,          0x0001,},
+    {VENC_VDAC_DACSEL4,          0x0001,},
+    {VENC_VDAC_DACSEL5,          0x0001,},
+    {ENCI_VIDEO_EN,              0,     },
+    {ENCP_VIDEO_EN,              1,     },
+    {MREG_END_MARKER,            0      }
+};
+
 static const reg_t tvregs_vga_640x480[] = { // 25.17mhz 800 *525
      {VENC_VDAC_SETTING,          0xff,  },
     {HHI_VID_CLK_CNTL,           0x0,       },
@@ -987,8 +1095,8 @@ static const reg_t tvregs_vga_640x480[] = { // 25.17mhz 800 *525
     {VENC_SYNC_ROUTE,            0,     },
     {VENC_INTCTRL,               0x200, },
     {VFIFO2VD_CTL,               0,     },
-#ifdef CONFIG_MACH_MESON6_G02_DONGLE
-    {VENC_VDAC_SETTING,          0x07,     },
+#if defined(CONFIG_MESON_POWER_PROFILE_LOW)
+    {VENC_VDAC_SETTING,          0x07,  },
 #else
     {VENC_VDAC_SETTING,          0,     },
 #endif
@@ -1065,8 +1173,8 @@ static const reg_t tvregs_svga_800x600[]={ //39.5mhz 1056 *628
     {VENC_SYNC_ROUTE,            0,     },
     {VENC_INTCTRL,               0x200, },
     {VFIFO2VD_CTL,               0,     },
-#ifdef CONFIG_MACH_MESON6_G02_DONGLE
-    {VENC_VDAC_SETTING,          0x07,     },
+#if defined(CONFIG_MESON_POWER_PROFILE_LOW)
+    {VENC_VDAC_SETTING,          0x07,  },
 #else
     {VENC_VDAC_SETTING,          0,     },
 #endif
@@ -1134,8 +1242,8 @@ static const reg_t tvregs_xga_1024x768[] = {
     {VENC_SYNC_ROUTE,            0,     },
     {VENC_INTCTRL,               0x200, },
     {VFIFO2VD_CTL,               0,     },
-#ifdef CONFIG_MACH_MESON6_G02_DONGLE
-    {VENC_VDAC_SETTING,          0x07,     },
+#if defined(CONFIG_MESON_POWER_PROFILE_LOW)
+    {VENC_VDAC_SETTING,          0x07,  },
 #else
     {VENC_VDAC_SETTING,          0,     },
 #endif
@@ -1183,8 +1291,8 @@ static const reg_t tvregs_xga_1024x768[] = {
     {VENC_SYNC_ROUTE,            0,     },
     {VENC_INTCTRL,               0x200, },
     {VFIFO2VD_CTL,               0,     },
-#ifdef CONFIG_MACH_MESON6_G02_DONGLE
-    {VENC_VDAC_SETTING,          0x07,     },
+#if defined(CONFIG_MESON_POWER_PROFILE_LOW)
+    {VENC_VDAC_SETTING,          0x07,  },
 #else
     {VENC_VDAC_SETTING,          0,     },
 #endif
@@ -1224,6 +1332,7 @@ static const reg_t *tvregsTab[] = {
     tvregs_720p_50hz,
     tvregs_1080i_50hz,
     tvregs_1080p_50hz,
+    tvregs_1080p_24hz,
     tvregs_vga_640x480,
     tvregs_svga_800x600,
     tvregs_xga_1024x768
@@ -1242,6 +1351,7 @@ static const tvinfo_t tvinfoTab[] = {
     {.xres = 1280, .yres =  720, .id = "720p50hz"},
     {.xres = 1920, .yres = 1080, .id = "1080i50hz"},
     {.xres = 1920, .yres = 1080, .id = "1080p50hz"},
+    {.xres = 1920, .yres = 1080, .id = "1080p24hz"},
     {.xres = 640, .yres = 480, .id = "vga"},
     {.xres = 800, .yres = 600, .id = "svga"},
     {.xres = 1024, .yres = 768, .id = "xga"},

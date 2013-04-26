@@ -45,11 +45,22 @@
 #define VDIN_FLAG_DEC_STOP_ISR		0x00000010
 #define VDIN_FLAG_FORCE_UNSTABLE	0x00000020
 #define VDIN_FLAG_FS_OPENED		0x00000100
-#define VDIN_FLAG_SKIP_ISR            0x00000200
+#define VDIN_FLAG_SKIP_ISR              0x00000200
+
+/*flag for vdin0 output*/
+#define VDIN_FLAG_OUTPUT_TO_NR		0x00000400
+
+/*values of vdin isr bypass check flag */
+#define VDIN_BYPASS_STOP_CHECK          0x00000001
+#define VDIN_BYPASS_CYC_CHECK           0x00000002
+#define VDIN_BYPASS_VSYNC_CHECK         0x00000004
+#define VDIN_BYPASS_VGA_CHECK           0x00000008
+
 
 /*flag for flush vdin buff*/
 #define VDIN_FLAG_BLACK_SCREEN_ON	1
 #define VDIN_FLAG_BLACK_SCREEN_OFF	0
+
 
 typedef enum vdin_format_convert_e {
 	VDIN_MATRIX_XXX_YUV_BLACK = 0,
@@ -95,6 +106,8 @@ static inline const char *vdin_fmt_convert_str(enum vdin_format_convert_e fmt_cv
 		break;
 	}
 }
+
+extern int vdin_reg_v4l2(vdin_v4l2_ops_t *ops);
 
 typedef struct vdin_dev_s {
 	int				index;
@@ -145,6 +158,7 @@ typedef struct vdin_dev_s {
 	struct vf_pool			*vfp;
 
 	struct tvin_frontend_s		*frontend;
+	struct tvin_sig_property_s	pre_prop;
 	struct tvin_sig_property_s	prop;
 	struct vframe_provider_s	vprov;
 

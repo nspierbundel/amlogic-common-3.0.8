@@ -312,6 +312,56 @@ power_attr(pm_trace_dev_match);
 power_attr(wake_lock);
 power_attr(wake_unlock);
 #endif
+#ifdef CONFIG_SUSPEND_STATE_VAL
+/*
+ * Add suspend_state_val for auto suspend apk to call suspend at right time. 
+ * Maybe it needn't at all.
+ */
+int suspend_state_val = 1;
+static ssize_t suspend_state_value_show(struct kobject *kobj, struct kobj_attribute *attr,
+			  char *buf)
+{
+	unsigned int val = suspend_state_val;
+
+	return sprintf(buf, "%u\n", val);
+}
+
+static ssize_t suspend_state_value_store(struct kobject *kobj, struct kobj_attribute *attr,
+			      const char *buf, size_t n)
+{
+	unsigned int val;
+
+	if (sscanf(buf, "%u", &val) == 1) {
+		suspend_state_val = val;
+	}
+	return -EINVAL;
+}
+
+power_attr(suspend_state_value);
+#endif
+
+#ifdef CONFIG_DEVICE_SUSPEND_RESUME_TIME_DEBUG
+/*
+ * threshold of device suspend/resume time consumption in microsecond,
+ * driver suspend/resume time longer than threshold will print to console*/
+int device_suspend_resume_time_threshold = 500;
+static ssize_t device_suspend_resume_time_threshold_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
+{
+        return sprintf(buf, "%d\n", device_suspend_resume_time_threshold);
+}
+
+static ssize_t device_suspend_resume_time_threshold_store(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t n)
+{
+        int val;
+        if (sscanf(buf, "%d", &val) > 0) {
+                device_suspend_resume_time_threshold = val;
+                return n;
+        }
+        return -EINVAL;
+}
+
+power_attr(device_suspend_resume_time_threshold);
+#endif
 
 static struct attribute * g[] = {
 	&state_attr.attr,
@@ -330,6 +380,12 @@ static struct attribute * g[] = {
 	&wake_unlock_attr.attr,
 #endif
 #endif
+#ifdef CONFIG_SUSPEND_STATE_VAL
+	&suspend_state_value_attr.attr,
+#endif
+#ifdef CONFIG_DEVICE_SUSPEND_RESUME_TIME_DEBUG
+        &device_suspend_resume_time_threshold_attr.attr,
+#endif 
 	NULL,
 };
 

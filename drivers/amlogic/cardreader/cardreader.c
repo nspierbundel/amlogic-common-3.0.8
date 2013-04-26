@@ -32,6 +32,8 @@
 #include <mach/irqs.h>
 #include <mach/card_io.h>
 
+//#undef CONFIG_CARD_DEFERRED_MONITOR
+
 #define card_list_to_card(l)	container_of(l, struct memory_card, node)
 struct completion card_devadd_comp;
 
@@ -107,6 +109,7 @@ static void card_reader_initialize(struct card_host *host)
 
 	for (i=0; i<card_platform->card_num; i++) {
 		card_plat_info = &card_platform->card_info[i];
+		BUG_ON(card_plat_info->max_clock >= CARD_CLOCK_LIMITED);
 
 		if (!strcmp("xd_card", card_plat_info->name)) {
 #ifdef CONFIG_XD
@@ -308,16 +311,47 @@ static irqreturn_t sdxc_interrupt_monitor(int irq, void *dev_id, struct pt_regs 
 
 struct card_host *sdio_host;
 
-static int card_reader_init(struct card_host *host) 
-{	
+static void card_force_init(struct card_host *card_host, CARD_TYPE_t card_type)
+{
+    struct memory_card *card = NULL;
+    
+    card_reader_initialize(card_host);
+    card = card_find_card(card_host, card_type);
+    //BUG_ON(!card);
+    if(!card){
+        printk(KERN_ERR "[card_init_force] type %d failed\n", card_type);
+        return;
+    }
+    
+    __card_claim_host(card_host, card);
+    card->card_io_init(card);
+    card->card_insert_process(card);
+    card_release_host(card_host);
+
+    card->unit_state = CARD_UNIT_READY;
+    card_host->card_type = card_type;
+    if(!(card->state & CARD_STATE_PRESENT))
+        card->state |= CARD_STATE_INITED;
+    if (card_type == CARD_SDIO)
+        card_host->card = card;
+    card_detect_change(card_host, 0);
+    printk("%s force init ok\n", card->name);
+}
+
+static int card_reader_init(struct card_host *host)
+{
        sdio_host = host;
 	host->dma_buf = dma_alloc_coherent(NULL, host->max_req_size, (dma_addr_t *)&host->dma_phy_buf, GFP_KERNEL);
 	if(host->dma_buf == NULL)
 		return -ENOMEM;
 
-	card_reader_initialize(host);	
+	card_reader_initialize(host);
+#if defined(CONFIG_CARD_DEFERRED_MONITOR)
+	host->card_task = kthread_create(card_reader_monitor, host, "card");
+#else
 	host->card_task = kthread_run(card_reader_monitor, host, "card");
-	if (!host->card_task)	
+#endif
+	if (!host->card_task)
 		printk("card creat process failed\n");
 	else	
 		printk("card creat process sucessful\n");
@@ -335,6 +369,10 @@ static int card_reader_init(struct card_host *host)
 
 #ifdef CONFIG_SDIO_HARD_IRQ
 	host->caps |= CARD_CAP_SDIO_IRQ;
+#endif
+
+#if defined(CONFIG_CARD_DEFERRED_MONITOR) && defined (CONFIG_INAND)
+    card_force_init(host, CARD_INAND);
 #endif
 	return 0;
 } 
@@ -782,8 +820,10 @@ static void card_reader_rescan(struct work_struct *work)
 
 			if ((card->card_type == CARD_SDIO)) {
 				err = card_sdio_init_card(card);
-				if (err)
+				if (err) {
+					list_del(&card->node);
 					card_sdio_remove(host);
+				}
 				else
 					card->quirks |= SDIO_PRESENT;
 			}
@@ -824,7 +864,8 @@ struct card_host *card_alloc_host(int extra, struct device *dev)
 		host->max_hw_segs = 1;
 		host->max_phys_segs = 1;
 		host->max_sectors = 1 << (PAGE_CACHE_SHIFT - 5);
-		host->max_seg_size = PAGE_CACHE_SIZE;
+		//host->max_seg_size = PAGE_CACHE_SIZE;
+		host->max_seg_size = 64 * 1024;
 		host->max_blk_size = 512;
 		////host->max_blk_count = 256;		//lin : for sdxc wr endian bug
 		if (use_sdxc)
@@ -1046,6 +1087,18 @@ module_init(amlogic_card_init);
 
 module_exit(amlogic_card_exit);
 
+#if defined(CONFIG_CARD_DEFERRED_MONITOR)
+static int __init card_defer_monitor(void)
+{
+    struct card_host* host = sdio_host;
+    BUG_ON(!host);
+    BUG_ON(!host->card_task);
+    wake_up_process(host->card_task);
+    printk(KERN_INFO "[card_defer_monitor] wake_up_process card_reader_monitor\n");
+    return 0;
+}
+deferred_module_init(card_defer_monitor);
+#endif
 
 MODULE_DESCRIPTION("Amlogic Memory Card Interface driver");
 

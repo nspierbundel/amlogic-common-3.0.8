@@ -2170,5 +2170,6 @@ static void __exit input_exit(void)
 	class_unregister(&input_class);
 }
 
-subsys_initcall(input_init);
+//subsys_initcall(input_init);
+arch_initcall(input_init);
 module_exit(input_exit);

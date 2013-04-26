@@ -292,22 +292,23 @@ const static  int vga_top_reg_default[][2] = {
 	{TVFE_INT_INDICATOR1           , 0x00000000,} ,// TVFE_INT_INDICATOR1
 	{TVFE_INT_SET                  , 0x00000000,} ,// TVFE_INT_SET
 	{TVFE_CHIP_VERSION             , 0x00000000,} ,// TVFE_CHIP_VERSION
-	{TVFE_FREERUN_GEN_WIDTH   , 0x00000000,},//TVFE_FREERUN_GEN_WIDTH
-	{TVFE_FREERUN_GEN_PRD       ,  0x00000000,},//TVFE_FREERUN_GEN_PRD
-	{TVFE_FREERUN_GEN_COAST   , 0x00000000,},//TVFE_FREERUN_GEN_COAST
-	{TVFE_FREERUN_GEN_CTRL      , 0x00000000,},//TVFE_FREERUN_GEN_CTRL
-	{TVFE_AAFILTER_CTRL1            ,   0x00100000,},//TVFE_AAFILTER_CTRL1 bypass all   
+	{TVFE_FREERUN_GEN_WIDTH        , 0x00080008,},//TVFE_FREERUN_GEN_WIDTH
+	{TVFE_FREERUN_GEN_PRD          , 0x020d0359,},//TVFE_FREERUN_GEN_PRD
+	{TVFE_FREERUN_GEN_COAST        , 0x01cc001c,},//TVFE_FREERUN_GEN_COAST
+	{TVFE_FREERUN_GEN_CTRL         , 0x00000001,},//TVFE_FREERUN_GEN_CTRL
+	{TVFE_AAFILTER_CTRL1            ,   0x00100000,},//TVFE_AAFILTER_CTRL1 bypass all
 	{TVFE_AAFILTER_CTRL2            ,   0x00000000,},//TVFE_AAFILTER_CTRL2
 	{TVFE_AAFILTER_CTRL3            ,   0x00000000,},//TVFE_AAFILTER_CTRL3
 	{TVFE_AAFILTER_CTRL4            ,   0x00000000,},//TVFE_AAFILTER_CTRL4
 	{TVFE_AAFILTER_CTRL5            ,   0x00000000,},//TVFE_AAFILTER_CTRL5
 	{TVFE_SOG_MON_CTRL1            ,   0x00000000,},//TVFE_SOG_MON_CTRL1
-	{TVFE_ADC_READBACK_CTRL1,    0x00000000,},//TVFE_ADC_READBACK_CTRL1  
+	{TVFE_ADC_READBACK_CTRL1,    0x00000000,},//TVFE_ADC_READBACK_CTRL1
 	{TVFE_ADC_READBACK_CTRL2,    0x00000000,},//TVFE_ADC_READBACK_CTRL2
-	{TVFE_AFC_CTRL1                      ,    0x00000000,},//TVFE_AFC_CTRL1    
+	{TVFE_AFC_CTRL1                      ,    0x00000000,},//TVFE_AFC_CTRL1
 	{TVFE_AFC_CTRL2                      ,    0x00000000,},//TVFE_AFC_CTRL2
 	{TVFE_AFC_CTRL3                      ,    0x00000000,},//TVFE_AFC_CTRL3
 	{TVFE_AFC_CTRL4                      ,    0x00000000,},//TVFE_AFC_CTRL4
+	{TVFE_AFC_CTRL5                      ,    0x00000000,},//TVFE_AFC_CTRL5
 	{0xFFFFFFFF                    , 0x00000000,}, // TVFE_CHIP_VERSION
 }; //TVIN_SIG_FMT_VGA_800X600P_60D317
 /* TOP */
@@ -426,22 +427,23 @@ const static  int comp_top_reg_default[][2] = {
 	{TVFE_INT_INDICATOR1           , 0x00000000,} ,// TVFE_INT_INDICATOR1
 	{TVFE_INT_SET                  , 0x00000000,} ,// TVFE_INT_SET
 	{TVFE_CHIP_VERSION             , 0x00000000,} ,// TVFE_CHIP_VERSION
-	{TVFE_FREERUN_GEN_WIDTH   , 0x00000000,},//TVFE_FREERUN_GEN_WIDTH
-	{TVFE_FREERUN_GEN_PRD       ,  0x00000000,},//TVFE_FREERUN_GEN_PRD
-	{TVFE_FREERUN_GEN_COAST   , 0x00000000,},//TVFE_FREERUN_GEN_COAST
-	{TVFE_FREERUN_GEN_CTRL      , 0x00000000,},//TVFE_FREERUN_GEN_CTRL
-	{TVFE_AAFILTER_CTRL1            ,   0x00100000,},//TVFE_AAFILTER_CTRL1 bypass all   
+	{TVFE_FREERUN_GEN_WIDTH        , 0x00080008,},//TVFE_FREERUN_GEN_WIDTH
+	{TVFE_FREERUN_GEN_PRD          , 0x020d035a,},//TVFE_FREERUN_GEN_PRD
+	{TVFE_FREERUN_GEN_COAST        , 0x00000000,},//TVFE_FREERUN_GEN_COAST
+	{TVFE_FREERUN_GEN_CTRL         , 0x00000001,},//TVFE_FREERUN_GEN_CTRL
+	{TVFE_AAFILTER_CTRL1            ,   0x00100000,},//TVFE_AAFILTER_CTRL1 bypass all
 	{TVFE_AAFILTER_CTRL2            ,   0x00000000,},//TVFE_AAFILTER_CTRL2
 	{TVFE_AAFILTER_CTRL3            ,   0x00000000,},//TVFE_AAFILTER_CTRL3
 	{TVFE_AAFILTER_CTRL4            ,   0x00000000,},//TVFE_AAFILTER_CTRL4
 	{TVFE_AAFILTER_CTRL5            ,   0x00000000,},//TVFE_AAFILTER_CTRL5
 	{TVFE_SOG_MON_CTRL1            ,   0x8000c804,},//TVFE_SOG_MON_CTRL1
-	{TVFE_ADC_READBACK_CTRL1,    0x00000000,},//TVFE_ADC_READBACK_CTRL1  
+	{TVFE_ADC_READBACK_CTRL1,    0x00000000,},//TVFE_ADC_READBACK_CTRL1
 	{TVFE_ADC_READBACK_CTRL2,    0x00000000,},//TVFE_ADC_READBACK_CTRL2
-	{TVFE_AFC_CTRL1                      ,    0x00000000,},//TVFE_AFC_CTRL1    
+	{TVFE_AFC_CTRL1                      ,    0x00000000,},//TVFE_AFC_CTRL1
 	{TVFE_AFC_CTRL2                      ,    0x00000000,},//TVFE_AFC_CTRL2
 	{TVFE_AFC_CTRL3                      ,    0x00000000,},//TVFE_AFC_CTRL3
 	{TVFE_AFC_CTRL4                      ,    0x00000000,},//TVFE_AFC_CTRL4
+	{TVFE_AFC_CTRL5                      ,    0x00000000,},//TVFE_AFC_CTRL5
 	{0xFFFFFFFF                    , 0x00000000,}
 };
 
@@ -538,7 +540,7 @@ const static unsigned int cvbs_top_reg_default[][2] = {
 	{TVFE_OGO_OFFSET3                       ,0x00000000,}, // TVFE_OGO_OFFSET3
 	{TVFE_VAFE_CTRL                         ,0x00000000,}, // TVFE_VAFE_CTRL
 	{TVFE_VAFE_STATUS                       ,0x00000000,}, // TVFE_VAFE_STATUS
-	{TVFE_TOP_CTRL                          ,0x000C4F60 /*0x00004B60*/,}, // TVFE_TOP_CTRL
+	{TVFE_TOP_CTRL                          ,0xc4f64 /*0x00004B60*/,}, // TVFE_TOP_CTRL
 	{TVFE_CLAMP_INTF                        ,0x00008666,}, // TVFE_CLAMP_INTF
 	{TVFE_RST_CTRL                          ,0x00000000,}, // TVFE_RST_CTRL
 	{TVFE_EXT_VIDEO_AFE_CTRL_MUX1           ,0x00000000,}, // TVFE_EXT_VIDEO_AFE_CTRL_MUX1
@@ -563,18 +565,19 @@ const static unsigned int cvbs_top_reg_default[][2] = {
 	{TVFE_FREERUN_GEN_PRD       ,  0x00000000,},//TVFE_FREERUN_GEN_PRD
 	{TVFE_FREERUN_GEN_COAST   , 0x00000000,},//TVFE_FREERUN_GEN_COAST
 	{TVFE_FREERUN_GEN_CTRL      , 0x00000000,},//TVFE_FREERUN_GEN_CTRL
-	{TVFE_AAFILTER_CTRL1            ,   0x00000000,},//TVFE_AAFILTER_CTRL1 bypass all   
+	{TVFE_AAFILTER_CTRL1            ,   0x00100000,},//TVFE_AAFILTER_CTRL1 bypass all
 	{TVFE_AAFILTER_CTRL2            ,   0x00000000,},//TVFE_AAFILTER_CTRL2
 	{TVFE_AAFILTER_CTRL3            ,   0x00000000,},//TVFE_AAFILTER_CTRL3
 	{TVFE_AAFILTER_CTRL4            ,   0x00000000,},//TVFE_AAFILTER_CTRL4
 	{TVFE_AAFILTER_CTRL5            ,   0x00000000,},//TVFE_AAFILTER_CTRL5
 	{TVFE_SOG_MON_CTRL1            ,   0x00000000,},//TVFE_SOG_MON_CTRL1
-	{TVFE_ADC_READBACK_CTRL1,   0x00000000,},//TVFE_ADC_READBACK_CTRL1  
+	{TVFE_ADC_READBACK_CTRL1,   0x00000000,},//TVFE_ADC_READBACK_CTRL1
 	{TVFE_ADC_READBACK_CTRL2,   0x00000000,},//TVFE_ADC_READBACK_CTRL2
-	{TVFE_AFC_CTRL1                      ,   0x00000000,},//TVFE_AFC_CTRL1    
-	{TVFE_AFC_CTRL2                      ,   0x00000000,},//TVFE_AFC_CTRL2
-	{TVFE_AFC_CTRL3                      ,   0x00000000,},//TVFE_AFC_CTRL3
-	{TVFE_AFC_CTRL4                      ,   0x00000000,},//TVFE_AFC_CTRL4
+	{TVFE_AFC_CTRL1                      ,   0x893904d2,},//TVFE_AFC_CTRL1
+	{TVFE_AFC_CTRL2                      ,   0xf4b9ac9,},//TVFE_AFC_CTRL2
+	{TVFE_AFC_CTRL3                      ,   0x1fd8c36,},//TVFE_AFC_CTRL3
+	{TVFE_AFC_CTRL4                      ,   0x2de6d04f,},//TVFE_AFC_CTRL4
+	{TVFE_AFC_CTRL5                      ,          0x4,},//TVFE_AFC_CTRL5
 	{0xFFFFFFFF                             ,0x00000000,}
 };
 
@@ -2300,6 +2303,8 @@ bool tvafe_adc_cal(struct tvin_parm_s *parm, struct tvafe_cal_s *cal)
 			operand->clk_ext   = READ_APB_REG_BITS(ADC_REG_58,
 					EXTCLKSEL_BIT, EXTCLKSEL_WID);
 			operand->clk_ctl   = READ_CBUS_REG(HHI_VAFE_CLKIN_CNTL);
+			operand->vafe_ctl  = READ_APB_REG(TVFE_VAFE_CTRL);
+			operand->sync_mux  = READ_APB_REG_BITS(ADC_REG_39,INSYNCMUXCTRL_BIT,INSYNCMUXCTRL_WID);
 			// disable lpf_a, lpf_b, lpf_c
 			//  WRITE_APB_REG_BITS(ADC_REG_19, 0, ENLPFA_BIT, ENLPFA_WID);
 			//  WRITE_APB_REG_BITS(ADC_REG_1A, 0, ENLPFB_BIT, ENLPFB_WID);
@@ -2307,6 +2312,10 @@ bool tvafe_adc_cal(struct tvin_parm_s *parm, struct tvafe_cal_s *cal)
 			// set clk_ext & clk_ctl
 			WRITE_APB_REG_BITS(ADC_REG_58, 1, EXTCLKSEL_BIT, EXTCLKSEL_WID);
 			WRITE_CBUS_REG(HHI_VAFE_CLKIN_CNTL, 0x00000100);
+			// set vfe mux
+			WRITE_APB_REG_BITS(ADC_REG_39, 1, INSYNCMUXCTRL_BIT, INSYNCMUXCTRL_WID);
+			WRITE_APB_REG_BITS(TVFE_VAFE_CTRL, 1,
+					VAFE_HS_VS_MUX_BIT, VAFE_HS_VS_MUX_WID);			
 			// load adc cal values
 			adc_cal->reserved |= TVAFE_ADC_CAL_VALID;
 			tvafe_set_cal_value(cal);
@@ -2442,6 +2451,7 @@ bool tvafe_adc_cal(struct tvin_parm_s *parm, struct tvafe_cal_s *cal)
 						((int)(adc_cal->c_digital_offset2) << 21) >> 21);
 				pr_info("\n");
 #endif
+
 				// disable gain calibration
 				WRITE_APB_REG_BITS(TVFE_VAFE_CTRL, 0, VAFE_ENGAINCAL_BIT, VAFE_ENGAINCAL_WID);
 				// set bpg_h, bpg_v, bpg_m, clamp_inv, clamp_ext
@@ -2573,6 +2583,7 @@ bool tvafe_adc_cal(struct tvin_parm_s *parm, struct tvafe_cal_s *cal)
 						((int)(adc_cal->c_digital_offset2) << 21) >> 21);
 				pr_info("\n");
 #endif
+
 				// restore bpg_h, bpg_v, bpg_m, clamp_inv, clamp_ext, clk_ext, clk_ctl, lpf_a, lpf_b, lpf_c
 				WRITE_APB_REG(TVFE_BPG_BACKP_H, operand->bpg_h);
 				WRITE_APB_REG(TVFE_BPG_BACKP_V, operand->bpg_v);
@@ -2585,7 +2596,9 @@ bool tvafe_adc_cal(struct tvin_parm_s *parm, struct tvafe_cal_s *cal)
 				// WRITE_APB_REG_BITS(ADC_REG_1A, operand->lpf_b, ENLPFB_BIT,    ENLPFB_WID   );
 				// WRITE_APB_REG_BITS(ADC_REG_1B, operand->lpf_c, ENLPFC_BIT,    ENLPFC_WID   );
 				WRITE_APB_REG_BITS(ADC_REG_58, operand->clk_ext, EXTCLKSEL_BIT, EXTCLKSEL_WID);
+				WRITE_APB_REG_BITS(ADC_REG_39, operand->sync_mux, INSYNCMUXCTRL_BIT,INSYNCMUXCTRL_WID);
 				WRITE_CBUS_REG(HHI_VAFE_CLKIN_CNTL, operand->clk_ctl);
+				WRITE_APB_REG(TVFE_VAFE_CTRL, operand->vafe_ctl);
 				// validate result
 				// adc_cal->reserved |= TVAFE_ADC_CAL_VALID;
 				// end of cal
@@ -2761,6 +2774,11 @@ void tvafe_top_set_de(enum tvin_sig_fmt_e fmt)
 {
 	unsigned int hs = 0, he = 0, vs = 0, ve = 0;
 	const struct tvin_format_s *fmt_info = tvin_get_fmt_info(fmt);
+
+    if(!fmt_info) {
+        pr_err("[tvafe..] %s: error,fmt is null!!! \n",__func__);
+        return;
+    }
 
 	hs = fmt_info->hs_width + fmt_info->hs_bp;
 
@@ -2957,7 +2975,7 @@ void tvafe_init_reg(struct tvafe_cvd2_s *cvd2, struct tvafe_cvd2_mem_s *mem, enu
 	{
 		tvafe_set_cvbs_default(cvd2, mem, port, pinmux);
 		/*turn on/off av out*/
-		tvafe_enable_avout(enableavout); 
+		tvafe_enable_avout(enableavout);
 	}
 
 	/* must reload mux if you change adc reg table!!! */

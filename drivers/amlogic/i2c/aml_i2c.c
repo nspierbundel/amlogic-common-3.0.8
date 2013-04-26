@@ -13,12 +13,14 @@
 #include <plat/io.h>
 #include <linux/i2c-aml.h>
 #include <linux/i2c-algo-bit.h>
+#include <linux/hardirq.h>
 
 #include <mach/am_regs.h>
 
 #include "aml_i2c.h"
 
 static int no_stop_flag = 0;
+static int i2c_silence = 0;
 
 #if MESON_CPU_TYPE >= MESON_CPU_TYPE_MESON3
 static  struct mutex aml_i2c_xfer_lock;	//add by sz.wu.zhu 20111017
@@ -149,7 +151,8 @@ static int aml_i2c_wait_ack(struct aml_i2c *i2c)
 				return 0;
 		}
 
-		cond_resched();
+		if(!in_atomic())
+			cond_resched();
 	}
 
 	/*
@@ -193,6 +196,7 @@ static void aml_i2c_fill_data(struct aml_i2c *i2c, unsigned char *buf,
 
 static void aml_i2c_xfer_prepare(struct aml_i2c *i2c, unsigned int speed)
 {
+    if(i2c_silence) return;
     no_stop_flag = 0;
 	aml_i2c_pinmux_master(i2c);
 	aml_i2c_set_clk(i2c, speed);
@@ -212,6 +216,7 @@ static void aml_i2c_start_token_xfer(struct aml_i2c *i2c)
 	so we can't do normal address, just set addr into addr reg*/
 static int aml_i2c_do_address(struct aml_i2c *i2c, unsigned int addr)
 {
+    if(i2c_silence) return 0;
 	i2c->cur_slave_addr = addr&0x7f;
 	i2c->master_regs->i2c_slave_addr = i2c->cur_slave_addr<<1;
 
@@ -225,6 +230,7 @@ static void aml_i2c_stop(struct aml_i2c *i2c)
 		aml_i2c_clr_pinmux(i2c);
 		return;
 	}
+    if(i2c_silence) return 0;
 	aml_i2c_clear_token_list(i2c);
 	i2c->token_tag[0]=TOKEN_STOP;
 	aml_i2c_set_token_list(i2c);
@@ -240,6 +246,7 @@ static int aml_i2c_read(struct aml_i2c *i2c, unsigned char *buf,
 	size_t rd_len;
 	int tagnum=0;
 
+	if(!buf || !len) return -EINVAL; 
 	aml_i2c_clear_token_list(i2c);
 
 	if(! (i2c->msg_flags & I2C_M_NOSTART)){
@@ -299,7 +306,8 @@ static int aml_i2c_write(struct aml_i2c *i2c, unsigned char *buf,
         int ret;
         size_t wr_len;
 	int tagnum=0;
-
+    if(i2c_silence) return 0;
+	if(!buf || !len) return -EINVAL; 
 	aml_i2c_clear_token_list(i2c);
 	if(! (i2c->msg_flags & I2C_M_NOSTART)){
 		i2c->token_tag[tagnum++]=TOKEN_START;
@@ -655,11 +663,113 @@ static ssize_t rw_special_reg(struct class *class,
     return 0;
 }
 
+static ssize_t show_i2c_silence(struct class *class,
+        struct class_attribute *attr, char *buf)
+{
+    return sprintf(buf, "%d\n", i2c_silence);
+}
+
+static ssize_t store_i2c_silence(struct class *class,
+        struct class_attribute *attr, const char *buf, size_t count)
+{
+    unsigned int dbg;
+    ssize_t r;
+
+    r = sscanf(buf, "%d", &dbg);
+    if (r != 1)
+    return -EINVAL;
+
+    i2c_silence = dbg;
+    return count;
+}
+
+static ssize_t test_slave_device(struct class *class,
+                    struct class_attribute *attr,	const char *buf, size_t count)
+{
+ 
+    struct i2c_adapter *i2c_adap;
+    struct aml_i2c *i2c;
+    unsigned int bus_num=0, slave_addr=0, speed=0, wnum=0, rnum=0;
+    u8 wbuf[4]={0}, rbuf[4]={0};
+    int wret=1, rret=1, i;
+    bool restart = 0;
+    
+    if (buf[0] == 'h') {
+      printk("i2c slave test help\n");
+      printk("You can test the i2c slave device even without its driver through this sysfs node\n");
+      printk("echo bus_num slave_addr speed write_num read_num [wdata1 wdata2 wdata3 wdata4] >test_slave\n");
+      printk("write (0x12 0x34) 2 bytes to the slave(addr=0x50) on i2c_bus 0, speed=50K\n");
+      printk("  echo 0 0x50 50000 2 0 0x12 0x34 >test_slave\n");
+      printk("read 2 bytes from the slave(addr=0x67) on i2c_bus 1, speed=300K\n");
+      printk("  echo 1 0x67 300000 0 2 >test_slave\n");
+      printk("write (0x12 0x34) 2 bytes to the slave(addr=0x50) on i2c_bus 0, then read 2 bytes, speed=50K\n");
+      printk("  echo 0 0x50 50000 3 2 0x12 0x34 >test_slave \n");
+      return count;
+    }
+    
+    i = sscanf(buf, "%d%x%d%d%d%x%x%x%x", &bus_num, &slave_addr, &speed, &wnum, &rnum, 
+      &wbuf[0], &wbuf[1], &wbuf[2], &wbuf[3]);
+    restart = !!(rnum & 0x80);
+    rnum &= 0x7f;
+    printk("bus_num=%d, slave_addr=%x, speed=%d, wnum=%d, rnum=%d\n",
+      bus_num, slave_addr, speed, wnum, rnum);
+    if ((i<(wnum+5)) || (!slave_addr) || (!speed) ||(wnum>4) || (rnum>4) || (!(wnum | rnum))) {
+      printk("invalid data\n");
+      return -EINVAL;
+    }
+
+    i2c_adap = i2c_get_adapter(bus_num);
+    if (!i2c_adap) {
+      printk("invalid i2c adapter\n");      
+      return -EINVAL;
+    }
+	  i2c= i2c_get_adapdata(i2c_adap);
+    if (!i2c) {
+      printk("invalid i2c master\n");      
+      return -EINVAL;
+    }
+      
+  	aml_i2c_pinmux_master(i2c);
+  	aml_i2c_set_clk(i2c, speed);
+   	i2c->cur_slave_addr = slave_addr&0x7f;
+   	i2c->master_regs->i2c_slave_addr = i2c->cur_slave_addr<<1;
+    i2c->msg_flags = 0;
+    wret = aml_i2c_write(i2c, &wbuf[0], wnum);
+    /* if restart=0, a stop and a start condition will be do between the writing and reading;
+     * else only the restart condition will be do.
+    */
+    if ((!restart) && wnum) {
+      aml_i2c_stop(i2c);
+      udelay(10);
+  	  aml_i2c_pinmux_master(i2c);
+  	}
+    i2c->msg_flags = 0; // restart
+    rret = aml_i2c_read(i2c, &rbuf[0], rnum);
+    aml_i2c_stop(i2c);
+
+    if (wnum) {
+      printk("write %d data to slave (", wnum);
+      for (i=0; i<wnum; i++)
+        printk("0x%x, ", wbuf[i]);
+      printk(") %s!\n", (wret==0) ? "success" : "failed");
+    }
+    if (rnum) {
+      printk("read %d data from slave (", rnum);
+      for (i=0; i<rnum; i++)
+        printk("0x%x, ", rbuf[i]);
+      printk(") %s!\n", (rret==0) ? "success" : "failed");        
+    }
+     
+    return count;
+}
+
 static struct class_attribute i2c_class_attrs[] = {
+    __ATTR(silence,  S_IRUGO | S_IWUSR, show_i2c_silence,    store_i2c_silence),
     __ATTR(debug,  S_IRUGO | S_IWUSR, show_i2c_debug,    store_i2c_debug),
     __ATTR(info,       S_IRUGO | S_IWUSR, show_i2c_info,    NULL),
     __ATTR(cbus_reg,  S_IRUGO | S_IWUSR, NULL,    store_register),
     __ATTR(customize,  S_IRUGO | S_IWUSR, NULL,    rw_special_reg),
+    __ATTR(test_slave,  S_IRUGO | S_IWUSR, NULL,    test_slave_device),
     __ATTR_NULL
 };
 

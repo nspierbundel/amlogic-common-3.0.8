@@ -38,7 +38,9 @@ enum usb_phy_id_mode_e{
 
 enum usb_port_idx_e{
 		USB_PORT_IDX_A = 0,
-		USB_PORT_IDX_B
+		USB_PORT_IDX_B,
+		USB_PORT_IDX_C,
+		USB_PORT_IDX_D
 };
 
 enum lm_device_type_e{

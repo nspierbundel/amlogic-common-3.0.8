@@ -142,6 +142,27 @@ int sd_mmc_cmd_test(SD_MMC_Card_Info_t *sd_mmc_info);
 
 int sd_mmc_check_wp(SD_MMC_Card_Info_t *sd_mmc_info);
 
+
+#ifdef CONFIG_CARD_MUTE_INIT_INFO
+static int card_dbg = 0;
+#else
+static int card_dbg = 1;
+#endif
+static int __init card_dbg_func(char *str)
+{
+	card_dbg = 1;
+	printk("card_dbg\n");
+	return 1;
+}
+
+__setup("carddbg", card_dbg_func);
+
+#define sdpro_dbg(fmt, args...) do{ \
+    if(card_dbg) \
+        printk(fmt, ##args); \
+}while(0)
+
+
 //Return the string buf address of specific errcode
 char * sd_error_to_string(int errcode)
 {
@@ -1369,7 +1390,8 @@ int sd_send_cmd_hw(SD_MMC_Card_Info_t *sd_mmc_info, unsigned char cmd, unsigned 
         else
     	    timeout = SD_MMC_CMD_COUNT;
     }
-    
+    if(cmd == SD_SWITCH_FUNCTION)
+        timeout = SD_MMC_WRITE_BUSY_COUNT;
     if(cmd == SD_MMC_STOP_TRANSMISSION)
         timeout = SD_MMC_WAIT_STOP_COUNT;
 
@@ -2331,7 +2353,7 @@ int sd_read_single_block_sw(SD_MMC_Card_Info_t *sd_mmc_info, unsigned long lba, 
 #ifdef SD_MMC_HW_CONTROL
 int sd_read_multi_block_hw(SD_MMC_Card_Info_t *sd_mmc_info, unsigned long lba, unsigned long lba_cnt, unsigned char * data_buf)
 {
-	int ret, read_retry_count, i, read_multi_block_hw_failed = 0;
+	int ret, read_retry_count, read_multi_block_hw_failed = 0;
 	unsigned long data_addr, lba_num, data_offset = 0;
 	unsigned char response[MAX_RESPONSE_BYTES];
 	unsigned char * orig_phy_buf = sd_mmc_info->sd_mmc_phy_buf;
@@ -2350,8 +2372,6 @@ int sd_read_multi_block_hw(SD_MMC_Card_Info_t *sd_mmc_info, unsigned long lba, u
 		data_addr *= lba;
 	}
 	
-    if(sd_mmc_info->read_multi_block_failed == 0)
-	{	
         while(lba_cnt)
         {
             if(lba_cnt > sd_mmc_info->max_blk_count)
@@ -2386,8 +2406,6 @@ int sd_read_multi_block_hw(SD_MMC_Card_Info_t *sd_mmc_info, unsigned long lba, u
 
             if(read_multi_block_hw_failed >= 3)
             {
-				printk("read multi failed, switch to single afterward\n");
-                sd_mmc_info->read_multi_block_failed = 1;
 				ret = SD_MMC_ERROR_READ_DATA_FAILED;
                 goto out;
             }	
@@ -2406,26 +2424,6 @@ int sd_read_multi_block_hw(SD_MMC_Card_Info_t *sd_mmc_info, unsigned long lba, u
             lba_cnt -= lba_num;
             data_offset = lba_num*512;
         }
-    }
-    else
-    {
-	    for(i=0; i<lba_cnt; i++)
-	    {
-		    ret = sd_read_single_block_hw(sd_mmc_info, lba++, data_buf);
-		    if(ret)
-			    goto out;
-		
-#ifdef AMLOGIC_CHIP_SUPPORT
-		    data_buf += (((unsigned long)data_buf == 0x3400000) ? 0 : sd_mmc_info->blk_len);
-#else
-                        BUG_ON(512 != sd_mmc_info->blk_len);/*convert blk_len in sd_identify_process*/
-                        data_offset = sd_mmc_info->blk_len;
-                        data_buf += data_offset;
-                        sd_mmc_info->sd_mmc_phy_buf += data_offset;
-                        sd_mmc_info->sd_mmc_buf += data_offset;
-#endif
-	    }
-    }
 
 	ret = SD_MMC_NO_ERROR;
 	
@@ -3113,23 +3111,6 @@ int sd_write_multi_block_hw(SD_MMC_Card_Info_t *sd_mmc_info, unsigned long lba, 
 		data_addr *= lba;
 	}
 
-    if(sd_mmc_info->write_multi_block_failed)
-    {
-        for(lba_num=lba; lba_num<(lba+lba_cnt); lba_num++)
-	    {
-		    ret = sd_write_single_block_hw(sd_mmc_info, lba_num, data_buf);
-		    if(ret)
-			    goto out;
-		
-                        BUG_ON(512 != sd_mmc_info->blk_len);/*convert blk_len in sd_identify_process*/
-                        data_offset = sd_mmc_info->blk_len;
-                        data_buf += data_offset;
-                        sd_mmc_info->sd_mmc_phy_buf += data_offset;
-                        sd_mmc_info->sd_mmc_buf += data_offset;
-	    }
-	}
-	else
-    {
         while(lba_cnt)
         {
             if(lba_cnt > sd_mmc_info->max_blk_count)
@@ -3239,8 +3220,6 @@ int sd_write_multi_block_hw(SD_MMC_Card_Info_t *sd_mmc_info, unsigned long lba, 
 
             if(write_retry_count >= 4)
             {
-				printk("write multi failed, switch to single afterward\n");
-                sd_mmc_info->write_multi_block_failed = 1;
 				ret = SD_MMC_ERROR_DATA_CRC;
                 goto out;
             }
@@ -3271,7 +3250,6 @@ int sd_write_multi_block_hw(SD_MMC_Card_Info_t *sd_mmc_info, unsigned long lba, 
             lba_cnt -= lba_num;
             data_offset = lba_num*512;
 	    }
-	}
 
 	ret = SD_MMC_NO_ERROR;
 	
@@ -3636,7 +3614,7 @@ int sd_voltage_validation(SD_MMC_Card_Info_t *sd_mmc_info)
 	{
 #ifdef SD_MMC_HW_CONTROL
 		if(SD_WORK_MODE == CARD_HW_MODE)
-			ret = sd_send_cmd_hw(sd_mmc_info, IO_SEND_OP_COND, 0x00200000, RESPONSE_R4, response, 0, 0, 0);   // 0x00200000: 3.3v~3.4v
+			ret = sd_send_cmd_hw(sd_mmc_info, IO_SEND_OP_COND, 0x00000000, RESPONSE_R4, response, 0, 0, 0);   // 0x00000000: 0v
 #endif
 #ifdef SD_MMC_SW_CONTROL
 		if(SD_WORK_MODE == CARD_SW_MODE)
@@ -3861,54 +3839,54 @@ static void my_disp_csdv2(SDHC_REG_CSD_t *csd)
 	unsigned int i;
 	unsigned char *pcsd;
 
-	printk("\n********** CSD v2 **************\n");
+	sdpro_dbg("\n********** CSD v2 **************\n");
 
 	pcsd = (unsigned char *)csd;
 	for (i = 0; i < sizeof(SDHC_REG_CSD_t); i++)
 	{
-		printk("%02x:", pcsd[i]);
+		sdpro_dbg("%02x:", pcsd[i]);
 	}
-	printk("\nCSD_STRUCTURE[2]=%d\n", csd->CSD_STRUCTURE);
-	printk("Reserved1[6]=%d\n", csd->Reserved1);
+	sdpro_dbg("\nCSD_STRUCTURE[2]=%d\n", csd->CSD_STRUCTURE);
+	sdpro_dbg("Reserved1[6]=%d\n", csd->Reserved1);
 	
-	printk("TAAC[8]=%d\n", csd->TAAC);
-	printk("NSAC[8]=%d\n", csd->NSAC);
-	printk("TRAN_SPEED[8]=%d\n", csd->TRAN_SPEED);
+	sdpro_dbg("TAAC[8]=%d\n", csd->TAAC);
+	sdpro_dbg("NSAC[8]=%d\n", csd->NSAC);
+	sdpro_dbg("TRAN_SPEED[8]=%d\n", csd->TRAN_SPEED);
 	
-	printk("CCC[8+4]=0x%x\n", (csd->CCC_high <<4) | csd->CCC_low);	//
-	printk("READ_BL_LEN[4]=%d\n", csd->READ_BL_LEN);
+	sdpro_dbg("CCC[8+4]=0x%x\n", (csd->CCC_high <<4) | csd->CCC_low);	//
+	sdpro_dbg("READ_BL_LEN[4]=%d\n", csd->READ_BL_LEN);
 	
-	printk("READ_BL_PARTIAL[1]=%d\n", csd->READ_BL_PARTIAL);
-	printk("WRITE_BLK_MISALIGN[1]=%d\n", csd->WRITE_BLK_MISALIGN);
-	printk("READ_BLK_MISALIGN[1]=%d\n", csd->READ_BLK_MISALIGN);	
-	printk("DSR_IMP[1]=%d\n", csd->DSR_IMP);
-	printk("Reserved2[4]=%d\n", csd->Reserved2);
+	sdpro_dbg("READ_BL_PARTIAL[1]=%d\n", csd->READ_BL_PARTIAL);
+	sdpro_dbg("WRITE_BLK_MISALIGN[1]=%d\n", csd->WRITE_BLK_MISALIGN);
+	sdpro_dbg("READ_BLK_MISALIGN[1]=%d\n", csd->READ_BLK_MISALIGN);	
+	sdpro_dbg("DSR_IMP[1]=%d\n", csd->DSR_IMP);
+	sdpro_dbg("Reserved2[4]=%d\n", csd->Reserved2);
 	
-	printk("Reserved3[2]=%d\n", csd->Reserved3);	
-	printk("C_SIZE[6+8+8]=%d\n", (csd->C_SIZE_high << 16) | (csd->C_SIZE_mid << 8) | csd->C_SIZE_low);	//
+	sdpro_dbg("Reserved3[2]=%d\n", csd->Reserved3);	
+	sdpro_dbg("C_SIZE[6+8+8]=%d\n", (csd->C_SIZE_high << 16) | (csd->C_SIZE_mid << 8) | csd->C_SIZE_low);	//
 
-	printk("Reserved4[1]=%d\n", csd->Reserved4);
-	printk("ERASE_BLK_EN[1]=%d\n", csd->ERASE_BLK_EN);	
-	printk("SECTOR_SIZE[6+1]=%d\n", (csd->SECTOR_SIZE_high << 1) | csd->SECTOR_SIZE_low);	//
-	printk("WP_GRP_SIZE[7]=%d\n", csd->WP_GRP_SIZE);
+	sdpro_dbg("Reserved4[1]=%d\n", csd->Reserved4);
+	sdpro_dbg("ERASE_BLK_EN[1]=%d\n", csd->ERASE_BLK_EN);	
+	sdpro_dbg("SECTOR_SIZE[6+1]=%d\n", (csd->SECTOR_SIZE_high << 1) | csd->SECTOR_SIZE_low);	//
+	sdpro_dbg("WP_GRP_SIZE[7]=%d\n", csd->WP_GRP_SIZE);
 	
-	printk("WP_GRP_ENABLE[1]=%d\n", csd->WP_GRP_ENABLE);
-	printk("Reserved5[2]=%d\n", csd->Reserved5);
-	printk("R2W_FACTOR[3]=%d\n", csd->R2W_FACTOR);
-	printk("WRITE_BL_LEN[2+2]=%d\n", (csd->WRITE_BL_LEN_high << 2) | csd->WRITE_BL_LEN_low);	//
+	sdpro_dbg("WP_GRP_ENABLE[1]=%d\n", csd->WP_GRP_ENABLE);
+	sdpro_dbg("Reserved5[2]=%d\n", csd->Reserved5);
+	sdpro_dbg("R2W_FACTOR[3]=%d\n", csd->R2W_FACTOR);
+	sdpro_dbg("WRITE_BL_LEN[2+2]=%d\n", (csd->WRITE_BL_LEN_high << 2) | csd->WRITE_BL_LEN_low);	//
 	
-	printk("WRITE_BL_PARTIAL[1]=%d\n", csd->WRITE_BL_PARTIAL);
-	printk("Reserved6[5]=%d\n", csd->Reserved6);
+	sdpro_dbg("WRITE_BL_PARTIAL[1]=%d\n", csd->WRITE_BL_PARTIAL);
+	sdpro_dbg("Reserved6[5]=%d\n", csd->Reserved6);
 	
-	printk("FILE_FORMAT_GRP[1]=%d\n", csd->FILE_FORMAT_GRP);
-	printk("COPY[1]=%d\n", csd->COPY);
-	printk("PERM_WRITE_PROTECT[1]=%d\n", csd->PERM_WRITE_PROTECT);
-	printk("TMP_WRITE_PROTECT[1]=%d\n", csd->TMP_WRITE_PROTECT);
-	printk("FILE_FORMAT[2]=%d\n", csd->FILE_FORMAT);
-	printk("Reserved7[2]=%d\n", csd->Reserved7);
+	sdpro_dbg("FILE_FORMAT_GRP[1]=%d\n", csd->FILE_FORMAT_GRP);
+	sdpro_dbg("COPY[1]=%d\n", csd->COPY);
+	sdpro_dbg("PERM_WRITE_PROTECT[1]=%d\n", csd->PERM_WRITE_PROTECT);
+	sdpro_dbg("TMP_WRITE_PROTECT[1]=%d\n", csd->TMP_WRITE_PROTECT);
+	sdpro_dbg("FILE_FORMAT[2]=%d\n", csd->FILE_FORMAT);
+	sdpro_dbg("Reserved7[2]=%d\n", csd->Reserved7);
 
-	printk("CRC[7]=%d\n", csd->CRC);
-	printk("NotUsed[1]=%d\n\n", csd->NotUsed);	
+	sdpro_dbg("CRC[7]=%d\n", csd->CRC);
+	sdpro_dbg("NotUsed[1]=%d\n\n", csd->NotUsed);	
 }
 
 static void my_disp_csdv1(SD_REG_CSD_t *csd)
@@ -3916,58 +3894,58 @@ static void my_disp_csdv1(SD_REG_CSD_t *csd)
 	unsigned int i;
 	unsigned char *pcsd;
 
-	printk("\n********** CSD v1 **************\n");
+	sdpro_dbg("\n********** CSD v1 **************\n");
 
 	pcsd = (unsigned char *)csd;
 	for (i = 0; i < sizeof(SD_REG_CSD_t); i++)
 	{
-		printk("%02x:", pcsd[i]);
+		sdpro_dbg("%02x:", pcsd[i]);
 	}
 
-	printk("\nCSD_STRUCTURE[2]=%d\n", csd->CSD_STRUCTURE);
-	printk("MMC_SPEC_VERS[4]=%d\n", csd->MMC_SPEC_VERS);
-	printk("Reserved1[2]=%d\n", csd->Reserved1);
+	sdpro_dbg("\nCSD_STRUCTURE[2]=%d\n", csd->CSD_STRUCTURE);
+	sdpro_dbg("MMC_SPEC_VERS[4]=%d\n", csd->MMC_SPEC_VERS);
+	sdpro_dbg("Reserved1[2]=%d\n", csd->Reserved1);
 	
-	printk("TAAC[8]=%d\n", csd->TAAC);
-	printk("NSAC[8]=%d\n", csd->NSAC);
-	printk("TRAN_SPEED[8]=%d\n", csd->TRAN_SPEED);
+	sdpro_dbg("TAAC[8]=%d\n", csd->TAAC);
+	sdpro_dbg("NSAC[8]=%d\n", csd->NSAC);
+	sdpro_dbg("TRAN_SPEED[8]=%d\n", csd->TRAN_SPEED);
 
-	printk("CCC[8+4]=%d\n", (csd->CCC_high << 4) | csd->CCC_low);	//
-	printk("READ_BL_LEN[4]=%d\n", csd->READ_BL_LEN);
+	sdpro_dbg("CCC[8+4]=%d\n", (csd->CCC_high << 4) | csd->CCC_low);	//
+	sdpro_dbg("READ_BL_LEN[4]=%d\n", csd->READ_BL_LEN);
 
-	printk("READ_BL_PARTIAL[1]=%d\n", csd->READ_BL_PARTIAL);
-	printk("WRITE_BLK_MISALIGN[1]=%d\n", csd->WRITE_BLK_MISALIGN);
-	printk("READ_BLK_MISALIGN[1]=%d\n", csd->READ_BLK_MISALIGN);
-	printk("DSR_IMP[1]=%d\n", csd->DSR_IMP);
-	printk("Reserved2[2]=%d\n", csd->Reserved2);
-	printk("C_SIZE[2+8+2]=%d\n", (csd->C_SIZE_high << 10) | (csd->C_SIZE_mid << 2) | csd->C_SIZE_low);	//
+	sdpro_dbg("READ_BL_PARTIAL[1]=%d\n", csd->READ_BL_PARTIAL);
+	sdpro_dbg("WRITE_BLK_MISALIGN[1]=%d\n", csd->WRITE_BLK_MISALIGN);
+	sdpro_dbg("READ_BLK_MISALIGN[1]=%d\n", csd->READ_BLK_MISALIGN);
+	sdpro_dbg("DSR_IMP[1]=%d\n", csd->DSR_IMP);
+	sdpro_dbg("Reserved2[2]=%d\n", csd->Reserved2);
+	sdpro_dbg("C_SIZE[2+8+2]=%d\n", (csd->C_SIZE_high << 10) | (csd->C_SIZE_mid << 2) | csd->C_SIZE_low);	//
 	
-	printk("VDD_R_CURR_MIN[3]=%d\n", csd->VDD_R_CURR_MIN);
-	printk("VDD_R_CURR_MAX[3]=%d\n", csd->VDD_R_CURR_MAX);
+	sdpro_dbg("VDD_R_CURR_MIN[3]=%d\n", csd->VDD_R_CURR_MIN);
+	sdpro_dbg("VDD_R_CURR_MAX[3]=%d\n", csd->VDD_R_CURR_MAX);
 	
-	printk("VDD_W_CURR_MIN[3]=%d\n", csd->VDD_W_CURR_MIN);
-	printk("VDD_W_CURR_MAX[3]=%d\n", csd->VDD_W_CURR_MAX);
-	printk("C_SIZE_MULT[2+1]=%d\n", (csd->C_SIZE_MULT_high << 1) | csd->C_SIZE_MULT_low);	//
-	printk("ERASE_BLK_EN[1]=%d\n", csd->ERASE_BLK_EN);
-	printk("SECTOR_SIZE[6+1]=%d\n", (csd->SECTOR_SIZE_high <<1) | csd->SECTOR_SIZE_low);	//
+	sdpro_dbg("VDD_W_CURR_MIN[3]=%d\n", csd->VDD_W_CURR_MIN);
+	sdpro_dbg("VDD_W_CURR_MAX[3]=%d\n", csd->VDD_W_CURR_MAX);
+	sdpro_dbg("C_SIZE_MULT[2+1]=%d\n", (csd->C_SIZE_MULT_high << 1) | csd->C_SIZE_MULT_low);	//
+	sdpro_dbg("ERASE_BLK_EN[1]=%d\n", csd->ERASE_BLK_EN);
+	sdpro_dbg("SECTOR_SIZE[6+1]=%d\n", (csd->SECTOR_SIZE_high <<1) | csd->SECTOR_SIZE_low);	//
 	
-	printk("WP_GRP_SIZE[7]=%d\n", csd->WP_GRP_SIZE);
-	printk("Reserved3[2]=%d\n", csd->Reserved3);
-	printk("R2W_FACTOR[3]=%d\n", csd->R2W_FACTOR);
-	printk("WRITE_BL_LEN[2+2]=%d\n", (csd->WRITE_BL_LEN_high << 2) | csd->WRITE_BL_LEN_low);	//
-	printk("WRITE_BL_PARTIAL[1]=%d\n", csd->WRITE_BL_PARTIAL);
-	printk("Reserved4[5]=%d\n", csd->Reserved4);
-	printk("WP_GRP_ENABLE[1]=%d\n", csd->WP_GRP_ENABLE);
+	sdpro_dbg("WP_GRP_SIZE[7]=%d\n", csd->WP_GRP_SIZE);
+	sdpro_dbg("Reserved3[2]=%d\n", csd->Reserved3);
+	sdpro_dbg("R2W_FACTOR[3]=%d\n", csd->R2W_FACTOR);
+	sdpro_dbg("WRITE_BL_LEN[2+2]=%d\n", (csd->WRITE_BL_LEN_high << 2) | csd->WRITE_BL_LEN_low);	//
+	sdpro_dbg("WRITE_BL_PARTIAL[1]=%d\n", csd->WRITE_BL_PARTIAL);
+	sdpro_dbg("Reserved4[5]=%d\n", csd->Reserved4);
+	sdpro_dbg("WP_GRP_ENABLE[1]=%d\n", csd->WP_GRP_ENABLE);
 	
-	printk("FILE_FORMAT_GRP[1]=%d\n", csd->FILE_FORMAT_GRP);
-	printk("COPY[1]=%d\n", csd->COPY);
-	printk("PERM_WRITE_PROTECT[1]=%d\n", csd->PERM_WRITE_PROTECT);
-	printk("TMP_WRITE_PROTECT[1]=%d\n", csd->TMP_WRITE_PROTECT);
-	printk("FILE_FORMAT[2]=%d\n", csd->FILE_FORMAT);
-	printk("Reserved5[2]=%d\n", csd->Reserved5);
+	sdpro_dbg("FILE_FORMAT_GRP[1]=%d\n", csd->FILE_FORMAT_GRP);
+	sdpro_dbg("COPY[1]=%d\n", csd->COPY);
+	sdpro_dbg("PERM_WRITE_PROTECT[1]=%d\n", csd->PERM_WRITE_PROTECT);
+	sdpro_dbg("TMP_WRITE_PROTECT[1]=%d\n", csd->TMP_WRITE_PROTECT);
+	sdpro_dbg("FILE_FORMAT[2]=%d\n", csd->FILE_FORMAT);
+	sdpro_dbg("Reserved5[2]=%d\n", csd->Reserved5);
 	
-	printk("CRC[7]=%d\n", csd->CRC);
-	printk("NotUsed[1]=%d\n\n", csd->NotUsed);
+	sdpro_dbg("CRC[7]=%d\n", csd->CRC);
+	sdpro_dbg("NotUsed[1]=%d\n\n", csd->NotUsed);
 }
 
 #if 0
@@ -4888,7 +4866,7 @@ int sd_mmc_staff_init(SD_MMC_Card_Info_t *sd_mmc_info)
 	sd_mmc_info->removed_flag = 0;
 	
 	sd_mmc_info->write_protected_flag = 0;
-	sd_mmc_info->single_blk_failed = 0;
+	sd_mmc_info->single_blk_failed = 1;
 
 	sd_mmc_info->support_uhs_mode = 0;
 	
@@ -4934,27 +4912,27 @@ static void my_disp_cid(MyCID *cid)
 	unsigned char *pcid;
 	unsigned long mdt;
 
-	printk("\n***********CID*************\n");
+	sdpro_dbg("\n***********CID*************\n");
 	pcid = (unsigned char*)cid;
 
 	size = sizeof (MyCID);
 	for (i = 0 ; i < size; i++)
 	{
-		printk("%02x:", pcid[i]);
+		sdpro_dbg("%02x:", pcid[i]);
 	}
 
-	printk("\nMID[8]=%d\n", cid->MID);
-	printk("OID[16]=%c%c\n", cid->OID[0], cid->OID[1]);
-	printk("PNM[40]=%c%c%c%c%c\n", cid->PNM[0], cid->PNM[1], cid->PNM[2], cid->PNM[3], cid->PNM[4]);
-	printk("PRV[8]=%d\n", cid->PRV);
-	printk("PSN[32]=0x%x\n", (unsigned int)cid->PSN);
+	sdpro_dbg("\nMID[8]=%d\n", cid->MID);
+	sdpro_dbg("OID[16]=%c%c\n", cid->OID[0], cid->OID[1]);
+	sdpro_dbg("PNM[40]=%c%c%c%c%c\n", cid->PNM[0], cid->PNM[1], cid->PNM[2], cid->PNM[3], cid->PNM[4]);
+	sdpro_dbg("PRV[8]=%d\n", cid->PRV);
+	sdpro_dbg("PSN[32]=0x%x\n", (unsigned int)cid->PSN);
 
-	printk("Reserved[4]=%d\n", cid->Reserved);
+	sdpro_dbg("Reserved[4]=%d\n", cid->Reserved);
 	mdt = (cid->MDT_high << 8) | cid->MDT_low;
-	printk("year[8].month[4]=%ld.%ld\n", (mdt >> 4) + 2000, mdt & 0xF);
+	sdpro_dbg("year[8].month[4]=%ld.%ld\n", (mdt >> 4) + 2000, mdt & 0xF);
 
-	printk("NotUsed[1]=%d\n", cid->NotUsed);
-	printk("CRC[7]=%d\n\n", cid->CRC);
+	sdpro_dbg("NotUsed[1]=%d\n", cid->NotUsed);
+	sdpro_dbg("CRC[7]=%d\n\n", cid->CRC);
 
 	//printk("*************** from mmc *************\n");
 	//mmc_decode_cid(cid);
@@ -4966,29 +4944,29 @@ static void my_disp_scr(MySCR *scr)
 	int i;
 	unsigned char *pscr;
 
-	printk("\n***********SCR*************\n");
+	sdpro_dbg("\n***********SCR*************\n");
 	pscr = (unsigned char*)scr;
 
 	size = sizeof (MySCR);
 	for (i = 0 ; i < size; i++)
 	{
-		printk("%02x:", pscr[i]);
+		sdpro_dbg("%02x:", pscr[i]);
 	}
 
-	printk("\nSD_SPEC[4]=%d\n", scr->SD_SPEC);
-	printk("SCR_STRUCTURE[4]=%d\n", scr->SCR_STRUCTURE);
+	sdpro_dbg("\nSD_SPEC[4]=%d\n", scr->SD_SPEC);
+	sdpro_dbg("SCR_STRUCTURE[4]=%d\n", scr->SCR_STRUCTURE);
 
-	printk("SD_BUS_WIDTHS[4]=%d\n", scr->SD_BUS_WIDTHS);
-	printk("SD_SECURITY[3]=%d\n", scr->SD_SECURITY);
-	printk("DATA_STAT_AFTER_ERASE[1]=%d\n", scr->DATA_STAT_AFTER_ERASE);
+	sdpro_dbg("SD_BUS_WIDTHS[4]=%d\n", scr->SD_BUS_WIDTHS);
+	sdpro_dbg("SD_SECURITY[3]=%d\n", scr->SD_SECURITY);
+	sdpro_dbg("DATA_STAT_AFTER_ERASE[1]=%d\n", scr->DATA_STAT_AFTER_ERASE);
 
-	printk("Rsv1[7]=%d\n", scr->Rsv1);
-	printk("SD_SPEC3[1]=%d\n", scr->SD_SPEC3);
+	sdpro_dbg("Rsv1[7]=%d\n", scr->Rsv1);
+	sdpro_dbg("SD_SPEC3[1]=%d\n", scr->SD_SPEC3);
 
-	printk("CMD_SUPPORT[2]=%d\n", scr->CMD_SUPPORT);
-	printk("Rsv2[6]=%d\n", scr->Rsv2);
+	sdpro_dbg("CMD_SUPPORT[2]=%d\n", scr->CMD_SUPPORT);
+	sdpro_dbg("Rsv2[6]=%d\n", scr->Rsv2);
 
-	printk("Reserved2[32]=%ld\n\n", scr->Reserved2);	
+	sdpro_dbg("Reserved2[32]=%ld\n\n", scr->Reserved2);	
 }
 
 //Read Operation Conditions Register
@@ -5348,6 +5326,10 @@ int sd_mmc_cmd_test(SD_MMC_Card_Info_t *sd_mmc_info)
 
 void sd_mmc_power_on(SD_MMC_Card_Info_t *sd_mmc_info)
 {
+    if(!sd_mmc_info->sd_mmc_power_delay){
+        printk("need not do external power on\n");
+        return;
+    }
 	sd_delay_ms(sd_mmc_info->sd_mmc_power_delay+1);
 	
 #ifdef SD_MMC_POWER_CONTROL
@@ -5360,7 +5342,7 @@ void sd_mmc_power_on(SD_MMC_Card_Info_t *sd_mmc_info)
 	{
 		sd_set_disable();
 	}
-	sd_delay_ms(200);
+	sd_delay_ms(sd_mmc_info->sd_mmc_power_delay);
 
 	if(sd_mmc_info->sd_mmc_power)
 	{
@@ -5376,7 +5358,7 @@ void sd_mmc_power_on(SD_MMC_Card_Info_t *sd_mmc_info)
 			sd_set_enable();
 		}
 	}
-	sd_delay_ms(200);
+	sd_delay_ms(sd_mmc_info->sd_mmc_power_delay);
 #else
 	sd_delay_ms(10);
 #endif
@@ -5848,21 +5830,21 @@ static void my_disp_switch_status(SD_Switch_Function_Status_t *status)
 {
 
 	int i;
-	printk("\n****************switch status****************\n");
-	printk("Data_Struction_Verion : %d\n", status->Data_Struction_Verion);
-	printk("Max_Current_Consumption : %d\n", SWAP_SHORT(status->Max_Current_Consumption));
+	sdpro_dbg("\n****************switch status****************\n");
+	sdpro_dbg("Data_Struction_Verion : %d\n", status->Data_Struction_Verion);
+	sdpro_dbg("Max_Current_Consumption : %d\n", SWAP_SHORT(status->Max_Current_Consumption));
 	for (i = 0; i < 6; i++)
 	{
-		printk("Support[%d] : 0x%x	", i, SWAP_SHORT(status->Function_Group[i]));
-		printk("Busy[%d] : 0x%x\n", i, SWAP_SHORT(status->Function_Status_In_Group[i]));
+		sdpro_dbg("Support[%d] : 0x%x	", i, SWAP_SHORT(status->Function_Group[i]));
+		sdpro_dbg("Busy[%d] : 0x%x\n", i, SWAP_SHORT(status->Function_Status_In_Group[i]));
 	}
 	
-	printk("Function_Group_Status6 : %d\n", status->Function_Group_Status6);
-	printk("Function_Group_Status5 : %d\n", status->Function_Group_Status5);
-	printk("Function_Group_Status4 : %d\n", status->Function_Group_Status4);
-	printk("Function_Group_Status3 : %d\n", status->Function_Group_Status3);
-	printk("Function_Group_Status2 : %d\n", status->Function_Group_Status2);
-	printk("Function_Group_Status1 : %d\n\n", status->Function_Group_Status1);
+	sdpro_dbg("Function_Group_Status6 : %d\n", status->Function_Group_Status6);
+	sdpro_dbg("Function_Group_Status5 : %d\n", status->Function_Group_Status5);
+	sdpro_dbg("Function_Group_Status4 : %d\n", status->Function_Group_Status4);
+	sdpro_dbg("Function_Group_Status3 : %d\n", status->Function_Group_Status3);
+	sdpro_dbg("Function_Group_Status2 : %d\n", status->Function_Group_Status2);
+	sdpro_dbg("Function_Group_Status1 : %d\n\n", status->Function_Group_Status1);
 /*
 	unsigned short max_current_comsumption;
 	
@@ -5887,11 +5869,11 @@ static void my_disp_ss(unsigned char *pss, int size)
 	int i;
 	for (i = 0 ; i < size; i++)
 	{
-		printk("%02x", pss[i]);
+		sdpro_dbg("%02x", pss[i]);
 		if ((i % 4) == 3)
-			printk(" ");
+			sdpro_dbg(" ");
 		if ((i % 16) == 15)
-			printk("\n");
+			sdpro_dbg("\n");
 	}
 }
 
@@ -5963,7 +5945,10 @@ int sd_mmc_switch_function(SD_MMC_Card_Info_t *sd_mmc_info)
 				sdio_config = 0;
 				config_reg = (void *)&sdio_config;
 				sdio_config = READ_CBUS_REG(SDIO_CONFIG);
-				config_reg->cmd_clk_divide = 2;//aml_system_clk / (2*SD_MMC_TRANSFER_HIGHSPEED_CLK) -1;
+				if(sd_mmc_info->max_clock > 1)
+					config_reg->cmd_clk_divide = sd_mmc_info->max_clock;
+				else
+					config_reg->cmd_clk_divide = 1;//aml_system_clk / (2*SD_MMC_TRANSFER_HIGHSPEED_CLK) -1;
 				WRITE_CBUS_REG(SDIO_CONFIG, sdio_config);
 				sd_mmc_info->sdio_clk = clk_get_rate(clk_get_sys("clk81", NULL))/2000000/(config_reg->cmd_clk_divide + 1);
 				sd_mmc_info->sdio_clk_unit = 1000/sd_mmc_info->sdio_clk;				
@@ -6007,7 +5992,10 @@ int sd_mmc_switch_function(SD_MMC_Card_Info_t *sd_mmc_info)
 	        sdio_config = 0;
 	        config_reg = (void *)&sdio_config;
 	        sdio_config = READ_CBUS_REG(SDIO_CONFIG);
-	        config_reg->cmd_clk_divide = 1;
+		if(sd_mmc_info->max_clock > 2)
+			config_reg->cmd_clk_divide = sd_mmc_info->max_clock;
+		else
+			config_reg->cmd_clk_divide = 2;
 	        WRITE_CBUS_REG(SDIO_CONFIG, sdio_config);
 			sd_mmc_info->sdio_clk = clk_get_rate(clk_get_sys("clk81", NULL))/2000000/(config_reg->cmd_clk_divide + 1);
 			sd_mmc_info->sdio_clk_unit = 1000/sd_mmc_info->sdio_clk;	        
@@ -6041,7 +6029,10 @@ int sd_mmc_switch_function(SD_MMC_Card_Info_t *sd_mmc_info)
 		        	sdio_config = 0;
 		        	config_reg = (void *)&sdio_config;
 		        	sdio_config = READ_CBUS_REG(SDIO_CONFIG);
-		        	config_reg->cmd_clk_divide = 3;
+				if(sd_mmc_info->max_clock > 3)
+					config_reg->cmd_clk_divide = sd_mmc_info->max_clock;
+				else
+					config_reg->cmd_clk_divide = 3;
 		        	WRITE_CBUS_REG(SDIO_CONFIG, sdio_config);
 					sd_mmc_info->sdio_clk = clk_get_rate(clk_get_sys("clk81", NULL))/2000000/(config_reg->cmd_clk_divide + 1);
 					sd_mmc_info->sdio_clk_unit = 1000/sd_mmc_info->sdio_clk;		        	
@@ -6069,7 +6060,10 @@ int sd_mmc_switch_function(SD_MMC_Card_Info_t *sd_mmc_info)
 				sdio_config = 0;
 				config_reg = (void *)&sdio_config;
 				sdio_config = READ_CBUS_REG(SDIO_CONFIG);
-				config_reg->cmd_clk_divide = 5;
+				if(sd_mmc_info->max_clock > 5)
+					config_reg->cmd_clk_divide = sd_mmc_info->max_clock;
+				else
+					config_reg->cmd_clk_divide = 5;
 				WRITE_CBUS_REG(SDIO_CONFIG, sdio_config);
 				sd_mmc_info->sdio_clk = clk_get_rate(clk_get_sys("clk81", NULL))/2000000/(config_reg->cmd_clk_divide + 1);
 				sd_mmc_info->sdio_clk_unit = 1000/sd_mmc_info->sdio_clk;
@@ -6828,8 +6822,8 @@ int sdio_read_data_byte_hw(SD_MMC_Card_Info_t *sd_mmc_info, int function_no, int
 		else
 			sd_mmc_info->sdio_read_crc_close = 0;
 
-		four_byte_count = (read_byte_count + 3) / 4;
-		four_byte_count *= 4;
+		four_byte_count = (read_byte_count + 3) & (~0x3);
+		
 		ret = sd_send_cmd_hw(sd_mmc_info, IO_RW_EXTENDED, sdio_extend_rw, RESPONSE_R5, response, sdio_4bytes_buf, four_byte_count, 0);
 		if(ret)
 			return ret;

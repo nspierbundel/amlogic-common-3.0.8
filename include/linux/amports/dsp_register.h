@@ -87,6 +87,7 @@ in this case,it will cause 958 module not work.so add a protocal register to co-
 */
 #define DSP_IEC958_INIT_READY_INFO  		DSP_REG(110) 
 #define DSP_AC3_DRC_INFO 					DSP_IEC958_INIT_READY_INFO
+#define DSP_DTS_DEC_INFO					DSP_REG(111)
 #define DSP_WORK_INFO (AUDIO_DSP_END_ADDR - 128)
 
 

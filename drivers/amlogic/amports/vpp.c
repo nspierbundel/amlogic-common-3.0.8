@@ -46,6 +46,8 @@
 #define COEF_4POINT_TRIANGLE 2
 #define COEF_BILINEAR        3
 
+#define MAX_NONLINEAR_FACTOR    0x40
+
 const u32 vpp_filter_coefs_bicubic_sharp[] = {
     3,
     33 | 0x8000,
@@ -127,6 +129,7 @@ static const u32 *filter_table[] = {
 static u32 vpp_wide_mode;
 static u32 vpp_zoom_ratio = 100;
 static s32 vpp_zoom_center_x, vpp_zoom_center_y;
+static u32 nonlinear_factor = MAX_NONLINEAR_FACTOR / 2;
 static u32 osd_layer_preblend=0;
 static s32 video_layer_top, video_layer_left, video_layer_width, video_layer_height;
 static u32 video_source_crop_top, video_source_crop_left, video_source_crop_bottom, video_source_crop_right;
@@ -215,6 +218,26 @@ static void f2v_get_vertical_phase(u32 zoom_ratio,
             vphase[type].repeat_skip = 5;
         }
     }
+}
+
+/*
+ * V-shape non-linear mode
+ */
+static void
+calculate_non_linear_ratio(unsigned middle_ratio,
+                           unsigned width_out,
+                           vpp_frame_par_t *next_frame_par)
+{
+    unsigned diff_ratio;
+    vppfilter_mode_t *vpp_filter = &next_frame_par->vpp_filter;
+
+    diff_ratio = middle_ratio * nonlinear_factor;
+    vpp_filter->vpp_hf_start_phase_step = (middle_ratio << 6) - diff_ratio;
+    vpp_filter->vpp_hf_start_phase_slope = diff_ratio * 4 / width_out;
+    vpp_filter->vpp_hf_end_phase_slope =
+        vpp_filter->vpp_hf_start_phase_slope | 0x1000000;
+
+    return;
 }
 
 static int
@@ -312,7 +335,7 @@ RESTART:
         wide_mode = VIDEO_WIDEOPTION_NORMAL;
     }
 
-    if ((aspect_factor == 0) || (wide_mode == VIDEO_WIDEOPTION_FULL_STRETCH)) {
+    if ((aspect_factor == 0) || (wide_mode == VIDEO_WIDEOPTION_FULL_STRETCH) || (wide_mode == VIDEO_WIDEOPTION_NONLINEAR)) {
         aspect_factor = 0x100;
     } else {
         aspect_factor = (w_in * height_out * aspect_factor << 3) /
@@ -481,11 +504,6 @@ RESTART:
 
     /* horizontal */
 
-    /* set register to hardware reset default values when VPP scaler is working under
-     * normal linear mode
-     * VIDEO_WIDEOPTION_CINEMAWIDE case register value is set inside
-     * calculate_non_linear_ratio()
-     */
     filter->vpp_hf_start_phase_slope = 0;
     filter->vpp_hf_end_phase_slope   = 0;
     filter->vpp_hf_start_phase_step  = ratio_x << 6;
@@ -552,6 +570,12 @@ RESTART:
         next_frame_par->VPP_hsc_startp = start;
 
         next_frame_par->VPP_hsc_endp = end;
+    }
+
+    if ((wide_mode == VIDEO_WIDEOPTION_NONLINEAR) && (end > start)) {
+        calculate_non_linear_ratio(ratio_x, end - start, next_frame_par);
+
+        next_frame_par->VPP_hsc_linear_startp = next_frame_par->VPP_hsc_linear_endp = (start + end) / 2;
     }
 
     /* check the painful bandwidth limitation and see
@@ -717,6 +741,20 @@ void vpp_get_global_offset(s32 *x, s32 *y)
 {
     *x = video_layer_global_offset_x;
     *y = video_layer_global_offset_y;
+}
+
+s32 vpp_set_nonlinear_factor(u32 f)
+{
+    if (f < MAX_NONLINEAR_FACTOR) {
+        nonlinear_factor = f;
+        return 0;
+    }
+    return -1;
+}
+
+u32 vpp_get_nonlinear_factor(void)
+{
+    return nonlinear_factor;
 }
 
 void vpp_set_zoom_ratio(u32 r)

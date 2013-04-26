@@ -44,6 +44,7 @@
 #define UART_CONTROL    2
 #define UART_STATUS     3
 #define UART_MISC       4
+#define UART_REG5   		5
 
 #define P_UART(uart_base,reg)    	CBUS_REG_ADDR(uart_base+reg)
 #define P_UART_WFIFO(uart_base)   	P_UART(uart_base,UART_WFIFO)
@@ -95,6 +96,7 @@ typedef volatile struct {
   volatile unsigned long mode;
   volatile unsigned long status;
   volatile unsigned long intctl;
+  volatile unsigned long reg5;
 } am_uart_t;
 
 #define SERIAL_MAGIC 0x5301

@@ -1,5 +1,19 @@
 #ifndef _DI_H
 #define _DI_H
+
+#undef USE_LIST
+#if MESON_CPU_TYPE >= MESON_CPU_TYPE_MESON6
+#define NEW_KEEP_LAST_FRAME
+#endif
+
+#if MESON_CPU_TYPE == MESON_CPU_TYPE_MESON6TV
+#define D2D3_SUPPORT
+#define NEW_DI
+#ifdef CONFIG_POST_PROCESS_MANAGER_3D_PROCESS
+#define DET3D
+#endif
+#endif
+
 /************************************
 *    di hardware level interface
 *************************************/
@@ -62,10 +76,58 @@ typedef struct{
     uint pixels_num;
 }pd_win_prop_t;
 
+typedef struct di_buf_s{
+#ifdef D2D3_SUPPORT
+    unsigned int dp_buf_adr;
+    unsigned int dp_buf_size;
+    unsigned int reverse_flag;
+#endif    
+#ifdef USE_LIST
+    struct list_head list;
+#endif
+    vframe_t* vframe;
+    int index; /* index in vframe_in_dup[] or vframe_in[], only for type of VFRAME_TYPE_IN */
+    int post_proc_flag; /* 0,no post di; 1, normal post di; 2, edge only; 3, dummy */
+    int new_format_flag;
+    int type;
+    int seq;
+    int pre_ref_count; /* none zero, is used by mem_mif, chan2_mif, or wr_buf*/
+    int post_ref_count; /* none zero, is used by post process */
+    int queue_index;
+    /*below for type of VFRAME_TYPE_LOCAL */
+    unsigned int nr_adr;
+    int nr_canvas_idx;
+    unsigned int mtn_adr;
+    int mtn_canvas_idx;
+#ifdef NEW_DI    
+    unsigned int cnt_adr;
+    int cnt_canvas_idx;
+#endif    
+    unsigned int canvas_config_flag; /* 0, configed; 1, config type 1 (prog); 2, config type 2 (interlace) */
+    unsigned int canvas_config_size; /* bit [31~16] width; bit [15~0] height */
+    /* pull down information */
+    pulldown_detect_info_t field_pd_info;
+    pulldown_detect_info_t win_pd_info[MAX_WIN_NUM];
 
+	  unsigned long mtn_info[5];
+    int pulldown_mode;
+    int win_pd_mode[5];
+
+    /*below for type of VFRAME_TYPE_POST*/
+    struct di_buf_s* di_buf[2];
+    struct di_buf_s* di_buf_dup_p[5]; /* 0~4: n-2, n-1, n, n+1, n+2 ; n is the field to display*/
+}di_buf_t;
+
+extern uint di_mtn_1_ctrl1;
 extern uint ei_ctrl0;
 extern uint ei_ctrl1;
 extern uint ei_ctrl2;
+#ifdef NEW_DI
+extern uint ei_ctrl3;
+#endif
+#ifdef DET3D
+extern bool det3d_en;
+#endif
 extern uint nr_ctrl0;
 extern uint nr_ctrl1;
 extern uint nr_ctrl2;
@@ -113,7 +175,7 @@ extern pd_detect_threshold_t win_pd_th[MAX_WIN_NUM];
 extern pd_win_prop_t pd_win_prop[MAX_WIN_NUM];
 
 extern int  pd_enable;
-
+extern bool overturn;
 
 extern void di_hw_init(void);
 
@@ -144,7 +206,7 @@ typedef struct DI_MIF_TYPE
    unsigned short  	chroma_x_end0;
    unsigned short  	chroma_y_start0;
    unsigned short  	chroma_y_end0;
-   unsigned        	set_separate_en 	: 1;   	// 1 : y cb cr seperated canvas. 0 : one canvas.
+   unsigned        	set_separate_en 	: 2;   	// 1 : y cb cr seperated canvas. 0 : one canvas.
    unsigned        	src_field_mode  	: 1;   	// 1 frame . 0 field.
    unsigned        	video_mode      	: 1;   	// 1 : 4:4:4. 0 : 4:2:2
    unsigned        	output_field_num	: 1;   	// 0 top field  1 bottom field.
@@ -184,15 +246,19 @@ void enable_di_mode_check_2 (
         int win4_start_x, int win4_end_x, int win4_start_y, int win4_end_y
 	);
 
-
 void enable_di_pre_aml (
    		DI_MIF_t        *di_inp_mif,
    		DI_MIF_t        *di_mem_mif,
    		DI_MIF_t        *di_chan2_mif,
    		DI_SIM_MIF_t    *di_nrwr_mif,
    		DI_SIM_MIF_t    *di_mtnwr_mif,
+#ifdef NEW_DI
+   DI_SIM_MIF_t    *di_contp2rd_mif,
+   DI_SIM_MIF_t    *di_contprd_mif,
+   DI_SIM_MIF_t    *di_contwr_mif,
+#endif   
    		int nr_en, int mtn_en, int pd32_check_en, int pd22_check_en, int hist_check_en,
-   		int pre_field_num, int pre_viu_link, int hold_line
+   		int pre_field_num, int pre_viu_link, int hold_line, int urgent
    	);
 
 
@@ -223,7 +289,26 @@ void enable_di_post_2 (
    int post_field_num, int hold_line ,
    unsigned long * reg_mtn_info);
 
+void di_post_switch_buffer (
+   DI_MIF_t        *di_buf0_mif,
+   DI_MIF_t        *di_buf1_mif,
+   DI_SIM_MIF_t    *di_diwr_mif,
+   DI_SIM_MIF_t    *di_mtncrd_mif,
+   DI_SIM_MIF_t    *di_mtnprd_mif,
+   int ei_en, int blend_en, int blend_mtn_en, int blend_mode, int di_vpp_en, int di_ddr_en,
+   int post_field_num, int hold_line,
+   unsigned long * reg_mtn_info );
+
 void enable_di_post_pd(
+    DI_MIF_t        *di_buf0_mif,
+    DI_MIF_t        *di_buf1_mif,
+    DI_SIM_MIF_t    *di_diwr_mif,
+    DI_SIM_MIF_t    *di_mtncrd_mif,
+    DI_SIM_MIF_t    *di_mtnprd_mif,
+    int ei_en, int blend_en, int blend_mtn_en, int blend_mode, int di_vpp_en, int di_ddr_en,
+    int post_field_num, int hold_line);
+
+void di_post_switch_buffer_pd(
     DI_MIF_t        *di_buf0_mif,
     DI_MIF_t        *di_buf1_mif,
     DI_SIM_MIF_t    *di_diwr_mif,
@@ -268,9 +353,28 @@ extern int nr_hfilt_en;
 #define DI_LOG_TIMESTAMP        0x100
 #define DI_LOG_PRECISE_TIMESTAMP        0x200
 #define DI_LOG_QUEUE        0x40
+#define DI_LOG_VFRAME       0x80
 
 extern unsigned int di_log_flag;
 
 int di_print(const char *fmt, ...);
+
+
+typedef struct{
+    unsigned int adr;
+    unsigned int val;
+    unsigned short start;
+    unsigned short len;    
+}reg_set_t;
+
+#define REG_SET_MAX_NUM 128
+#define FMT_MAX_NUM     32
+typedef struct reg_cfg_{
+    struct reg_cfg_* next;
+    unsigned int source_types_enable; /* each bit corresponds to one source type */
+    unsigned int pre_post_type; /* pre, 0; post, 1 */
+    unsigned short sig_fmt_range[FMT_MAX_NUM]; /* {bit[31:16]~bit[15:0]}, include bit[31:16] and bit[15:0]  */
+    reg_set_t reg_set[REG_SET_MAX_NUM];    
+}reg_cfg_t;
 
 #endif

@@ -14,6 +14,7 @@
 #include <linux/sched.h>
 #include <linux/module.h>
 #include <linux/compat.h>
+#include <linux/buffer_head.h>
 
 static const struct file_operations fuse_direct_io_file_operations;
 
@@ -365,6 +366,7 @@ static int fuse_flush(struct file *file, fl_owner_t id)
 	if (fc->no_flush)
 		return 0;
 
+	return 0;
 	req = fuse_get_req_nofail(fc, file);
 	memset(&inarg, 0, sizeof(inarg));
 	inarg.fh = ff->fh;
@@ -823,6 +825,38 @@ static int fuse_write_end(struct file *file, struct address_space *mapping,
 	return res;
 }
 
+static int set_buffer_head_page_updatestate(struct inode *inode, struct page *page,
+		unsigned from, unsigned to)
+{
+	unsigned block_start, block_end;
+	int partial = 0;
+	unsigned blocksize;
+	struct buffer_head *bh, *head;
+
+	blocksize = 1 << inode->i_blkbits;
+
+	for(bh = head = page_buffers(page), block_start = 0;
+	    bh != head || !block_start;
+	    block_start=block_end, bh = bh->b_this_page) {
+		block_end = block_start + blocksize;
+		if (block_end <= from || block_start >= to) {
+			if (!buffer_uptodate(bh))
+				partial = 1;
+		} else {
+			set_buffer_uptodate(bh);
+		}
+	}
+
+	/*
+	 * If this is a partial write which happened to make all buffers
+	 * uptodate then we can optimize away a bogus readpage() for
+	 * the next read(). Here we 'discover' whether the page went
+	 * uptodate as a result of this (potentially partial) write.
+	 */
+	if (!partial)
+		SetPageUptodate(page);
+	return 0;
+}
 static size_t fuse_send_write_pages(struct fuse_req *req, struct file *file,
 				    struct inode *inode, loff_t pos,
 				    size_t count)
@@ -830,6 +864,7 @@ static size_t fuse_send_write_pages(struct fuse_req *req, struct file *file,
 	size_t res;
 	unsigned offset;
 	unsigned i;
+	struct buffer_head *bh, *head;
 
 	for (i = 0; i < req->num_pages; i++)
 		fuse_wait_on_page_writeback(inode, req->pages[i]->index);
@@ -843,6 +878,11 @@ static size_t fuse_send_write_pages(struct fuse_req *req, struct file *file,
 
 		if (!req->out.h.error && !offset && count >= PAGE_CACHE_SIZE)
 			SetPageUptodate(page);
+		else{
+			if (!page_has_buffers(page))
+				create_empty_buffers(page, 1 << inode->i_blkbits, 0);
+			set_buffer_head_page_updatestate(inode, page, offset, offset + count -1);
+		}
 
 		if (count > PAGE_CACHE_SIZE - offset)
 			count -= PAGE_CACHE_SIZE - offset;
@@ -1710,7 +1750,7 @@ static int fuse_verify_ioctl_iov(struct iovec *iov, size_t count)
 	size_t n;
 	u32 max = FUSE_MAX_PAGES_PER_REQ << PAGE_SHIFT;
 
-	for (n = 0; n < count; n++) {
+	for (n = 0; n < count; n++, iov++) {
 		if (iov->iov_len > (size_t) max)
 			return -ENOMEM;
 		max -= iov->iov_len;

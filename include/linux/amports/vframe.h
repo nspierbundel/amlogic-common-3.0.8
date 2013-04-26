@@ -77,6 +77,9 @@ typedef struct vframe_hist_s
         unsigned char  luma_max;
         unsigned char  luma_min;
         unsigned short gamma[64];
+#ifdef AML_LOCAL_DIMMING
+        unsigned int   ldim_max[100];
+#endif
 } vframe_hist_t;
 
 
@@ -164,6 +167,7 @@ typedef struct vframe_s {
         enum vframe_source_type_e source_type;
         enum vframe_secam_phase_e  phase;
         enum vframe_source_mode_e source_mode;
+        tvin_sig_fmt_t sig_fmt;
 
 #ifdef CONFIG_POST_PROCESS_MANAGER_3D_PROCESS
         enum tvin_trans_fmt  trans_fmt;

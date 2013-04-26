@@ -3,15 +3,15 @@ if ARCH_MESON6TV
 config BOARD_MESON6TV_SKT
 	depends on ARCH_MESON6TV
 	bool "Meson6TV socket board"
-	default y 
+	default y
 	help
           Support for Amlogic Meson6TV socket board.
 
 config BOARD_MESON6TV_REF
 	depends on ARCH_MESON6TV
 	bool "Meson6TV reference board"
-	default y 
+	default y
 	help
           Support for Amlogic Meson6TV reference development platform.
 
-endif # ARCH_MESON6
+endif # ARCH_MESON6TV

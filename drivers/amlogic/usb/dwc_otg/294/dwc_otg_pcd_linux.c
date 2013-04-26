@@ -665,12 +665,13 @@ static int wakeup(struct usb_gadget *gadget)
 	dwc_otg_pcd_wakeup(d->pcd);
 	return 0;
 }
-//extern void dwc_otg_pcd_stop(dwc_otg_pcd_t * _pcd);
+extern void dwc_otg_pcd_stop(dwc_otg_pcd_t * _pcd);
 static int dwc_otg_pcd_pullup(struct usb_gadget *_gadget, int is_on)
 {
 	struct gadget_wrapper *d;
 	dwc_otg_core_if_t * core_if;
-
+  dwc_irqflags_t flags;
+  
 	DWC_DEBUGPL(DBG_PCDV, "%s(%p), is_on %d\n", __func__, _gadget,is_on);
 	if (_gadget == 0)
 		return -ENODEV;
@@ -678,17 +679,21 @@ static int dwc_otg_pcd_pullup(struct usb_gadget *_gadget, int is_on)
 	d = container_of(_gadget, struct gadget_wrapper, gadget);
 	core_if = GET_CORE_IF(d->pcd);
 
-	DWC_SPINLOCK(core_if->lock);
+	DWC_SPINLOCK_IRQSAVE(core_if->lock, &flags);
 	if(is_on){
 		if(core_if->dev_if->vbus_on && !core_if->dev_if->pull_up)
 			dwc_otg_device_soft_connect(core_if);
 		core_if->dev_if->pull_up = 1;
 	}else{
-		if(core_if->dev_if->vbus_on && core_if->dev_if->pull_up)
+		if(core_if->dev_if->vbus_on && core_if->dev_if->pull_up){
 			dwc_otg_device_soft_disconnect(core_if);
+			DWC_SPINUNLOCK_IRQRESTORE(core_if->lock, flags);
+			dwc_otg_pcd_stop(d->pcd);
+			DWC_SPINLOCK_IRQSAVE(core_if->lock, &flags);
+		}
 		core_if->dev_if->pull_up = 0;
 	}
-	DWC_SPINUNLOCK(core_if->lock);
+	DWC_SPINUNLOCK_IRQRESTORE(core_if->lock, flags);
 
 	return 0;
 }

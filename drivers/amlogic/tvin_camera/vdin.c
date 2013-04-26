@@ -50,6 +50,13 @@
 #include "vdin_vf.h"
 #include "vdin_ctl.h"
 
+#if (defined CONFIG_TVIN_VIUIN)&&(defined CONFIG_AM_VIDEO2)&&(defined CONFIG_AM_TV_OUTPUT2)
+//#define SET_VOUT2_IN_KERNEL
+#endif
+
+#ifdef SET_VOUT2_IN_KERNEL
+#include <linux/vout/vout_notify.h>
+#endif
 
 #define VDIN_NAME               "vdin"
 #define VDIN_DRIVER_NAME        "vdin"
@@ -156,6 +163,10 @@ static void vdin_put_timer_func(unsigned long arg)
 {
     struct vdin_dev_s *devp = (struct vdin_dev_s *)arg;
 
+#if (defined CONFIG_TVIN_IT660X)||(defined CONFIG_TVIN_VIUIN)
+    return;
+#endif    
+
     while (!vfq_empty_recycle()) {
         vframe_t *vf = vfq_pop_recycle();
         vfq_push_newframe(vf);
@@ -172,11 +183,8 @@ static void vdin_put_timer_func(unsigned long arg)
 
 static void vdin_start_dec(struct vdin_dev_s *devp)
 {
-    printk("%s 1\n", __func__);    
     vdin_vf_init();
-    printk("%s 2\n", __func__);    
     vdin_reg_vf_provider();
-    printk("%s 3\n", __func__);    
     vf_notify_receiver(PROVIDER_NAME,VFRAME_EVENT_PROVIDER_START,NULL);
 #ifdef VDIN_DBG_MSG_CNT
     vdin_dbg_msg.vdin_isr_hard_counter = 0;
@@ -189,10 +197,8 @@ static void vdin_start_dec(struct vdin_dev_s *devp)
     vdin_dbg_msg.vdin_irq_short_time_cnt = 0;
     vdin_dbg_msg.vdin_timer_puch_nf_cnt = 0;
 #endif
-    printk("%s 4\n", __func__);    
 
     vdin_set_default_regmap(devp->addr_offset);
-    printk("%s 5\n", __func__);    
 
     tvin_dec_notifier_call(TVIN_EVENT_DEC_START, devp);
     //devp->timer.expires = jiffies + VDIN_PUT_INTERVAL * 50;
@@ -200,7 +206,6 @@ static void vdin_start_dec(struct vdin_dev_s *devp)
 
     //write vdin registers
     //vdin_set_all_regs(devp);
-    printk("%s 6\n", __func__);    
     return;
 }
 
@@ -232,16 +237,13 @@ int start_tvin_service(int no ,tvin_parm_t *para)
     devp->para.fmt_info.vsync_phase= para->fmt_info.vsync_phase;
     devp->para.fmt_info.frame_rate= para->fmt_info.frame_rate;
     devp->priv_data = para->data;
-    devp->flags |= VDIN_FLAG_DEC_STARTED;   
-    printk("%s 1\n", __func__);    
     vdin_start_dec(devp);  
-    printk("%s 2\n", __func__);    
     msleep(10);
     tasklet_enable(&devp->isr_tasklet);
-    printk("%s 3\n", __func__);    
     devp->pre_irq_time = jiffies,
     enable_irq(devp->irq);      
-    printk("%s 4\n", __func__);    
+
+    devp->flags |= VDIN_FLAG_DEC_STARTED;   
     return 0;
 }
 
@@ -281,6 +283,69 @@ void get_tvin_canvas_info(int* start , int* num)
  *2--it is better to shorter the time,
  *3--it is better to shorter the time,
 */
+#if (defined CONFIG_TVIN_IT660X)||(defined CONFIG_TVIN_VIUIN)
+static int irq_count = 0;
+static int process_count = 0;
+static int process_count2 = 0;
+static int frame_count = 0;
+static irqreturn_t vdin_isr(int irq, void *dev_id)
+{
+    ulong flags, vdin_cur_irq_time;
+    struct timeval now;
+    struct vdin_dev_s *devp = (struct vdin_dev_s *)dev_id;
+    int ret = 0;
+    vframe_t *vf = NULL;
+
+    irq_count++;
+
+    if((devp->flags&VDIN_FLAG_DEC_STARTED) == 0){
+        return IRQ_HANDLED;
+    }
+
+    vf = vfq_pop_newframe();
+
+    process_count++;
+    
+    if(vf == NULL )
+    {
+        return IRQ_HANDLED;
+    }
+
+    vf->type = INVALID_VDIN_INPUT;
+    vf->pts = 0;
+
+    if (!devp->dec_ops || !devp->dec_ops->dec_run)
+    {
+        pr_err("vdin%d: no registered decode\n", devp->index);
+        vfq_push_newframe(vf);
+
+        return IRQ_HANDLED;
+    }
+    
+    process_count2++;
+    
+    ret = devp->dec_ops->dec_run(devp,vf);
+
+    if(vf->type == INVALID_VDIN_INPUT)
+    {
+        vfq_push_newframe(vf);
+    }
+    else
+    {
+        frame_count++;
+
+        vdin_set_vframe_prop_info(vf, devp->addr_offset);
+
+        vfq_push_display(vf);
+
+        // vdin_notify_receiver(VFRAME_EVENT_PROVIDER_VFRAME_READY,NULL ,NULL);
+        vf_notify_receiver(PROVIDER_NAME,VFRAME_EVENT_PROVIDER_VFRAME_READY,NULL);
+    }
+
+    return IRQ_HANDLED;
+}
+
+#else
 static irqreturn_t vdin_isr(int irq, void *dev_id)
 {
     ulong flags, vdin_cur_irq_time;
@@ -291,6 +356,12 @@ static irqreturn_t vdin_isr(int irq, void *dev_id)
     spin_lock_irqsave(&devp->isr_lock, flags);
     do_gettimeofday(&now);
     vdin_cur_irq_time = (now.tv_sec*1000) + (now.tv_usec/1000);
+
+#if 0
+//work around bottom line problem
+    WRITE_MPEG_REG_BITS(VDIN_ASFIFO_CTRL2, 1, 0, 1);
+    WRITE_MPEG_REG_BITS(VDIN_ASFIFO_CTRL2, 0, 0, 1);
+#endif    
 
 #ifdef VDIN_DBG_MSG_CNT
     vdin_dbg_msg.vdin_isr_hard_counter++;
@@ -329,6 +400,7 @@ static irqreturn_t vdin_isr(int irq, void *dev_id)
 
     return IRQ_HANDLED;
 }
+#endif
 //#include <linux/videodev2.h>
 static void vdin_isr_tasklet(unsigned long arg)
 {
@@ -338,6 +410,10 @@ static void vdin_isr_tasklet(unsigned long arg)
 #ifdef VDIN_DBG_MSG_CNT
     vdin_dbg_msg.vdin_tasklet_counter++;
 #endif
+
+#if (defined CONFIG_TVIN_IT660X)||(defined CONFIG_TVIN_VIUIN)
+    return;
+#endif    
 
     spin_lock(&devp->isr_lock);
     vf = vfq_pop_newframe();
@@ -736,7 +812,8 @@ static int vdin_probe(struct platform_device *pdev)
         vdin_devp[i]->timer.data = (ulong) vdin_devp[i];
         vdin_devp[i]->timer.function = &vdin_put_timer_func;
         vdin_devp[i]->timer.expires = jiffies + VDIN_PUT_INTERVAL * 50;
-        add_timer(&vdin_devp[i]->timer);
+        add_timer(&vdin_devp[i]->timer);    
+
         mutex_init(&vdin_devp[i]->mm_lock);
         vdin_devp[i]->isr_lock = __SPIN_LOCK_UNLOCKED(vdin_devp[i]->isr_lock);
         tasklet_init(&vdin_devp[i]->isr_tasklet, vdin_isr_tasklet, (unsigned long)vdin_devp[i]);
@@ -744,6 +821,26 @@ static int vdin_probe(struct platform_device *pdev)
     }
 
     printk(KERN_INFO "vdin: driver initialized ok\n");
+    
+#ifdef SET_VOUT2_IN_KERNEL
+    {
+        vinfo_t *vinfo = get_current_vinfo();
+        switch (vinfo->mode) {
+            case VMODE_480I:
+            case VMODE_480CVBS:
+            case VMODE_576I:
+            case VMODE_576CVBS:
+                break;
+            default:    
+                set_vout2_mode_internal("576i");
+                printk("set display2 mode\n");
+                break;
+       }
+    }
+
+#endif
+    
+    
     return 0;
 }
 
@@ -781,6 +878,7 @@ static int __init vdin_init(void)
 {
     int ret = 0;
     ret = platform_driver_register(&vdin_driver);
+    printk("%s\n", __func__);
     if (ret != 0) {
         printk(KERN_ERR "failed to register vdin module, error %d\n", ret);
         return -ENODEV;
@@ -795,6 +893,21 @@ static void __exit vdin_exit(void)
 
 module_init(vdin_init);
 module_exit(vdin_exit);
+
+
+#if (defined CONFIG_TVIN_IT660X)||(defined CONFIG_TVIN_VIUIN)
+MODULE_PARM_DESC(irq_count, "\n irq_count \n");
+module_param(irq_count, int, 0664);
+
+MODULE_PARM_DESC(process_count, "\n process_count \n");
+module_param(process_count, int, 0664);
+
+MODULE_PARM_DESC(process_count2, "\n process_count2 \n");
+module_param(process_count2, int, 0664);
+
+MODULE_PARM_DESC(frame_count, "\n frame_count \n");
+module_param(frame_count, int, 0664);
+#endif
 
 MODULE_DESCRIPTION("AMLOGIC VDIN driver");
 MODULE_LICENSE("GPL");

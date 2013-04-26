@@ -21,6 +21,13 @@ config AM_VIDEO2
 	help
 	  Driver for video2 display.
 
+config KEEP_FRAME_RESERVED
+	bool "Amlogic Video keep frame used reserved buffer"
+	default n
+	depends on  AM_VIDEO
+	help
+	  Select to enable reserved buffer for last frame keeep.
+	
 menu "Video Decoders"
 	depends on AM_VIDEO
 config AM_VDEC_MPEG12
@@ -71,6 +78,13 @@ config AM_VDEC_MJPEG
 	help
 	  Driver for motion jpeg video decoder.
 
+config AM_ENCODER
+	tristate "Amlogic AVC encoder"
+	default n
+	
+	select AM_PTSSERVER
+	help
+	  Driver for avc encoder.
 config AM_VDEC_REAL
 	tristate "Amlogic Real Video Decoder"
     default y

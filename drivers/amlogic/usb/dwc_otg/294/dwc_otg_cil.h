@@ -925,6 +925,9 @@ struct dwc_otg_core_if {
 	/* Session Valid */
 	int session_valid;
 
+	/* Device connected */
+	int device_connected;
+
 	/** Device mode Periodic Tx FIFO Mask */
 	uint32_t p_tx_msk;
 	/** Device mode Periodic Tx FIFO Mask */

@@ -173,13 +173,19 @@ static void rt5631_work_func(struct work_struct *work)
     flag = rt5631_detect_hp();
     if(pdata->detect_flag != flag) {
         if (flag == 1) {
-			switch_set_state(&pdata->sdev, 2);  // 1 :have mic ;  2 no mic
+            if ((&pdata->sdev!=NULL)&&(pdata->sdev.dev!=NULL))
+				switch_set_state(&pdata->sdev, 2);  // 1 :have mic  2: no mic
+            else
+            	printk(KERN_INFO "rt5631 kernel NULL pointer error\n");
             jack_type = rt5631_headset_detect(codec, 1);
             printk(KERN_INFO "rt5631 hp pluged jack_type: %d\n", jack_type);
             snd_soc_jack_report(&pdata->jack, status, SND_JACK_HEADPHONE);
         } else {
             printk(KERN_INFO "rt5631 hp unpluged\n");
-			switch_set_state(&pdata->sdev, 0);
+            if ((&pdata->sdev!=NULL)&&(pdata->sdev.dev!=NULL))
+            	switch_set_state(&pdata->sdev, 0);
+            else
+            	printk(KERN_INFO "rt5631 kernel NULL pointer error\n");
             rt5631_headset_detect(codec, 0);
             snd_soc_jack_report(&pdata->jack, 0, SND_JACK_HEADPHONE);
         }
@@ -239,14 +245,14 @@ static int rt5631_hw_params(struct snd_pcm_substream *substream,
     }
 
     /* set codec DAI clock */
-    ret = snd_soc_dai_set_sysclk(codec_dai, 0, params_rate(params) * 512, SND_SOC_CLOCK_IN);
+    ret = snd_soc_dai_set_sysclk(codec_dai, 0, params_rate(params) * MCLKFS_RATIO, SND_SOC_CLOCK_IN);
     if (ret < 0) {
         printk(KERN_ERR "%s: set codec dai sysclk failed (rate: %d)!\n", __func__, params_rate(params));
         return ret;
     }
 
     /* set cpu DAI clock */
-    ret = snd_soc_dai_set_sysclk(cpu_dai, 0, params_rate(params) * 512, SND_SOC_CLOCK_OUT);
+    ret = snd_soc_dai_set_sysclk(cpu_dai, 0, params_rate(params) * MCLKFS_RATIO, SND_SOC_CLOCK_OUT);
     if (ret < 0) {
         printk(KERN_ERR "%s: set cpu dai sysclk failed (rate: %d)!\n", __func__, params_rate(params));
         return ret;

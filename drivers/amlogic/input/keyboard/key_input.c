@@ -65,9 +65,15 @@
 #include <plat/io.h>
 #endif
 
+#ifdef CONFIG_AML1212
+#include <amlogic/aml1212.h>
+#endif
+
 //#define AML_KEYINPUT_DBG
 #define AML_KEYINPUT_INTR     0
 #define AML_KEYINPUT_POLLING   2
+
+#define CALL_FLAG (0x1234ca11)
 
 static void keyinput_tasklet(unsigned long data);
 DECLARE_TASKLET_DISABLED(ki_tasklet, keyinput_tasklet, 0);
@@ -89,6 +95,11 @@ struct key_input {
 };
 
 static struct key_input *KeyInput = NULL;
+
+#ifdef CONFIG_AML1212
+static int    power_key_status;
+static struct delayed_work power_key_work;
+#endif
 
 #ifdef CONFIG_AML_RTC
 static int resume_jeff_num = 0;
@@ -170,17 +181,43 @@ static int register_key_input_dev(struct key_input  *ki_data)
     return ret;
 }
 
+#ifdef CONFIG_AML1212
+static void long_press_power_key(struct work_struct *work)
+{
+    printk("%s in, power key status:%d\n", __func__, power_key_status);
+    if (power_key_status) {
+        printk("power key long pressed 7 s\n");
+        aml_pmu_poweroff();
+    }
+}
+#endif
+
 static void keyinput_tasklet(unsigned long data)
 {
     if (KeyInput->status) {
         input_report_key(KeyInput->input, KeyInput->pdata->key_code_list[0], 0);
         input_sync(KeyInput->input);
         printk(KERN_INFO "=== key %d up ===\n", KeyInput->pdata->key_code_list[0]);
+    #ifdef CONFIG_AML1212
+        if (KeyInput->pdata->key_code_list[0] == KEY_POWER) {
+            power_key_status = 0;
+            printk(KERN_INFO "cancel power key delay work\n");
+            cancel_delayed_work_sync(&power_key_work);
+        }
+    #endif
     }
     else {
         input_report_key(KeyInput->input, KeyInput->pdata->key_code_list[0], 1);
         input_sync(KeyInput->input);
         printk(KERN_INFO "=== key %d down ===\n", KeyInput->pdata->key_code_list[0]);
+    #ifdef CONFIG_AML1212
+        if (KeyInput->pdata->key_code_list[0] == KEY_POWER) {
+            power_key_status = 1;
+            printk("send power key delay work\n");
+            schedule_delayed_work(&power_key_work, msecs_to_jiffies(70 * 100));         // delay 7 second to check power key status
+
+        }
+    #endif
     }
 }
 
@@ -384,6 +421,9 @@ static int __devinit key_input_probe(struct platform_device *pdev)
         //enable_irq(INT_RTC);
     }
     register_key_input_dev(KeyInput);
+#ifdef CONFIG_AML1212
+    INIT_DELAYED_WORK(&power_key_work, long_press_power_key);
+#endif
     return 0;
 
 CATCH_ERR:
@@ -489,7 +529,8 @@ static int key_input_resume(struct platform_device *dev)
         }
     }
 #endif
-    WRITE_AOBUS_REG(AO_RTI_STATUS_REG2, 0);
+    if(READ_AOBUS_REG(AO_RTI_STATUS_REG2) != CALL_FLAG)
+        WRITE_AOBUS_REG(AO_RTI_STATUS_REG2, 0);
 
 #if MESON_CPU_TYPE >= MESON_CPU_TYPE_MESON6
     ret = request_irq(INT_RTC, (irq_handler_t) am_key_interrupt,

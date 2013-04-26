@@ -51,6 +51,11 @@
 #define CANVAS_SIZE_6_500M (2592*2*1952*6 + BT656IN_ANCI_DATA_SIZE)
 #define CANVAS_SIZE_6_300M (2048*2*1536*6 + BT656IN_ANCI_DATA_SIZE)
 
+#ifdef CONFIG_TVIN_VDIN_MINI_CONFIG
+#define CANVAS_SIZE_6_1280X960 (1280*2*960*6 + BT656IN_ANCI_DATA_SIZE)
+#define CANVAS_SIZE_6_800X600 (800*2*600*6 + BT656IN_ANCI_DATA_SIZE)
+#endif
+
 //#define HANDLE_BT656IN_IRQ
 
 //#define BT656IN_COUNT             1
@@ -302,7 +307,46 @@ static int bt656_camera_in_canvas_init(unsigned int mem_start, unsigned int mem_
     set_tvin_canvas_info(canvas_start_index ,am656in_dec_info.canvas_total_count );
     return 0;
 }
+#ifdef CONFIG_TVIN_VDIN_MINI_CONFIG
+static int bt656_camera_in_canvas_init_for_preview(unsigned int mem_start, unsigned int mem_size)
+{
+    int i, canvas_start_index ;
+    unsigned int canvas_width  = 640 << 1;
+    unsigned int canvas_height = 480;
+    unsigned decbuf_start = mem_start + BT656IN_ANCI_DATA_SIZE;
+    am656in_dec_info.decbuf_size   = 0xA0000;
 
+    if( mem_size >= CANVAS_SIZE_6_1280X960){
+		canvas_width  = 1280 << 1;
+		canvas_height = 960;
+		am656in_dec_info.decbuf_size   = canvas_width*canvas_height + 0x1000;
+		pr_dbg("1280x960 canvas config\n");
+    }else if( mem_size >= CANVAS_SIZE_6_800X600 ){
+		canvas_width  = 800 << 1;
+		canvas_height = 600;
+		am656in_dec_info.decbuf_size   = canvas_width*canvas_height + 0x1000;
+		pr_dbg("800x600 canvas config\n");
+    }
+    i = (unsigned)((mem_size - BT656IN_ANCI_DATA_SIZE) / am656in_dec_info.decbuf_size);
+
+    am656in_dec_info.canvas_total_count = (BT656IN_VF_POOL_SIZE > i)? i : BT656IN_VF_POOL_SIZE;
+
+    am656in_dec_info.pbufAddr  = mem_start;
+
+    if(vdin_devp_bt656->index )
+        canvas_start_index = tvin_canvas_tab[1][0];
+    else
+        canvas_start_index = tvin_canvas_tab[0][0];
+
+    for ( i = 0; i < am656in_dec_info.canvas_total_count; i++)
+    {
+        canvas_config(canvas_start_index + i, decbuf_start + i * am656in_dec_info.decbuf_size,
+            canvas_width, canvas_height, CANVAS_ADDR_NOWRAP, CANVAS_BLKMODE_LINEAR);
+    }
+    set_tvin_canvas_info(canvas_start_index ,am656in_dec_info.canvas_total_count );
+    return 0;
+}
+#endif
 
 static void bt656_release_canvas(void)
 {
@@ -705,7 +749,17 @@ static void start_amvdec_656_601_camera_in(unsigned int mem_start, unsigned int 
     else if((port == TVIN_PORT_CAMERA)||(port == TVIN_PORT_CAMERA_YUYV))
     {
         pr_dbg("camera in decode. \n");
+#ifdef CONFIG_TVIN_VDIN_MINI_CONFIG
+        if( (fmt_info.h_active <= 1280) &&
+	    (fmt_info.v_active <= 960) ){
+		bt656_camera_in_canvas_init_for_preview(mem_start, mem_size);
+        }else{
+		bt656_camera_in_canvas_init(mem_start, mem_size);
+        }
+#else
         bt656_camera_in_canvas_init(mem_start, mem_size);
+#endif
+
 //        init_656in_dec_parameter(TVIN_SIG_FMT_CAMERA_1920X1080P_30Hz);
         init_656in_dec_parameter(fmt_info);
         reset_656in_dec_parameter();

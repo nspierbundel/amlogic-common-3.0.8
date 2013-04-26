@@ -1621,7 +1621,7 @@ void dwc_otg_enable_device_interrupts(dwc_otg_core_if_t * core_if)
 	DWC_DEBUGPL(DBG_CIL, "%s() gintmsk=%0x\n", __func__,
 		    DWC_READ_REG32(&global_regs->gintmsk));
 }
-
+#include "dwc_otg_pcd.h"
 /**
  * This function initializes the DWC_otg controller registers for
  * device mode.
@@ -1965,6 +1965,19 @@ void dwc_otg_core_dev_init(dwc_otg_core_if_t * core_if)
 		peri = core_if->usb_peri_reg;
 		adp_bc.d32 = DWC_READ_REG32(&peri->adp_bc);
 		if(adp_bc.b.device_sess_vld){
+
+			/*
+			 * At this point, pull up must be disabled.
+			 *
+			 * This workarond detection only for boot with a charger,
+			 *  SW BC detection can't sense this issue. So we need 
+			 *  use HW BC detection.
+			 */
+			if(core_if->charger_detect_cb){
+				core_if->bc_mode = dwc_otg_charger_detect(core_if);
+				core_if->charger_detect_cb(core_if->bc_mode);
+			}
+
 			core_if->session_valid = 1;
 			core_if->dev_if->vbus_on = 1;
 		}
@@ -5075,7 +5088,19 @@ void dwc_otg_core_reset(dwc_otg_core_if_t * core_if)
 
 	DWC_DEBUGPL(DBG_CILV, "%s\n", __func__);
 	
+	/* Wait for AHB master IDLE state. */
+	do {
+		dwc_udelay(10);
+		greset.d32 = DWC_READ_REG32(&global_regs->grstctl);
+		if (++count > 100000) {
+			DWC_WARN("%s() HANG! AHB Idle GRSTCTL=%0x\n", __func__,
+				 greset.d32);
+			return;
+		}
+	}
+	while (greset.b.ahbidle == 0);	
 	/* Core Soft Reset */
+	count = 0;
 	greset.b.csftrst = 1;
 	DWC_WRITE_REG32(&global_regs->grstctl, greset.d32);
 	do {
@@ -5091,18 +5116,6 @@ void dwc_otg_core_reset(dwc_otg_core_if_t * core_if)
 
 	/* Wait for 3 PHY Clocks */
 	dwc_mdelay(200);	//merge from kernel2.6,here is delay 200ms
-	count = 0;
-	/* Wait for AHB master IDLE state. */
-	do {
-		dwc_mdelay(10);
-		greset.d32 = DWC_READ_REG32(&global_regs->grstctl);
-		if (++count > 200) {
-			DWC_WARN("%s() HANG! AHB Idle GRSTCTL=%0x\n", __func__,
-				 greset.d32);
-			return;
-		}
-	}
-	while (greset.b.ahbidle == 0);
 }
 
 uint8_t dwc_otg_is_device_mode(dwc_otg_core_if_t * _core_if)

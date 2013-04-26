@@ -48,11 +48,6 @@
 #include <mach/mod_gate.h>
 #endif
 
-#ifdef CONFIG_HAS_EARLYSUSPEND
-#include <linux/earlysuspend.h>
-static struct early_suspend ov7675_early_suspend;
-#endif
-
 #define OV7675_CAMERA_MODULE_NAME "ov7675"
 
 /* Wake up at about 30 fps */
@@ -206,29 +201,13 @@ static struct ov7675_fmt formats[] = {
 		.name     = "YUV420P",
 		.fourcc   = V4L2_PIX_FMT_YUV420,
 		.depth    = 12,
+	},
+	{
+		.name     = "YVU420P",
+		.fourcc   = V4L2_PIX_FMT_YVU420,
+		.depth    = 12,
 	}
-#if 0
-	{
-		.name     = "4:2:2, packed, YUYV",
-		.fourcc   = V4L2_PIX_FMT_VYUY,
-		.depth    = 16,
-	},
-	{
-		.name     = "RGB565 (LE)",
-		.fourcc   = V4L2_PIX_FMT_RGB565, /* gggbbbbb rrrrrggg */
-		.depth    = 16,
-	},
-	{
-		.name     = "RGB555 (LE)",
-		.fourcc   = V4L2_PIX_FMT_RGB555, /* gggbbbbb arrrrrgg */
-		.depth    = 16,
-	},
-	{
-		.name     = "RGB555 (BE)",
-		.fourcc   = V4L2_PIX_FMT_RGB555X, /* arrrrrgg gggbbbbb */
-		.depth    = 16,
-	},
-#endif
+
 };
 
 static struct ov7675_fmt *get_format(struct v4l2_format *f)
@@ -1604,7 +1583,11 @@ static int vidioc_enum_framesizes(struct file *file, void *fh,struct v4l2_frmsiz
 	}
 	if (fmt == NULL)
 		return -EINVAL;
-	if (fmt->fourcc == V4L2_PIX_FMT_NV21){
+	if ((fmt->fourcc == V4L2_PIX_FMT_NV21)
+		||(fmt->fourcc == V4L2_PIX_FMT_NV12)
+		||(fmt->fourcc == V4L2_PIX_FMT_YUV420)
+		||(fmt->fourcc == V4L2_PIX_FMT_YVU420)
+		){
 		if (fsize->index >= ARRAY_SIZE(ov7675_prev_resolution))
 			return -EINVAL;
 		frmsize = &ov7675_prev_resolution[fsize->index];
@@ -1942,46 +1925,6 @@ static const struct v4l2_subdev_ops ov7675_ops = {
 	.core = &ov7675_core_ops,
 };
 
-#ifdef CONFIG_HAS_EARLYSUSPEND
-static void aml_ov7675_early_suspend(struct early_suspend *h)
-{
-	printk("enter -----> %s \n",__FUNCTION__);
-	if(h && h->param) {
-		aml_plat_cam_data_t* plat_dat= (aml_plat_cam_data_t*)h->param;
-		if (plat_dat && plat_dat->early_suspend) {
-			plat_dat->early_suspend();
-		}
-	}
-}
-
-static void aml_ov7675_late_resume(struct early_suspend *h)
-{
-
-	if(ov7675_have_opened==0){
-		printk("enter -----> %s \n",__FUNCTION__);
-		if(h && h->param) {
-			aml_plat_cam_data_t* plat_dat= (aml_plat_cam_data_t*)h->param;
-			if (plat_dat && plat_dat->late_resume) {
-				plat_dat->late_resume();
-			}
-
-		unsigned char buf[4];
-		buf[0]=0x12;
-		buf[1]=0x80;
-		i2c_put_byte_add8(this_client,buf,2);
-		msleep(5);
-		buf[0]=0xb8;
-		buf[1]=0x12;
-		i2c_put_byte_add8(this_client,buf,2);
-		msleep(1);
-		if (plat_dat && plat_dat->device_uninit) {
-				plat_dat->device_uninit();
-			}
-		}
-		}
-}
-#endif
-
 static int ov7675_probe(struct i2c_client *client,
 			const struct i2c_device_id *id)
 {
@@ -2035,14 +1978,6 @@ static int ov7675_probe(struct i2c_client *client,
 		return err;
 	}
 
-#ifdef CONFIG_HAS_EARLYSUSPEND
-    ov7675_early_suspend.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN;
-	ov7675_early_suspend.suspend = aml_ov7675_early_suspend;
-	ov7675_early_suspend.resume = aml_ov7675_late_resume;
-	ov7675_early_suspend.param = plat_dat;
-	register_early_suspend(&ov7675_early_suspend);
-#endif
-
 	return 0;
 }
 
@@ -2057,33 +1992,6 @@ static int ov7675_remove(struct i2c_client *client)
 	kfree(t);
 	return 0;
 }
-static int ov7675_suspend(struct i2c_client *client, pm_message_t state)
-{
-	struct v4l2_subdev *sd = i2c_get_clientdata(client);
-	struct ov7675_device *t = to_dev(sd);
-	struct ov7675_fh  *fh = to_fh(t);
-	if(fh->stream_on == 1){
-		stop_tvin_service(0);
-	}
-	power_down_ov7675(t);
-	return 0;
-}
-
-static int ov7675_resume(struct i2c_client *client)
-{
-	struct v4l2_subdev *sd = i2c_get_clientdata(client);
-	struct ov7675_device *t = to_dev(sd);
-    struct ov7675_fh  *fh = to_fh(t);
-    tvin_parm_t para;
-    para.port  = TVIN_PORT_CAMERA;
-    para.fmt_info.fmt = TVIN_SIG_FMT_MAX+1;
-    OV7675_init_regs(t);
-	if(fh->stream_on == 1){
-        start_tvin_service(0,&para);
-	}
-	return 0;
-}
-
 
 static const struct i2c_device_id ov7675_id[] = {
 	{ "ov7675_i2c", 0 },
@@ -2095,8 +2003,6 @@ static struct v4l2_i2c_driver_data v4l2_i2c_data = {
 	.name = "ov7675",
 	.probe = ov7675_probe,
 	.remove = ov7675_remove,
-	.suspend = ov7675_suspend,
-	.resume = ov7675_resume,
 	.id_table = ov7675_id,
 };
 

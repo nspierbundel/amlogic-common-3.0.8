@@ -338,14 +338,54 @@ static void __init gic_dist_init(struct gic_chip_data *gic,
 		set_irq_flags(i, IRQF_VALID | IRQF_PROBE);
 	}
 
+#ifdef CONFIG_MESON_ARM_GIC_FIQ
+	writel_relaxed(3, base + GIC_DIST_CTRL);
+#else	
 	writel_relaxed(1, base + GIC_DIST_CTRL);
+#endif	
 }
+
+#ifdef CONFIG_MESON_ARM_GIC_FIQ
+/****************************************************************
+  * work around here
+  * Sometimes GIC FIQ trigger into IRQ mode
+*****************************************************************/
+extern void fiq_isr_fake(unsigned int fiq);
+void
+handle_fasteoi_irq_fake(unsigned int irq, struct irq_desc *desc)
+{
+	raw_spin_lock(&desc->lock);
+	fiq_isr_fake(irq);	
+	desc->irq_data.chip->irq_eoi(&desc->irq_data);
+	raw_spin_unlock(&desc->lock);
+	
+	return;	
+}
+void  gic_set_fiq_fake(unsigned fiq)
+{
+	if((fiq>=32) && (fiq<=1020)){
+		irq_set_chip_and_handler(fiq, &gic_chip, handle_fasteoi_irq_fake);		
+	}
+}
+#endif
 
 static void __cpuinit gic_cpu_init(struct gic_chip_data *gic)
 {
 	void __iomem *dist_base = gic->dist_base;
 	void __iomem *base = gic->cpu_base;
 	int i;
+#ifdef CONFIG_MESON_ARM_GIC_FIQ	
+/*********************************************
+* suspend/resume need save&restore GIC FIQ setting
+*********************************************/
+	unsigned int it_lines_number;
+	unsigned cmd; 
+	char c;
+	unsigned temp;
+	
+	cmd = readl(P_AO_RTI_STATUS_REG1);
+	c = (char)cmd;
+#endif	
 
 	/*
 	 * Deal with the banked PPI and SGI interrupts - disable all
@@ -353,15 +393,39 @@ static void __cpuinit gic_cpu_init(struct gic_chip_data *gic)
 	 */
 	writel_relaxed(0xffff0000, dist_base + GIC_DIST_ENABLE_CLEAR);
 	writel_relaxed(0x0000ffff, dist_base + GIC_DIST_ENABLE_SET);
-
+		
+#ifdef CONFIG_MESON_ARM_GIC_FIQ		
+   /* Set the Per-CPU interrupts 15-8 as Secure and the rest
+     * as Non-secure */
+     it_lines_number = readl_relaxed(dist_base + GIC_DIST_CTR) & 0x1f;	
+    writel(0xffff00ff, dist_base + GIC_DIST_GROUP);  
+        
+    if(c != 'r'){
+		/*  Set ALL interrupts as non-secure interrupts */
+	    for(i = 1; i <= it_lines_number; i++) {
+	        writel(0xffffffff, dist_base + GIC_DIST_GROUP + i * 4);  
+		}
+	}
 	/*
 	 * Set priority on PPI and SGI interrupts
 	 */
+	for (i = 0; i < 32; i += 4){
+		temp = readl_relaxed(dist_base + GIC_DIST_PRI + i * 4 / 4);
+		if(temp == 0)
+			writel_relaxed(0xa0a0a0a0, dist_base + GIC_DIST_PRI + i * 4 / 4);
+	}
+#else
 	for (i = 0; i < 32; i += 4)
-		writel_relaxed(0xa0a0a0a0, dist_base + GIC_DIST_PRI + i * 4 / 4);
+               writel_relaxed(0xa0a0a0a0, dist_base + GIC_DIST_PRI + i * 4 / 4);
+#endif	
+	
 
 	writel_relaxed(0xf0, base + GIC_CPU_PRIMASK);
+#ifdef CONFIG_MESON_ARM_GIC_FIQ
+	writel_relaxed(0xf, base + GIC_CPU_CTRL);   //??GICC_ACTR maybe  set 0
+#else
 	writel_relaxed(1, base + GIC_CPU_CTRL);
+#endif	
 }
 
 void __init gic_init(unsigned int gic_nr, unsigned int irq_start,
@@ -412,6 +476,10 @@ void gic_raise_softirq(const struct cpumask *mask, unsigned int irq)
 	dsb();
 
 	/* this always happens on GIC0 */
+#ifdef CONFIG_MESON_ARM_GIC_FIQ	
+	writel_relaxed(map << 16 | 1<<15 | irq, gic_data[0].dist_base + GIC_DIST_SOFTINT);
+#else
 	writel_relaxed(map << 16 | irq, gic_data[0].dist_base + GIC_DIST_SOFTINT);
+#endif		
 }
 #endif

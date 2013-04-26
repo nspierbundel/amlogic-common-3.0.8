@@ -28,6 +28,9 @@
 #include <linux/async.h>
 #include <linux/suspend.h>
 #include <linux/timer.h>
+#ifdef CONFIG_SUSPEND_WATCHDOG
+#include <mach/watchdog.h>
+#endif /* CONFIG_SUSPEND_WATCHDOG */
 
 #include "../base.h"
 #include "power.h"
@@ -212,6 +215,27 @@ static void dpm_wait_for_children(struct device *dev, bool async)
        device_for_each_child(dev, &async, dpm_wait_fn);
 }
 
+#ifdef CONFIG_DEVICE_SUSPEND_RESUME_TIME_DEBUG
+extern int device_suspend_resume_time_threshold;
+
+static void dpm_start_time(ktime_t *start)
+{
+        *start = ktime_get();
+}
+
+static void dpm_report_time(const char *op, struct device *dev, ktime_t start_time)
+{
+        ktime_t end_time;
+        long usecs;
+        if (!dev->driver) 
+                return;
+        end_time = ktime_get();
+        usecs = ktime_to_us(ktime_sub(end_time, start_time));
+        if (usecs > device_suspend_resume_time_threshold)
+                pr_info("PM: device %s:%s %s takes \t %ld.%03ld mses\n", dev->bus->name, dev_name(dev), op, usecs / USEC_PER_MSEC, usecs % USEC_PER_MSEC);
+}
+#endif
+
 /**
  * pm_op - Execute the PM operation appropriate for given PM event.
  * @dev: Device to handle.
@@ -224,6 +248,9 @@ static int pm_op(struct device *dev,
 {
 	int error = 0;
 	ktime_t calltime;
+#ifdef CONFIG_DEVICE_SUSPEND_RESUME_TIME_DEBUG
+        ktime_t starttime;
+#endif
 
 	calltime = initcall_debug_start(dev);
 
@@ -234,7 +261,13 @@ static int pm_op(struct device *dev,
 			pr_info("suspend %s+ @ %i, parent: %s\n",
 				dev_name(dev), task_pid_nr(current),
 				dev->parent ? dev_name(dev->parent) : "none");
+#ifdef CONFIG_DEVICE_SUSPEND_RESUME_TIME_DEBUG
+                        dpm_start_time(&starttime);
+#endif
 			error = ops->suspend(dev);
+#ifdef CONFIG_DEVICE_SUSPEND_RESUME_TIME_DEBUG
+                        dpm_report_time("suspend", dev, starttime);
+#endif
 			suspend_report_result(ops->suspend, error);
 		}
 		break;
@@ -243,7 +276,13 @@ static int pm_op(struct device *dev,
 			pr_info("resume %s+ @ %i, parent: %s\n",
 				dev_name(dev), task_pid_nr(current),
 				dev->parent ? dev_name(dev->parent) : "none");
+#ifdef CONFIG_DEVICE_SUSPEND_RESUME_TIME_DEBUG
+                        dpm_start_time(&starttime);
+#endif
 			error = ops->resume(dev);
+#ifdef CONFIG_DEVICE_SUSPEND_RESUME_TIME_DEBUG
+                        dpm_report_time("resume", dev, starttime);
+#endif
 			suspend_report_result(ops->resume, error);
 		}
 		break;
@@ -627,11 +666,6 @@ static void dpm_drv_timeout(unsigned long data)
  * Execute the appropriate "resume" callback for all devices whose status
  * indicates that they are suspended.
  */
-
-#ifdef CONFIG_SUSPEND_WATCHDOG
-  extern void reset_watchdog(void);
-#endif
-
 void dpm_resume(pm_message_t state)
 {
 	struct device *dev;
@@ -659,9 +693,9 @@ void dpm_resume(pm_message_t state)
 
 			mutex_unlock(&dpm_list_mtx);
 			
-#ifdef CONFIG_SUSPEND_WATCHDOG
-			reset_watchdog();
-#endif
+		#ifdef CONFIG_SUSPEND_WATCHDOG
+			RESET_SUSPEND_WATCHDOG;
+		#endif
 
 			error = device_resume(dev, state, false);
 			if (error)

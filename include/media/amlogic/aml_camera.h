@@ -45,7 +45,8 @@ typedef struct {
 	unsigned pri_dat;
 	unsigned flash_support;
 	aml_plat_flashlight_data_t* flash_ctrl;
-	
+	unsigned mirror_flip;
+	unsigned vertical_flip;
 }aml_plat_cam_data_t;
 
  

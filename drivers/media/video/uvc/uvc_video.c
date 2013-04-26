@@ -509,8 +509,13 @@ static void uvc_video_decode_data(struct uvc_streaming *stream,
 	unsigned int maxlen, nbytes;
 	void *mem;
 
-	if (len <= 0)
+	if (len <= 0){
+		if(buf->buf.length - buf->buf.bytesused){
+			buf->error = 1;
+			buf->state = UVC_BUF_STATE_READY;
+		}
 		return;
+	}
 
 	/* Copy the video data to the buffer. */
 	maxlen = buf->buf.length - buf->buf.bytesused;
@@ -521,7 +526,7 @@ static void uvc_video_decode_data(struct uvc_streaming *stream,
 
 	/* Complete the current frame if the buffer size was exceeded. */
 	if (len > maxlen) {
-		uvc_trace(UVC_TRACE_FRAME, "Frame complete (overflow).\n");
+		printk(KERN_DEBUG "Frame complete (overflow).\n");
 		buf->state = UVC_BUF_STATE_READY;
 	}
 }
@@ -1104,9 +1109,17 @@ int uvc_video_suspend(struct uvc_streaming *stream)
  * buffers, making sure userspace applications are notified of the problem
  * instead of waiting forever.
  */
-int uvc_video_resume(struct uvc_streaming *stream)
+int uvc_video_resume(struct uvc_streaming *stream, int reset)
 {
 	int ret;
+
+	/* If the bus has been reset on resume, set the alternate setting to 0.
+	 * This should be the default value, but some devices crash or otherwise
+	 * misbehave if they don't receive a SET_INTERFACE request before any
+	 * other video control request.
+	 */
+	if (reset)
+		usb_set_interface(stream->dev->udev, stream->intfnum, 0);
 
 	stream->frozen = 0;
 

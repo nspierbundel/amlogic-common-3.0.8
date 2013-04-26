@@ -70,13 +70,26 @@ config MESON_L2CC_OPTIMIZE
 	help
 		enable PL310 double linefill
 
+config MESON_L2CC_DLF
+	bool "L2 cache double line fill"
+	depends on SMP && CACHE_L2X0
+	default n
+	help
+		enable PL310 double line fill
+
 config MESON_L2CC_STANDBY
 	bool "Enable L2 cache standby"
 	depends on SMP && CACHE_L2X0
 	default n
 	help
 		enable PL310 dynamic gating & standby mode
-		
-endif # ARCH_MESON36
+
+config MESON_POWER_PROFILE_LOW
+	bool "Low power profile"
+	default n
+	help
+		Low power profile
+
+endif # ARCH_MESON6
 
 

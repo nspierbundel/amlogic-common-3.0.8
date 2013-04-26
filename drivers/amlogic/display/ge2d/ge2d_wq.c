@@ -38,12 +38,18 @@ static int   get_queue_member_count(struct list_head  *head)
 ssize_t work_queue_status_show(struct class *cla,struct class_attribute *attr,char *buf)
 {
 	ge2d_context_t *wq=ge2d_manager.current_wq;
-     	return snprintf(buf,40,"cmd count in queue:%d\n",get_queue_member_count(&wq->work_queue));
+	if (wq == 0) {
+		return 0;
+	}
+	return snprintf(buf,40,"cmd count in queue:%d\n",get_queue_member_count(&wq->work_queue));
 }
 ssize_t free_queue_status_show(struct class *cla,struct class_attribute *attr, char *buf)
 {
 	ge2d_context_t *wq=ge2d_manager.current_wq;
-     	return snprintf(buf, 40, "free space :%d\n",get_queue_member_count(&wq->free_queue));
+	if (wq == 0) {
+		return 0;
+	}
+	return snprintf(buf, 40, "free space :%d\n",get_queue_member_count(&wq->free_queue));
 }
 
 static inline  int  work_queue_no_space(ge2d_context_t* queue)

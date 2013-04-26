@@ -53,8 +53,8 @@ static struct early_suspend callkey_early_suspend;
 
 struct wake_lock wk_lk ;
 static int wk_LK_flag=0;
-static int wk_LK_cnt = 0;
 
+#define CALL_FLAG (0x1234ca11)
 #define KEY_CODE KEY_SEND
 #define KEY_PHONERING KEY_CAMERA
 #define WORK_DELAYTIME (150) //ms
@@ -199,23 +199,31 @@ int aml_callkey_suspend(struct platform_device *pdev, pm_message_t state)
 
 int aml_callkey_resume(struct platform_device *pdev)
 {
-	int v=0;
-	#ifdef CONFIG_AMLOGIC_MODEM
-	if(!get_modemPower()){
-		printk("aml_callkey_resume, modem is power off\n");
-        return 0;
+    int v=0;
+#ifdef CONFIG_AMLOGIC_MODEM
+    if(!get_modemPower()){
+    printk("aml_callkey_resume, modem is power off\n");
+    return 0;
     }
-    #endif
-	v = gp_call_key_workdata->callkey_pdata->get_phone_ring_value();
-    printk("aml_callkey_resume, get_phone_ring_value is %d\n",v);
+#endif
+
+    if (READ_AOBUS_REG(AO_RTI_STATUS_REG2) == CALL_FLAG) {
+        printk("aml_callkey_resume, uboot tell me call wakeup system\n");
+        v=1;
+    }else{
+        v = gp_call_key_workdata->callkey_pdata->get_phone_ring_value();
+        printk("aml_callkey_resume, get_phone_ring_value is %d\n",v);
+    }
+    
     if(0 < v){
-    	printk("aml_callkey_resume, key %d pressed.\n", KEY_PHONERING);
-    	requestWakeLock(gp_call_key_workdata);                   
-    	input_report_key(input, KEY_PHONERING, 1);
-    	input_sync(input);
-    	
-    	mod_timer(&gp_call_key_workdata->wk_timer,jiffies+msecs_to_jiffies(UNLOCK_DELAYTIME));
-	}
+        printk("aml_callkey_resume, key %d pressed.\n", KEY_PHONERING);
+        requestWakeLock(gp_call_key_workdata);                   
+        input_report_key(input, KEY_PHONERING, 1);
+        input_sync(input);
+
+        mod_timer(&gp_call_key_workdata->wk_timer,jiffies+msecs_to_jiffies(UNLOCK_DELAYTIME));
+        WRITE_AOBUS_REG(AO_RTI_STATUS_REG2, 0);
+    }
     return 0 ;
 }
 #endif
@@ -282,13 +290,13 @@ static int __devinit callkey_probe(struct platform_device *pdev)
     
     INIT_WORK(&(ck_workdata->work_update), update_work_func);
         
-    setup_timer(&ck_workdata->timer, callkey_timer_sr, ck_workdata) ;
+    setup_timer(&ck_workdata->timer, callkey_timer_sr, (unsigned long)ck_workdata) ;
     //mod_timer(&ck_workdata->timer, jiffies+msecs_to_jiffies(WORK_DELAYTIME));
     
-    setup_timer(&ck_workdata->starter_timer, callkey_start_worktimer, ck_workdata) ;   
+    setup_timer(&ck_workdata->starter_timer, callkey_start_worktimer, (unsigned long)ck_workdata) ;   
     mod_timer(&ck_workdata->starter_timer, jiffies+msecs_to_jiffies(25000));
     
-    setup_timer(&ck_workdata->wk_timer, callkey_wakelock_timer_fun, ck_workdata) ; 
+    setup_timer(&ck_workdata->wk_timer, callkey_wakelock_timer_fun, (unsigned long)ck_workdata) ; 
     
     #ifdef CONFIG_HAS_EARLYSUSPEND
     callkey_early_suspend.level = EARLY_SUSPEND_LEVEL_STOP_DRAWING - 1;

@@ -38,7 +38,10 @@ typedef  struct {
 	int top;
 	int width;
 	int height;
-	int video_out;
+	int receiver;
+	int receiver_format;
+	int display_mode;
+	int mirror_flag;
 }ppmgr_device_t;
 
 typedef struct ppframe_s {

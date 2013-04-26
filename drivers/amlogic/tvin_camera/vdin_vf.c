@@ -20,7 +20,12 @@
 #include "tvin_global.h"
 #include "vdin_vf.h"
 
+#if (defined CONFIG_TVIN_IT660X)||(defined CONFIG_TVIN_VIUIN)
+#define spin_lock(a)
+#define spin_unlock(a)
+#endif
 
+static int init_flag = 0;
 
 DEFINE_SPINLOCK(vdin_fifo_lock);
 
@@ -177,16 +182,24 @@ void vdin_vf_init(void)
 		vfq_push(&newframe_q, &vfpool[i]);
 	}
     newframe_q.wr_index = BT656IN_VF_POOL_SIZE -1;
+
+    init_flag = 1;
 }
 
 static vframe_t *vdin_vf_peek(void* op_arg)
 {
+    if(init_flag == 0)
+        return NULL;
+        
     return vfq_peek(&display_q);
 }
 
 static vframe_t *vdin_vf_get(void* op_arg)
 {
     vframe_t *vf;
+
+    if(init_flag == 0)
+        return NULL;
     //spin_lock(&vdin_fifo_lock);
     vf = vfq_pop(&display_q);
     //spin_unlock(&vdin_fifo_lock);
@@ -196,8 +209,14 @@ static vframe_t *vdin_vf_get(void* op_arg)
 
 static void vdin_vf_put(vframe_t *vf,void* op_arg)
 {
+    if(init_flag == 0)
+        return;
     //spin_lock(&vdin_fifo_lock);
+#if (defined CONFIG_TVIN_IT660X)||(defined CONFIG_TVIN_VIUIN)
+	vfq_push(&newframe_q, vf);
+#else
 	vfq_push(&recycle_q, vf);
+#endif	
     //spin_unlock(&vdin_fifo_lock);
 }
 
@@ -215,6 +234,8 @@ void vdin_reg_vf_provider(void)
 
 void vdin_unreg_vf_provider(void)
 {
+     init_flag = 0;
+     
 #ifdef CONFIG_AMLOGIC_VIDEOIN_MANAGER
        vf_unreg_provider(&vdin_vf_prov);
 #else 

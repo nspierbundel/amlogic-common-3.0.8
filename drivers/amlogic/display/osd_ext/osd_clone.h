@@ -1,5 +1,5 @@
 /*
- * Amlogic Ethernet Driver
+ * Amlogic OSD Driver
  *
  * Copyright (C) 2012 Amlogic, Inc.
  *

@@ -48,8 +48,6 @@
 #include "plat/remote.h"
 #include "am_remote.h"
 
-#include <plat/io.h>
-
 #undef NEW_BOARD_LEARNING_MODE
 
 #define IR_CONTROL_HOLD_LAST_KEY    (1<<6)
@@ -59,6 +57,12 @@
 #define KEY_RELEASE_DELAY    200
 
 type_printk input_dbg;
+#ifdef CONFIG_AML_HDMI_TX
+extern void cec_inactive_source(void);
+extern void cec_set_standby(void);
+extern int cec_power_flag;
+unsigned char cec_repeat = 10;
+#endif
 
 static DEFINE_MUTEX(remote_enable_mutex);
 static DEFINE_MUTEX(remote_file_mutex);
@@ -66,22 +70,38 @@ static void remote_tasklet(unsigned long);
 static int remote_enable;
 static int NEC_REMOTE_IRQ_NO = INT_REMOTE;
 unsigned int g_remote_base;
+static int repeat_flag;
 DECLARE_TASKLET_DISABLED(tasklet, remote_tasklet, 0);
 	 
 static struct remote *gp_remote = NULL;
 char *remote_log_buf;
-static __u16 key_map[512];
-static __u16 mouse_map[6];	/*Left Right Up Down + middlewheel up &down */
+static int fcode;
+static __u16 key_map[2][512];
+static __u16 mouse_map[2][6];	/*Left Right Up Down + middlewheel up &down */
 
 static bool key_pointer_switch = true;
-static unsigned int FN_KEY_SCANCODE = 0;
-static unsigned int LEFT_KEY_SCANCODE = 0;
-static unsigned int RIGHT_KEY_SCANCODE = 0;
-static unsigned int UP_KEY_SCANCODE = 0;
-static unsigned int DOWN_KEY_SCANCODE = 0;
-static unsigned int OK_KEY_SCANCODE = 0;
-static unsigned int PAGEUP_KEY_SCANCODE = 0;
-static unsigned int PAGEDOWN_KEY_SCANCODE = 0;
+static unsigned int FN_KEY_SCANCODE = 0x300;
+static unsigned int LEFT_KEY_SCANCODE = 0x300;
+static unsigned int RIGHT_KEY_SCANCODE = 0x300;
+static unsigned int UP_KEY_SCANCODE = 0x300;
+static unsigned int DOWN_KEY_SCANCODE = 0x300;
+static unsigned int OK_KEY_SCANCODE = 0x300;
+static unsigned int PAGEUP_KEY_SCANCODE = 0x300;
+static unsigned int PAGEDOWN_KEY_SCANCODE = 0x300;
+static int touch_read_pen_printk(const char *fmt, ...)
+{
+	char buf[100];
+	va_list args;
+
+	va_start(args, fmt);
+	vscnprintf(buf, 100, fmt, args);
+	if (strlen(remote_log_buf) + (strlen(buf) + 64) > REMOTE_LOG_BUF_LEN) {
+		remote_log_buf[0] = '\0';
+	}
+	strcat(remote_log_buf, buf);
+	va_end(args);
+	return 0;
+}
 
 int remote_printk(const char *fmt, ...)
 {
@@ -103,15 +123,16 @@ static int remote_mouse_event(struct input_dev *dev, unsigned int scancode, unsi
 	__s32 mouse_value = 0;
 	static unsigned int repeat_count = 0;
 	//__s32 move_accelerate[] = { 0, 1, 1, 2, 2, 3, 4, 5, 6, 7, 8, 9 };
-	__s32 move_accelerate[] = {0, 2, 2, 4, 4, 6, 8, 10, 12, 14, 16, 18};
+	//__s32 move_accelerate[] = {0, 2, 2, 4, 4, 6, 8, 10, 12, 14, 16, 18};
+	__s32 move_accelerate[] = {0, 4, 4, 8, 8, 12, 16, 20, 24, 28};
 	unsigned int i;
 
-	for (i = 0; i < ARRAY_SIZE(mouse_map); i++)
-		if (mouse_map[i] == scancode) {
+	for (i = 0; i < ARRAY_SIZE(mouse_map[fcode]); i++)
+		if (mouse_map[fcode][i] == scancode) {
 			break;
 		}
 
-	if (i >= ARRAY_SIZE(mouse_map)) {
+	if (i >= ARRAY_SIZE(mouse_map[fcode])) {
 		return -1;
 	}
 	switch (type) {
@@ -177,26 +198,26 @@ void remote_send_key(struct input_dev *dev, unsigned int scancode, unsigned int 
                 // switch from key to pointer
                 if(key_pointer_switch)
                 {
-                        mouse_map[0] = LEFT_KEY_SCANCODE;
-                        mouse_map[1] = RIGHT_KEY_SCANCODE;
-                        mouse_map[2] = UP_KEY_SCANCODE;
-                        mouse_map[3] = DOWN_KEY_SCANCODE;
-                        mouse_map[4] = PAGEUP_KEY_SCANCODE;
-                        mouse_map[5] = PAGEDOWN_KEY_SCANCODE;
+                        mouse_map[fcode][0] = LEFT_KEY_SCANCODE;
+                        mouse_map[fcode][1] = RIGHT_KEY_SCANCODE;
+                        mouse_map[fcode][2] = UP_KEY_SCANCODE;
+                        mouse_map[fcode][3] = DOWN_KEY_SCANCODE;
+                        mouse_map[fcode][4] = PAGEUP_KEY_SCANCODE;
+                        mouse_map[fcode][5] = PAGEDOWN_KEY_SCANCODE;
 
                         key_pointer_switch = false;
                 }
                 // switch from pointer to key
                 else
                 {
-                        mouse_map[0] = mouse_map[1] =
-                        mouse_map[2] = mouse_map[3] =
-                        mouse_map[4] = mouse_map[5] = 0xFFFF;
+                        mouse_map[fcode][0] = mouse_map[fcode][1] =
+                        mouse_map[fcode][2] = mouse_map[fcode][3] =
+                        mouse_map[fcode][4] = mouse_map[fcode][5] = 0xFFFF;
 
                         key_pointer_switch = true;
                 }
 
-                input_event(dev, EV_KEY, key_map[scancode], type);
+                input_event(dev, EV_KEY, key_map[fcode][scancode], type);
                 input_sync(dev);
 
                 return;
@@ -211,26 +232,26 @@ void remote_send_key(struct input_dev *dev, unsigned int scancode, unsigned int 
         }
 
 	if (remote_mouse_event(dev, scancode, type)) {
-		if (scancode > ARRAY_SIZE(key_map)) {
+		if (scancode > ARRAY_SIZE(key_map[fcode])) {
 			input_dbg("scancode is 0x%04x, out of key mapping.\n", scancode);
 			return;
 		}
-		if ((key_map[scancode] >= KEY_MAX)
-		    || (key_map[scancode] == KEY_RESERVED)) {
-			input_dbg("scancode is 0x%04x, invalid key is 0x%04x.\n", scancode, key_map[scancode]);
+		if ((key_map[fcode][scancode] >= KEY_MAX)
+		    || (key_map[fcode][scancode] == KEY_RESERVED)) {
+			input_dbg("scancode is 0x%04x, invalid key is 0x%04x.\n", scancode, key_map[fcode][scancode]);
 			return;
 		}
-		input_event(dev, EV_KEY, key_map[scancode], type);
+		input_event(dev, EV_KEY, key_map[fcode][scancode], type);
 		input_sync(dev);
 		switch (type) {
 		case 0:
-			input_dbg("release ircode = 0x%02x, scancode = 0x%04x\n", scancode, key_map[scancode]);
+			input_dbg("fcode map = %d release ircode = 0x%02x, scancode = 0x%04x\n", fcode,scancode, key_map[fcode][scancode]);
 			break;
 		case 1:
-			input_dbg("press ircode = 0x%02x, scancode = 0x%04x\n", scancode, key_map[scancode]);
+			input_dbg("fcode map = %d press ircode = 0x%02x, scancode = 0x%04x\n", fcode,scancode, key_map[fcode][scancode]);
 			break;
 		case 2:
-			input_dbg("repeat ircode = 0x%02x, scancode = 0x%04x\n", scancode, key_map[scancode]);
+			input_dbg("fcode map = %d repeat ircode = 0x%02x, scancode = 0x%04x\n", fcode,scancode, key_map[fcode][scancode]);
 			break;
 		}
 	}
@@ -239,6 +260,7 @@ void remote_send_key(struct input_dev *dev, unsigned int scancode, unsigned int 
 static void disable_remote_irq(void)
 {
 	if ((!(gp_remote->work_mode && REMOTE_WORK_MODE_FIQ))
+	&&(!(gp_remote->work_mode && REMOTE_WORK_MODE_RCA))
 	    && (!(gp_remote->work_mode && REMOTE_WORK_MODE_FIQ_RCMM))) {
 		disable_irq(NEC_REMOTE_IRQ_NO);
 	}
@@ -248,6 +270,7 @@ static void disable_remote_irq(void)
 static void enable_remote_irq(void)
 {
 	if ((!(gp_remote->work_mode && REMOTE_WORK_MODE_FIQ))
+	&&(!(gp_remote->work_mode && REMOTE_WORK_MODE_RCA))
 	    && (!(gp_remote->work_mode && REMOTE_WORK_MODE_FIQ_RCMM))) {
 		enable_irq(NEC_REMOTE_IRQ_NO);
 	}
@@ -264,6 +287,7 @@ static void remote_repeat_sr(unsigned long data)
 	switch (status & REMOTE_HW_DECODER_STATUS_MASK) {
 	case REMOTE_HW_DECODER_STATUS_OK:
 		remote_send_key(remote_data->input, (remote_data->cur_keycode >> 16) & 0xff, 0);
+		repeat_flag = 0;
 		break;
 	default: 
 		am_remote_set_mask(AM_IR_DEC_REG1, 1);	//reset ir deocoder
@@ -298,8 +322,11 @@ static void remote_timer_sr(unsigned long data)
 	} else if (remote_data->work_mode == REMOTE_WORK_MODE_COMCAST) {
 		remote_data->repeate_flag = 0;
 		remote_send_key(remote_data->input, remote_data->last_keycode, 0);
+	} else if (remote_data->work_mode == REMOTE_WORK_MODE_RCA) {
+		remote_send_key(remote_data->input, ~(remote_data->cur_keycode>>16)&0xff, 0);
 	} else {
 		remote_send_key(remote_data->input, (remote_data->cur_keycode >> 16) & 0xff, 0);
+		repeat_flag = 0;
 	}
 	if (!(remote_data->work_mode & REMOTE_WORK_MODE_HW)) {
 		remote_data->step = REMOTE_STATUS_WAIT;
@@ -321,6 +348,8 @@ static void remote_fiq_interrupt(void)
 		remote_rc6_reprot_key((unsigned long)gp_remote);
 	} else if (gp_remote->work_mode == REMOTE_WORK_MODE_RC5) {
 		remote_rc5_reprot_key((unsigned long)gp_remote);
+	} else if (gp_remote->work_mode == REMOTE_WORK_MODE_RCA) {
+		remote_rca_reprot_key((unsigned long)gp_remote);
 	} else {
 		remote_sw_reprot_key((unsigned long)gp_remote);
 	}
@@ -337,21 +366,28 @@ static inline int remote_hw_reprot_key(struct remote *remote_data)
 	// 1        get  scan code
 	scan_code = am_remote_read_reg(AM_IR_DEC_FRAME);
 	status = am_remote_read_reg(AM_IR_DEC_STATUS);
-
 	key_index = 0;
 	key_hold = -1;
 	if (scan_code) {	//key first press
 		last_custom_code = scan_code & 0xffff;
-		if (remote_data->custom_code != last_custom_code) {
-			input_dbg("Wrong custom code is 0x%08x\n", scan_code);
-			return -1;
-		}
+		if((remote_data->custom_code[0] == last_custom_code )||(remote_data->custom_code[1] == last_custom_code) )
+		{
+			if(remote_data->custom_code[1] == last_custom_code)
+			{
+				fcode = 1;
+			}
+			if(remote_data->custom_code[0] == last_custom_code)
+			{
+				fcode = 0;
+			}
 		//add for skyworth remote.
 		if (remote_data->work_mode == REMOTE_TOSHIBA_HW) {	//we start  repeat timer for check repeat.
 			if (remote_data->repeat_timer.expires > jiffies) {	//release last key.
 				remote_send_key(remote_data->input, (remote_data->cur_keycode >> 16) & 0xff, 0);
+				repeat_flag = 0;
 			}
 			remote_send_key(remote_data->input, (scan_code >> 16) & 0xff, 1);
+			repeat_flag = 1;
 			last_scan_code = scan_code;
 			remote_data->cur_keycode = last_scan_code;
 			remote_data->repeat_timer.data = (unsigned long)remote_data;
@@ -359,23 +395,43 @@ static inline int remote_hw_reprot_key(struct remote *remote_data)
 			remote_data->repeat_tick = jiffies;
 			mod_timer(&remote_data->repeat_timer, jiffies + msecs_to_jiffies(remote_data->repeat_delay));
 			return 0;
-		} else {
+		}else if(remote_data->custom_code[1] == last_custom_code){
+			touch_read_pen_printk("%x\n",(scan_code>>16)&0xffff);
+		} 
+		else {
 			if (remote_data->timer.expires > jiffies) {
 				remote_send_key(remote_data->input, (remote_data->cur_keycode >> 16) & 0xff, 0);
+				repeat_flag = 0;
 			}
 			remote_send_key(remote_data->input, (scan_code >> 16) & 0xff, 1);
+			repeat_flag = 1;
 			if (remote_data->repeat_enable) {
 				remote_data->repeat_tick = jiffies + msecs_to_jiffies(remote_data->input->rep[REP_DELAY]);
 			}
 		}
+			}
+		else
+		{
+			input_dbg("Wrong custom code is 0x%08x\n", scan_code);
+			return -1;
+		}
+
 
 	} else if (scan_code == 0 && status & 0x1) {	//repeate key
 		scan_code = last_scan_code;
-		if (remote_data->custom_code != last_custom_code) {
-			return -1;
+		if((remote_data->custom_code[0] == last_custom_code )||(remote_data->custom_code[1] == last_custom_code) ) {
+#ifdef CONFIG_AML_HDMI_TX
+		//printk("last_scan_code:%x\n", last_scan_code);
+		if((((scan_code >> 16) & 0xff) == 0x1a) && (!cec_repeat)) {
+		    cec_repeat = 10;
+		    cec_set_standby();
+		    mdelay(20);
 		}
+		if(((scan_code >> 16) & 0xff) == 0x1a)
+ 		    cec_repeat--;
+#endif
 		if (remote_data->repeat_enable) {
-			if (remote_data->repeat_tick < jiffies) {
+			if ((remote_data->repeat_tick < jiffies)&&(repeat_flag == 1)) {
 				remote_send_key(remote_data->input, (scan_code >> 16) & 0xff, 2);
 				remote_data->repeat_tick += msecs_to_jiffies(remote_data->input->rep[REP_PERIOD]);
 			}
@@ -383,6 +439,10 @@ static inline int remote_hw_reprot_key(struct remote *remote_data)
 			if (remote_data->timer.expires > jiffies) {
 				mod_timer(&remote_data->timer, jiffies + msecs_to_jiffies(remote_data->release_delay));
 			}
+			return -1;
+		}
+			}
+		else{
 			return -1;
 		}
 	}
@@ -587,8 +647,9 @@ static int work_mode_config(unsigned int cur_mode)
 		break;
 	case REMOTE_WORK_MODE_FIQ:
 	case REMOTE_WORK_MODE_FIQ_RCMM:
+	case REMOTE_WORK_MODE_RCA:
 		if ((last_mode == REMOTE_WORK_MODE_FIQ)
-		    || (last_mode == REMOTE_WORK_MODE_FIQ_RCMM)) {
+		    || (last_mode == REMOTE_WORK_MODE_FIQ_RCMM)|| (last_mode == REMOTE_WORK_MODE_RCA)) {
 			break;
 		}
 		//disable common irq and enable fiq.
@@ -597,7 +658,9 @@ static int work_mode_config(unsigned int cur_mode)
 			gp_remote->fiq_handle_item.handle = remote_rc6_bridge_isr;
 		} else if (cur_mode == REMOTE_WORK_MODE_RC5) {
 			gp_remote->fiq_handle_item.handle = remote_rc5_bridge_isr;
-		} else {
+		} else if (cur_mode == REMOTE_WORK_MODE_RCA) {
+			gp_remote->fiq_handle_item.handle = remote_rca_bridge_isr;
+		}else {
 			gp_remote->fiq_handle_item.handle = remote_bridge_isr;
 		}
 		gp_remote->fiq_handle_item.key = (u32) gp_remote;
@@ -637,28 +700,41 @@ static long remote_config_ioctl(struct file *filp, unsigned int cmd, unsigned lo
 	mutex_lock(&remote_file_mutex);
 	//cmd input
 	switch (cmd) {
+	case REMOTE_IOC_INFCODE_CONFIG:
+		fcode = 1;
+		break;
+	case REMOTE_IOC_UNFCODE_CONFIG:
+		fcode = 0;
+		break;
 		// 1 set part
 	case REMOTE_IOC_RESET_KEY_MAPPING:
-		for (i = 0; i < ARRAY_SIZE(key_map); i++) {
-			key_map[i] = KEY_RESERVED;
+		for (i = 0; i < ARRAY_SIZE(key_map[fcode]); i++) {
+			key_map[fcode][i] = KEY_RESERVED;
 		}
-		for (i = 0; i < ARRAY_SIZE(mouse_map); i++) {
-			mouse_map[i] = 0xffff;
+		for (i = 0; i < ARRAY_SIZE(mouse_map[fcode]); i++) {
+			mouse_map[fcode][i] = 0xffff;
 		}
+		break;
+	case REMOTE_IOC_SET_REPEAT_KEY_MAPPING:
+		if ((val >> 16) >= ARRAY_SIZE(remote->key_repeat_map)) {
+			mutex_unlock(&remote_file_mutex);
+			return -1;
+		}
+		remote->key_repeat_map[val >> 16] = val & 0xffff;
 		break;
 	case REMOTE_IOC_SET_KEY_MAPPING:
-		if ((val >> 16) >= ARRAY_SIZE(key_map)) {
+		if ((val >> 16) >= ARRAY_SIZE(key_map[fcode])) {
 			mutex_unlock(&remote_file_mutex);
 			return -1;
 		}
-		key_map[val >> 16] = val & 0xffff;
+		key_map[fcode][val >> 16] = val & 0xffff;
 		break;
 	case REMOTE_IOC_SET_MOUSE_MAPPING:
-		if ((val >> 16) >= ARRAY_SIZE(mouse_map)) {
+		if ((val >> 16) >= ARRAY_SIZE(mouse_map[fcode])) {
 			mutex_unlock(&remote_file_mutex);
 			return -1;
 		}
-		mouse_map[val >> 16] = val & 0xff;
+		mouse_map[fcode][val >> 16] = val & 0xff;
 		break;
 	case REMOTE_IOC_SET_REPEAT_DELAY:
 		ret = copy_from_user(&remote->repeat_delay, argp, sizeof(long));
@@ -682,7 +758,7 @@ static long remote_config_ioctl(struct file *filp, unsigned int cmd, unsigned lo
 		}
 		break;
 	case REMOTE_IOC_SET_CUSTOMCODE:
-		ret = copy_from_user(&remote->custom_code, argp, sizeof(long));
+		remote->custom_code[fcode]=val&0xffff;
 		break;
 	case REMOTE_IOC_SET_REG_BASE_GEN:
 		am_remote_write_reg(AM_IR_DEC_REG0, val);
@@ -865,7 +941,7 @@ static int register_remote_dev(struct remote *remote)
 	return ret;
 }
 
-static int __init remote_probe(struct platform_device *pdev)
+static int remote_probe(struct platform_device *pdev)
 {
 	struct remote *remote;
 	struct input_dev *input_dev;
@@ -888,7 +964,8 @@ static int __init remote_probe(struct platform_device *pdev)
 	remote->work_mode = REMOTE_NEC_HW;
 	remote->input = input_dev;
 	remote->release_delay = KEY_RELEASE_DELAY;
-	remote->custom_code = 0xff00;
+	remote->custom_code[0]=0xff00;
+	remote->custom_code[1]=0xffff;
 	remote->bit_count = 32;	//default 32bit for sw mode.
 	remote->last_jiffies = 0xffffffff;
 	remote->last_pulse_width = 0;
@@ -904,11 +981,11 @@ static int __init remote_probe(struct platform_device *pdev)
 	remote->time_window[7] = 0x1;
 
 	/* Disable the interrupt for the MPUIO keyboard */
-	for (i = 0; i < ARRAY_SIZE(key_map); i++) {
-		key_map[i] = KEY_RESERVED;
+	for (i = 0; i < ARRAY_SIZE(key_map[fcode]); i++) {
+		key_map[fcode][i] = KEY_RESERVED;
 	}
-	for (i = 0; i < ARRAY_SIZE(mouse_map); i++) {
-		mouse_map[i] = 0xffff;
+	for (i = 0; i < ARRAY_SIZE(mouse_map[fcode]); i++) {
+		mouse_map[fcode][i] = 0xffff;
 	}
 	remote->repeat_delay = 250;
 	remote->repeat_peroid = 33;
@@ -1023,10 +1100,30 @@ static int remote_remove(struct platform_device *pdev)
 	return 0;
 }
 
-static void remote_resume(void)
+static int remote_resume(struct platform_device *dev)
 {
 	printk("resume_remote make sure uboot interrupt clear\n");
 	am_remote_read_reg(AM_IR_DEC_FRAME);
+
+#if MESON_CPU_TYPE >= MESON_CPU_TYPE_MESON6
+    /* 0x1234abcd : woke by power button. set by uboot
+     * 0x12345678 : woke by alarm. set in pm.c
+     */
+    if (READ_AOBUS_REG(AO_RTI_STATUS_REG2) == 0x1234abcd) {
+        // power button, not alarm
+//        remote_send_key(gp_remote->input, 1);
+//        remote_send_key(gp_remote->input, 0);
+
+		input_event(gp_remote->input, EV_KEY, KEY_POWER, 1);
+		input_sync(gp_remote->input);
+		input_event(gp_remote->input, EV_KEY, KEY_POWER, 0);
+		input_sync(gp_remote->input);
+		
+		//aml_write_reg32(P_AO_RTC_ADDR0, (aml_read_reg32(P_AO_RTC_ADDR0) | (0x0000f000)));
+		WRITE_AOBUS_REG(AO_RTI_STATUS_REG2, 0);
+    }
+#endif
+    return 0;
 }
 static struct platform_driver remote_driver = {
 	.probe = remote_probe,

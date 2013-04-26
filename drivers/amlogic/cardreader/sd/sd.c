@@ -101,6 +101,7 @@ void sd_suspend(struct memory_card *card)
 	struct card_host *host = card->host;
 	
 	SD_MMC_Card_Info_t *sd_mmc_info = (SD_MMC_Card_Info_t *)card->card_info;
+    unsigned int power_delay = sd_mmc_info->sd_mmc_power_delay;
 
 	printk("***Entered %s:%s\n", __FILE__,__func__);	
 	
@@ -125,6 +126,7 @@ void sd_suspend(struct memory_card *card)
 	sd_mmc_info->sdio_clk_unit = 3000;
 	sd_mmc_info->clks_nac = SD_MMC_TIME_NAC_DEFAULT;
 	sd_mmc_info->max_blk_count = card->host->max_blk_count;
+    sd_mmc_info->sd_mmc_power_delay = power_delay;
 	
 	card_release_host(host);
 	
@@ -365,10 +367,18 @@ int sd_mmc_probe(struct memory_card *card)
 	card->card_io_init(card);
 	sd_mmc_prepare_init(sd_mmc_info);
 	sd_mmc_info->io_pad_type = aml_card_info->io_pad_type;
+	sd_mmc_info->max_clock = aml_card_info->max_clock;
 	sd_mmc_info->bus_width = SD_BUS_SINGLE;
 	sd_mmc_info->sdio_clk_unit = 3000;
 	sd_mmc_info->clks_nac = SD_MMC_TIME_NAC_DEFAULT;
 	sd_mmc_info->max_blk_count = card->host->max_blk_count;
+    
+    sd_mmc_info->sd_mmc_power_delay = 200;
+#ifdef CONFIG_CARD_NO_POWER_DELAY
+    if(!aml_card_info->card_power_en_reg)
+        sd_mmc_info->sd_mmc_power_delay = 0;
+#endif
+
 
 	return 0;
 }
@@ -399,10 +409,17 @@ int sdio_probe(struct memory_card *card)
 	card->card_io_init(card);
 	sd_mmc_prepare_init(sdio_info);
 	sdio_info->io_pad_type = aml_card_info->io_pad_type;
+	sdio_info->max_clock = aml_card_info->max_clock;
 	sdio_info->bus_width = SD_BUS_SINGLE;
 	sdio_info->sdio_clk_unit = 3000;
 	sdio_info->clks_nac = SD_MMC_TIME_NAC_DEFAULT;
 	sdio_info->max_blk_count = card->host->max_blk_count;
+    
+    sdio_info->sd_mmc_power_delay = 200;
+#ifdef CONFIG_CARD_NO_POWER_DELAY
+    if(!aml_card_info->card_power_en_reg)
+        sdio_info->sd_mmc_power_delay = 0;
+#endif
 
 	return 0;
 }
@@ -438,10 +455,18 @@ int inand_probe(struct memory_card *card)
 	card->card_io_init(card);
 	sd_mmc_prepare_init(sdio_info);
 	sdio_info->io_pad_type = aml_card_info->io_pad_type;
+	sdio_info->max_clock = aml_card_info->max_clock;
 	sdio_info->bus_width = SD_BUS_SINGLE;
 	sdio_info->sdio_clk_unit = 3000;
 	sdio_info->clks_nac = SD_MMC_TIME_NAC_DEFAULT;
 	sdio_info->max_blk_count = card->host->max_blk_count;
+    
+    sdio_info->sd_mmc_power_delay = 200;
+#ifdef CONFIG_CARD_NO_POWER_DELAY
+    if(!aml_card_info->card_power_en_reg)
+        sdio_info->sd_mmc_power_delay = 0;
+#endif
+
 
 #ifdef CONFIG_AML_CARD_KEY
 	{

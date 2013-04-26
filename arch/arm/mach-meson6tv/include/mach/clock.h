@@ -140,5 +140,6 @@ int clk_ops_unregister(struct clk *clk, struct clk_ops *ops);
 
 extern unsigned long mali_clock_gating_lock(void);
 extern void mali_clock_gating_unlock(unsigned long flags);
+extern unsigned int clk_util_clk_msr(unsigned int clk_mux);
 
 #endif //__ARCH_ARM_MESON3_CLOCK_H

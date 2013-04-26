@@ -13,5 +13,6 @@ obj-$(CONFIG_AM_ETHERNET) += plat_dev_eth.o
 obj-$(CONFIG_AM_REMOTE) += plat_dev_remote.o
 obj-$(CONFIG_MESON_IRQ) +=irq.o fiq.o
 obj-$(CONFIG_ARM_GIC) +=gic-irq.o 
+obj-$(CONFIG_MESON_ARM_GIC_FIQ) +=gic-fiq.o 
 obj-$(CONFIG_AM_FB_EXT) += plat_dev_fb_ext.o
 obj-$(CONFIG_AML_HDMI_TX) +=plat_dev_hdmi.o

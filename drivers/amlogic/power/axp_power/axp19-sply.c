@@ -1572,11 +1572,8 @@ static void axp_battery_exit(void)
 {
 	platform_driver_unregister(&axp_battery_driver);
 }
-#ifdef CONFIG_DEFERRED_MODULE_INIT
-deferred_module_init(axp_battery_init);
-#else
+
 module_init(axp_battery_init);
-#endif
 module_exit(axp_battery_exit);
 
 MODULE_DESCRIPTION("AXP19 battery charger driver");

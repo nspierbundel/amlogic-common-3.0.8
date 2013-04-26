@@ -4778,10 +4778,13 @@
 #define DI_CHAN2_GEN_REG 0x17f5 	///../ucode/register.h
 #define P_DI_CHAN2_GEN_REG 		CBUS_REG_ADDR(DI_CHAN2_GEN_REG) 	///../ucode/register.h
 #define DI_CHAN2_CANVAS0 0x17f6 	///../ucode/register.h
+#define DI_CHAN2_CANVAS     DI_CHAN2_CANVAS0
 #define P_DI_CHAN2_CANVAS0 		CBUS_REG_ADDR(DI_CHAN2_CANVAS0) 	///../ucode/register.h
 #define DI_CHAN2_LUMA_X0 0x17f7 	///../ucode/register.h
+#define DI_CHAN2_LUMA_X    DI_CHAN2_LUMA_X0
 #define P_DI_CHAN2_LUMA_X0 		CBUS_REG_ADDR(DI_CHAN2_LUMA_X0) 	///../ucode/register.h
 #define DI_CHAN2_LUMA_Y0 0x17f8 	///../ucode/register.h
+#define DI_CHAN2_LUMA_Y DI_CHAN2_LUMA_Y0
 #define P_DI_CHAN2_LUMA_Y0 		CBUS_REG_ADDR(DI_CHAN2_LUMA_Y0) 	///../ucode/register.h
 #define DI_CHAN2_CHROMA_X0 0x17f9 	///../ucode/register.h
 #define P_DI_CHAN2_CHROMA_X0 		CBUS_REG_ADDR(DI_CHAN2_CHROMA_X0) 	///../ucode/register.h
@@ -4790,6 +4793,7 @@
 #define DI_CHAN2_RPT_LOOP 0x17fb 	///../ucode/register.h
 #define P_DI_CHAN2_RPT_LOOP 		CBUS_REG_ADDR(DI_CHAN2_RPT_LOOP) 	///../ucode/register.h
 #define DI_CHAN2_LUMA0_RPT_PAT 0x17b0 	///../ucode/register.h
+#define DI_CHAN2_LUMA_RPT_PAT   DI_CHAN2_LUMA0_RPT_PAT
 #define P_DI_CHAN2_LUMA0_RPT_PAT 		CBUS_REG_ADDR(DI_CHAN2_LUMA0_RPT_PAT) 	///../ucode/register.h
 #define DI_CHAN2_CHROMA0_RPT_PAT 0x17b1 	///../ucode/register.h
 #define P_DI_CHAN2_CHROMA0_RPT_PAT 		CBUS_REG_ADDR(DI_CHAN2_CHROMA0_RPT_PAT) 	///../ucode/register.h
@@ -7455,6 +7459,26 @@
 #define P_MMC_ONE_CYCLE_CNT 		APB_REG_ADDR(MMC_ONE_CYCLE_CNT) 	///../ucode/pctl.h
 #define MMC_ONE_DATA_CNT 0x60d0 	///../ucode/pctl.h
 #define P_MMC_ONE_DATA_CNT 		APB_REG_ADDR(MMC_ONE_DATA_CNT) 	///../ucode/pctl.h
+#define MMC_CHAN0_CTRL 0x6100
+#define P_MMC_CHAN0_CTRL		APB_REG_ADDR(MMC_CHAN0_CTRL)
+#define MMC_CHAN1_CTRL 0x6104
+#define P_MMC_CHAN1_CTRL		APB_REG_ADDR(MMC_CHAN1_CTRL)
+#define MMC_CHAN2_CTRL 0x6108
+#define P_MMC_CHAN2_CTRL		APB_REG_ADDR(MMC_CHAN2_CTRL)
+#define MMC_CHAN3_CTRL 0x610c
+#define P_MMC_CHAN3_CTRL		APB_REG_ADDR(MMC_CHAN3_CTRL)
+#define MMC_CHAN4_CTRL 0x6110
+#define P_MMC_CHAN4_CTRL		APB_REG_ADDR(MMC_CHAN4_CTRL)
+#define MMC_CHAN5_CTRL 0x6114
+#define P_MMC_CHAN5_CTRL		APB_REG_ADDR(MMC_CHAN5_CTRL)
+#define MMC_CHAN6_CTRL 0x6118
+#define P_MMC_CHAN6_CTRL		APB_REG_ADDR(MMC_CHAN6_CTRL)
+#define MMC_CHAN7_CTRL 0x611c
+#define P_MMC_CHAN7_CTRL		APB_REG_ADDR(MMC_CHAN7_CTRL)
+#define MMC_CHAN8_CTRL 0x6120
+#define P_MMC_CHAN8_CTRL		APB_REG_ADDR(MMC_CHAN8_CTRL)
+#define MMC_CHAN9_CTRL 0x6124
+#define P_MMC_CHAN9_CTRL		APB_REG_ADDR(MMC_CHAN9_CTRL)
 #define DC_CAV_CTRL 0x6300 	///../ucode/pctl.h
 #define P_DC_CAV_CTRL 		APB_REG_ADDR(DC_CAV_CTRL) 	///../ucode/pctl.h
 #define DC_CAV_LVL3_GRANT 0x6304 	///../ucode/pctl.h
@@ -7473,11 +7497,11 @@
 #define P_DC_CAV_LVL3_CTRL2 		APB_REG_ADDR(DC_CAV_LVL3_CTRL2) 	///../ucode/pctl.h
 #define DC_CAV_LVL3_CTRL3 0x6320 	///../ucode/pctl.h
 #define P_DC_CAV_LVL3_CTRL3 		APB_REG_ADDR(DC_CAV_LVL3_CTRL3) 	///../ucode/pctl.h
-#define DC_CAV_LUT_DATAL 0x6324 	///../ucode/pctl.h
+#define DC_CAV_LUT_DATAL 0x60c0 	///../ucode/pctl.h
 #define P_DC_CAV_LUT_DATAL 		APB_REG_ADDR(DC_CAV_LUT_DATAL) 	///../ucode/pctl.h
-#define DC_CAV_LUT_DATAH 0x6328 	///../ucode/pctl.h
+#define DC_CAV_LUT_DATAH 0x60c4 	///../ucode/pctl.h
 #define P_DC_CAV_LUT_DATAH 		APB_REG_ADDR(DC_CAV_LUT_DATAH) 	///../ucode/pctl.h
-#define DC_CAV_LUT_ADDR 0x632c 	///../ucode/pctl.h
+#define DC_CAV_LUT_ADDR 0x60c8 	///../ucode/pctl.h
 #define P_DC_CAV_LUT_ADDR 		APB_REG_ADDR(DC_CAV_LUT_ADDR) 	///../ucode/pctl.h
 #define DC_CAV_LVL3_MODE 0x6330 	///../ucode/pctl.h
 #define P_DC_CAV_LVL3_MODE 		APB_REG_ADDR(DC_CAV_LVL3_MODE) 	///../ucode/pctl.h

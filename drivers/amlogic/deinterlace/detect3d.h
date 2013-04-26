@@ -1,6 +1,7 @@
 #ifndef _DET3D_H
 #define _DET3D_H
 
+#if MESON_CPU_TYPE == MESON_CPU_TYPE_MESON6TV
 //***************************************************************************
 //******** DET3D REGISTERS ********
 //***************************************************************************
@@ -289,5 +290,8 @@ typedef enum det3d_fmt_e {
 //****************************************************************************
 extern void det3d_enable(bool flag);
 extern enum det3d_fmt_e det3d_fmt_detect(void);
+
+#endif  // _DET3D_H
+
 
 #endif  // _DET3D_H

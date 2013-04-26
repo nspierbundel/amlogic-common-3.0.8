@@ -46,6 +46,8 @@ char *data;
 #define AUDIODSP_AUTOMUTE_ON					_IOW('r',9,unsigned long)
 #define AUDIODSP_AUTOMUTE_OFF					_IOW('r',10,unsigned long)
 #define AUDIODSP_LOOKUP_APTS                                   _IOR('r',11,unsigned long)
+#define AUDIODSP_GET_PCM_LEVEL					_IOR('r',12,unsigned long)
+#define AUDIODSP_SET_PCM_BUF_SIZE				_IOW('r',13,long)
 
 #define MCODEC_FMT_MPEG123 (1<<0)
 #define MCODEC_FMT_AAC 	  (1<<1)

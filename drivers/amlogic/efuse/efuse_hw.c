@@ -736,6 +736,7 @@ int32_t __v3_write_hash(uint32_t id,char * buf)
     /**
      * @todo EFUSE Not Implement
      */
+    off=__v3_get_gap_start(id);
     if (cpu_is_before_m6()) {
         if(efuse_bch_enc(buf, 17, temp, 0)<0)
 			return -ENOMEM;

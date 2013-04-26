@@ -314,9 +314,9 @@ static ssize_t set_value(struct device *dev, struct device_attribute *attr,
 }
 
 
-static DEVICE_ATTR(gpio,0644, show_gpio, set_gpio);
-static DEVICE_ATTR(io, 0644, show_io, set_io);
-static DEVICE_ATTR(value, 0644, show_value, set_value);
+static DEVICE_ATTR(gpio,0666, show_gpio, set_gpio);
+static DEVICE_ATTR(io, 0666, show_io, set_io);
+static DEVICE_ATTR(value, 0666, show_value, set_value);
 
 struct device_attribute *attributes[] = {
 	&dev_attr_gpio,

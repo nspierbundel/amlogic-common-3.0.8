@@ -291,6 +291,7 @@ int tvoutc_setmode(tvmode_t mode)
 		case TVMODE_1080I_50HZ: //??
 		case TVMODE_1080P:
 		case TVMODE_1080P_50HZ:
+		case TVMODE_1080P_24HZ:
         WRITE_CBUS_REG_BITS(VPU_VIU_VENC_MUX_CTRL, 2, 0, 2); //reg0x271a, select ENCP to VIU1
         WRITE_CBUS_REG_BITS(VPU_VIU_VENC_MUX_CTRL, 2, 4, 4); //reg0x271a, Select encP clock to VDIN            
         WRITE_CBUS_REG_BITS(VPU_VIU_VENC_MUX_CTRL, 2, 8, 4); //reg0x271a,Enable VIU of ENC_P domain to VDIN;

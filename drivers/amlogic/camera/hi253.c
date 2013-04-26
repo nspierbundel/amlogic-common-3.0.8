@@ -47,18 +47,8 @@
 #if MESON_CPU_TYPE >= MESON_CPU_TYPE_MESON6
 #include <mach/mod_gate.h>
 #endif
-#ifdef CONFIG_HAS_EARLYSUSPEND
-#include <linux/earlysuspend.h>
-static struct early_suspend hi253_early_suspend;
-#endif
 
 #define HI253_CAMERA_MODULE_NAME "hi253"
-
-#ifdef CONFIG_VIDEO_AMLOGIC_FLASHLIGHT
-#include <media/amlogic/flashlight.h>
-extern aml_plat_flashlight_status_t get_flashlightflag(void);
-extern int set_flashlight(bool mode);
-#endif
 
 /* Wake up at about 30 fps */
 #define WAKE_NUMERATOR 30
@@ -226,29 +216,12 @@ static struct hi253_fmt formats[] = {
 		.name     = "YUV420P",
 		.fourcc   = V4L2_PIX_FMT_YUV420,
 		.depth    = 12,
+	},
+	{
+		.name     = "YVU420P",
+		.fourcc   = V4L2_PIX_FMT_YVU420,
+		.depth    = 12,
 	}
-#if 0
-	{
-		.name     = "4:2:2, packed, YUYV",
-		.fourcc   = V4L2_PIX_FMT_VYUY,
-		.depth    = 16,	
-	},
-	{
-		.name     = "RGB565 (LE)",
-		.fourcc   = V4L2_PIX_FMT_RGB565, /* gggbbbbb rrrrrggg */
-		.depth    = 16,
-	},
-	{
-		.name     = "RGB555 (LE)",
-		.fourcc   = V4L2_PIX_FMT_RGB555, /* gggbbbbb arrrrrgg */
-		.depth    = 16,
-	},
-	{
-		.name     = "RGB555 (BE)",
-		.fourcc   = V4L2_PIX_FMT_RGB555X, /* arrrrrgg gggbbbbb */
-		.depth    = 16,
-	},
-#endif
 };
 
 static struct hi253_fmt *get_format(struct v4l2_format *f)
@@ -2386,7 +2359,7 @@ static void free_buffer(struct videobuf_queue *vq, struct hi253_buffer *buf)
 }
 
 #define norm_maxw() 1920
-#define norm_maxh() 1200
+#define norm_maxh() 1600
 static int
 buffer_prepare(struct videobuf_queue *vq, struct videobuf_buffer *vb,
 						enum v4l2_field field)
@@ -2587,20 +2560,7 @@ static int vidioc_s_fmt_vid_cap(struct file *file, void *priv,
 		HI253_set_resolution(dev,fh->height,fh->width);
 		}
 	#endif
-#ifdef CONFIG_VIDEO_AMLOGIC_FLASHLIGHT	
-	if (dev->platform_dev_data.flash_support) {
-		if (f->fmt.pix.pixelformat == V4L2_PIX_FMT_RGB24) {
-			if (get_flashlightflag() == FLASHLIGHT_ON) {
-				set_flashlight(true);
-			}
-		} else if(f->fmt.pix.pixelformat == V4L2_PIX_FMT_NV21){
-			if (get_flashlightflag() != FLASHLIGHT_TORCH) {
-				set_flashlight(false);
-			}		
-		}
-	}
-#endif	
-	
+
 	ret = 0;
 out:
 	mutex_unlock(&q->vb_lock);
@@ -2702,7 +2662,11 @@ static int vidioc_enum_framesizes(struct file *file, void *fh,struct v4l2_frmsiz
 	}
 	if (fmt == NULL)
 		return -EINVAL;
-	if (fmt->fourcc == V4L2_PIX_FMT_NV21){
+	if ((fmt->fourcc == V4L2_PIX_FMT_NV21)
+		||(fmt->fourcc == V4L2_PIX_FMT_NV12)
+		||(fmt->fourcc == V4L2_PIX_FMT_YUV420)
+		||(fmt->fourcc == V4L2_PIX_FMT_YVU420)
+		){
 		if (fsize->index >= ARRAY_SIZE(hi253_prev_resolution))
 			return -EINVAL;
 		frmsize = &hi253_prev_resolution[fsize->index];
@@ -3041,30 +3005,6 @@ static const struct v4l2_subdev_ops hi253_ops = {
 	.core = &hi253_core_ops,
 };
 
-#ifdef CONFIG_HAS_EARLYSUSPEND
-static void aml_hi253_early_suspend(struct early_suspend *h)
-{
-	printk("enter -----> %s \n",__FUNCTION__);
-	if(h && h->param) {
-		aml_plat_cam_data_t* plat_dat= (aml_plat_cam_data_t*)h->param;
-		if (plat_dat && plat_dat->early_suspend) {
-			plat_dat->early_suspend();
-		}
-	}
-}
-
-static void aml_hi253_late_resume(struct early_suspend *h)
-{
-	printk("enter -----> %s \n",__FUNCTION__);
-	if(h && h->param) {
-		aml_plat_cam_data_t* plat_dat= (aml_plat_cam_data_t*)h->param;
-		if (plat_dat && plat_dat->late_resume) {
-			plat_dat->late_resume();
-		}
-	}
-}
-#endif
-
 static int hi253_probe(struct i2c_client *client,
 			const struct i2c_device_id *id)
 {
@@ -3109,15 +3049,6 @@ static int hi253_probe(struct i2c_client *client,
 		return err;
 	}
 
-#ifdef CONFIG_HAS_EARLYSUSPEND
-    printk("******* enter itk early suspend register *******\n");
-    hi253_early_suspend.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN;
-    hi253_early_suspend.suspend = aml_hi253_early_suspend;
-    hi253_early_suspend.resume = aml_hi253_late_resume;
-    hi253_early_suspend.param = plat_dat;
-	register_early_suspend(&hi253_early_suspend);
-#endif
-
 	return 0;
 }
 
@@ -3133,34 +3064,6 @@ static int hi253_remove(struct i2c_client *client)
 	return 0;
 }
 
-static int hi253_suspend(struct i2c_client *client)
-{
-	struct v4l2_subdev *sd = i2c_get_clientdata(client);
-	struct hi253_device *t = to_dev(sd);	
-	struct hi253_fh  *fh = to_fh(t);
-	if(fh->stream_on == 1){
-		stop_tvin_service(0);
-	}
-	power_down_hi253(t);
-	return 0;
-}
-
-static int hi253_resume(struct i2c_client *client)
-{
-	struct v4l2_subdev *sd = i2c_get_clientdata(client);
-	struct hi253_device *t = to_dev(sd);
-    struct hi253_fh  *fh = to_fh(t);
-    tvin_parm_t para;
-    para.port  = TVIN_PORT_CAMERA;
-    para.fmt_info.fmt = TVIN_SIG_FMT_CAMERA_1280X720P_30Hz;
-    HI253_init_regs(t); 
-	if(fh->stream_on == 1){
-        start_tvin_service(0,&para);
-	}       	
-	return 0;
-}
-
-
 static const struct i2c_device_id hi253_id[] = {
 	{ "hi253_i2c", 0 },
 	{ }
@@ -3170,9 +3073,7 @@ MODULE_DEVICE_TABLE(i2c, hi253_id);
 static struct v4l2_i2c_driver_data v4l2_i2c_data = {
 	.name = "hi253",
 	.probe = hi253_probe,
-	.remove = hi253_remove,
-	.suspend = hi253_suspend,
-	.resume = hi253_resume,		
+	.remove = hi253_remove,	
 	.id_table = hi253_id,
 };
 

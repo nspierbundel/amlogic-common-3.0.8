@@ -153,6 +153,7 @@ static uint32_t calc_bus_time(int speed, int is_in, int is_isoc, int bytecount)
  * 	      to initialize the QH. 
  */
 #define SCHEDULE_SLOP 10
+#define SCHEDULE_SPLIT_SLOP	10 
 void qh_init(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh, dwc_otg_hcd_urb_t * urb)
 {
 	char *speed, *type;
@@ -220,6 +221,10 @@ void qh_init(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh, dwc_otg_hcd_urb_t * urb)
 			qh->start_split_frame = qh->sched_frame;
 		}
 
+	}else if(qh->do_split){
+		qh->interval = SCHEDULE_SPLIT_SLOP;
+		qh->sched_frame = dwc_frame_num_inc(hcd->frame_number,
+					     SCHEDULE_SPLIT_SLOP);		
 	}
 
 	DWC_DEBUGPL(DBG_HCD, "DWC OTG HCD QH Initialized\n");
@@ -422,6 +427,7 @@ static int check_max_xfer_size(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 static int schedule_periodic(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 {
 	int status = 0;
+	uint16_t frame_number;
 
 	status = periodic_channel_available(hcd);
 	if (status) {
@@ -440,7 +446,14 @@ static int schedule_periodic(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh)
 		DWC_INFO("%s: Channel max transfer size too small " "for periodic transfer.\n", __func__);	//NOTICE
 		return status;
 	}
-
+	
+	frame_number = dwc_otg_hcd_get_frame_number(hcd);
+	if((qh->ep_type == UE_INTERRUPT) && !(qh->ep_is_in)){
+		//if(((frame_sched - frame_number) > _qh->interval) || dwc_frame_num_le(frame_number,DWC_HFNUM_MAX_FRNUM + frame_sched)){
+			qh->sched_frame = dwc_frame_num_inc(frame_number, SCHEDULE_SLOP);
+		//}//fix it in future
+	}
+	
 	if (hcd->core_if->dma_desc_enable) {
 		/* Don't rely on SOF and start in ready schedule */
 		DWC_LIST_INSERT_TAIL(&hcd->periodic_sched_ready, &qh->qh_list_entry);
@@ -617,7 +630,7 @@ void dwc_otg_hcd_qh_deactivate(dwc_otg_hcd_t * hcd, dwc_otg_qh_t * qh,
 			 * Remove from periodic_sched_queued and move to
 			 * appropriate queue.
 			 */
-			if (dwc_frame_num_le(qh->sched_frame, frame_number)) {
+			if (qh->sched_frame == frame_number) {
 				DWC_LIST_MOVE_HEAD(&hcd->periodic_sched_ready,
 						   &qh->qh_list_entry);
 			} else {

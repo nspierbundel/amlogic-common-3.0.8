@@ -10,6 +10,7 @@
 #include <linux/sysfs.h>
 #include  <linux/spinlock.h>
 #include <linux/kthread.h>
+#include <linux/io-mapping.h>
 
 
 /**************************************************************
@@ -51,8 +52,8 @@ extern int start_vpp_task(void);
 extern void stop_vpp_task(void);
 
 /* for vm private member. */
-extern void set_vm_buf_info(char* start,unsigned int size);
-extern void get_vm_buf_info(const char** start,unsigned int* size,char** vaddr) ;
+extern void set_vm_buf_info(resource_size_t start,unsigned int size);
+extern void get_vm_buf_info(resource_size_t* start,unsigned int* size,struct io_mapping **mapping);
 
 
 /*  vm buffer op. */

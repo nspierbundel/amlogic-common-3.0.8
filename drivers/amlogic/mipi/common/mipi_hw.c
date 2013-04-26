@@ -48,13 +48,13 @@ static int init_am_mipi_csi2_adapter(am_csi2_hw_t* info)
     data32 |= 0<< CSI2_CFG_CLR_WRRSP; 
     data32 |= 0x3f<< CSI2_CFG_A_BRST_NUM;
     data32 |= 3<<CSI2_CFG_A_ID;  // ?? why is 3
-    data32 |= 0<<CSI2_CFG_URGENT_EN;
+    data32 |= info->urgent<<CSI2_CFG_URGENT_EN;
     data32 |= 0<<CSI2_CFG_DDR_ADDR_LPBK;
 
     if(info->mode == AM_CSI2_VDIN){
         data32 |= 0<< CSI2_CFG_DDR_EN; 
         data32 |= 1<<CSI2_CFG_BUFFER_PIC_SIZE;
-        data32 |= 1<<CSI2_CFG_422TO444_MODE;
+        data32 |= 0<<CSI2_CFG_422TO444_MODE;
         data32 |= 0<<CSI2_CFG_INV_FIELD ;
         data32 |= 0<<CSI2_CFG_INTERLACE_EN; 
         data32 |= 1<<CSI2_CFG_FORCE_LINE_COUNT;
@@ -95,17 +95,16 @@ static int init_am_mipi_csi2_adapter(am_csi2_hw_t* info)
 
 static void init_am_mipi_phy(am_csi2_hw_t* info)
 {
-    u32 data32 = 0;
-    mipi_phy_reg_wr(MIPI_PHY_CTRL,   0x1<<31);   //soft reset bit
-    u32 cycle = 5;//1000000000/200000000;  //5 ns
+    u32 data32 = 0x80000000;
+    u32 cycle_time = 5;//5 ns
     u32 settle = (85 + 145 + (16*info->ui_val))/2;
-    settle = settle/cycle;
-    //mipi_dbg("[mipi_hw]:init_am_mipi_phy ---- mipi cycle:%d ns, hs settle:%d ns,\n",cycle,(settle*cycle));
+    settle = settle/cycle_time;
+    //mipi_dbg("[mipi_hw]:init_am_mipi_phy ---- mipi cycle:%d ns, hs settle:%d ns,\n",cycle_time,(settle*cycle_time));
 
     //if(info->clock_lane_mode==1){
     //    //use always on mode
     //}
-
+    mipi_phy_reg_wr(MIPI_PHY_CTRL, data32);   //soft reset bit
     mipi_phy_reg_wr(MIPI_PHY_CTRL,   0);   //release soft reset bit   
     mipi_phy_reg_wr(MIPI_PHY_CLK_LANE_CTRL ,0xd8);
     mipi_phy_reg_wr(MIPI_PHY_TCLK_MISS ,0x9);  // clck miss = 50 ns --(x< 60 ns)

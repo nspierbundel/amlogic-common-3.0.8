@@ -41,16 +41,16 @@
 
 static 	struct input_dev * powerkeydev;
 
-const unsigned int AXP18_NOTIFIER_ON	=	AXP18_IRQ_EXTOV |
-											AXP18_IRQ_EXTIN |
-											AXP18_IRQ_EXTRE |
-											AXP18_IRQ_EXTLO |
-											AXP18_IRQ_TEMOV |
-											AXP18_IRQ_TEMLO |
-											AXP18_IRQ_BATIN |
-											AXP18_IRQ_BATRE |
-											AXP18_IRQ_PEKLO |
-											AXP18_IRQ_PEKSH ;
+#define AXP18_NOTIFIER_ON	(AXP18_IRQ_EXTOV | \
+						     AXP18_IRQ_EXTIN | \
+						     AXP18_IRQ_EXTRE | \
+						     AXP18_IRQ_EXTLO | \
+						     AXP18_IRQ_TEMOV | \
+						     AXP18_IRQ_TEMLO | \
+						     AXP18_IRQ_BATIN | \
+						     AXP18_IRQ_BATRE | \
+						     AXP18_IRQ_PEKLO | \
+						     AXP18_IRQ_PEKSH )
 
 /*      AXP19      */
 #define AXP19_CHARGE_STATUS					POWER19_STATUS
@@ -155,19 +155,19 @@ const unsigned int AXP18_NOTIFIER_ON	=	AXP18_IRQ_EXTOV |
 
 #define AXP19_TIMER_CTL						POWER19_TIMER_CTL
 
-const unsigned int AXP19_NOTIFIER_ON = 		AXP19_IRQ_USBOV |
-											AXP19_IRQ_USBIN |
-				        					AXP19_IRQ_USBRE |
-				       						AXP19_IRQ_USBLO |
-				       						AXP19_IRQ_ACOV |
-				       						AXP19_IRQ_ACIN |
-				       						AXP19_IRQ_ACRE |
-				       						AXP19_IRQ_TEMOV |
-				       						AXP19_IRQ_TEMLO |
-				       						AXP19_IRQ_BATIN |
-				       						AXP19_IRQ_BATRE |
-				       						AXP19_IRQ_PEKLO |
-				       						AXP19_IRQ_PEKSH ;
+#define AXP19_NOTIFIER_ON   		        (AXP19_IRQ_USBOV | \
+										     AXP19_IRQ_USBIN | \
+				        				     AXP19_IRQ_USBRE | \
+				       					     AXP19_IRQ_USBLO | \
+				       					     AXP19_IRQ_ACOV  | \
+				       					     AXP19_IRQ_ACIN  | \
+				       					     AXP19_IRQ_ACRE  | \
+				       					     AXP19_IRQ_TEMOV | \
+				       					     AXP19_IRQ_TEMLO | \
+				       					     AXP19_IRQ_BATIN | \
+				       					     AXP19_IRQ_BATRE | \
+				       					     AXP19_IRQ_PEKLO | \
+				       					     AXP19_IRQ_PEKSH) 
 
 
 /*      AXP20      */
@@ -279,27 +279,20 @@ const unsigned int AXP19_NOTIFIER_ON = 		AXP19_IRQ_USBOV |
 #define AXP20_CAP									(0xB9)
 
 #define AXP20_CHARGE_VBUS					POWER20_IPS_SET
-#define AXP20_APS_WARNING1				POWER20_APS_WARNING1
-#define AXP20_APS_WARNING2				POWER20_APS_WARNING2
+#define AXP20_APS_WARNING1				    POWER20_APS_WARNING1
+#define AXP20_APS_WARNING2				    POWER20_APS_WARNING2
 #define AXP20_TIMER_CTL						POWER20_TIMER_CTL
 
 #define AXP20_INTTEMP							(0x5E)
 
-const unsigned int AXP20_NOTIFIER_ON = 		//AXP20_IRQ_USBOV |
-											AXP20_IRQ_USBIN |
-				        					AXP20_IRQ_USBRE |
-				       						//AXP20_IRQ_USBLO |
-				       						//AXP20_IRQ_ACOV |
-				       						AXP20_IRQ_ACIN |
-				       						AXP20_IRQ_ACRE |
-				       						//AXP20_IRQ_TEMOV |
-				       						//AXP20_IRQ_TEMLO |
-				       						AXP20_IRQ_BATIN |
-				       						AXP20_IRQ_BATRE |
-				       						//AXP20_IRQ_PEKLO |
-				       						//AXP20_IRQ_PEKSH |
-				       						AXP20_IRQ_CHAST	|
-				       						AXP20_IRQ_CHAOV;
+#define  AXP20_NOTIFIER_ON				   (AXP20_IRQ_USBIN | \
+				        					AXP20_IRQ_USBRE | \
+				       						AXP20_IRQ_ACIN  | \
+				       						AXP20_IRQ_ACRE  | \
+				       						AXP20_IRQ_BATIN | \
+				       						AXP20_IRQ_BATRE | \
+				       						AXP20_IRQ_CHAST	| \
+				       						AXP20_IRQ_CHAOV)
 
 
 
@@ -322,58 +315,14 @@ struct axp_adc_res {//struct change
 };
 
 struct axp_charger {
-	/*power supply sysfs*/
-	struct power_supply batt;
-	struct power_supply	ac;
-	struct power_supply	usb;
-	struct power_supply bubatt;
-
-	/*i2c device*/
-	struct device *master;
-
-	/* adc */
-	struct axp_adc_res adc;
 	unsigned int sample_time;
-
-	/*monitor*/
-	struct delayed_work work;
 	unsigned int interval;
-
-	/*battery info*/
-	struct power_supply_info *battery_info;
-
-	/*charger control*/
-	bool chgen;
-	bool limit_on;
 	unsigned int chgcur;
 	unsigned int chgvol;
 	unsigned int chgend;
 
-	/*charger time */
 	int chgpretime;
 	int chgcsttime;
-
-	/*external charger*/
-	bool chgexten;
-	int chgextcur;
-
-	/* charger status */
-	bool bat_det;
-	bool is_on;
-	bool is_finish;
-	bool ac_not_enough;
-	bool ac_det;
-	bool usb_det;
-	bool ac_valid;
-	bool usb_valid;
-	bool ext_valid;
-	bool bat_current_direction;
-	bool in_short;
-	bool batery_active;
-	bool low_charge_current;
-	bool int_over_temp;
-	bool charge_on;
-	uint8_t fault;
 
 	int vbat;
 	int ibat;
@@ -387,44 +336,89 @@ struct axp_charger {
 	int disvbat;
 	int disibat;
 
-	/*rest time*/
 	int rest_vol;
 	int ocv_rest_vol;
-	int base_restvol;
-	int rest_time;
 	int resume;
 
-	/*ic temperature*/
-	int ic_temp;
-
-	/*irq*/
-	struct notifier_block nb;
-
-    /*power led control*/
-    void (*led_control)(flag);
-
-	/*debug file*/
-	struct dentry *debug_file;
     int ocv_full;
     int ocv_empty;
+    int soft_limit_to99;
+    void *para;
+    int  (*pmu_call_back)(void *para);
+    void (*led_control)(int flag);
+
+	/* charger status */
+	bool chgen;
+	bool bat_det;
+	bool is_on;
+	bool ac_det;
+	bool usb_det;
+	bool ac_valid;
+	bool usb_valid;
+	bool ext_valid;
+	bool bat_current_direction;
+	bool in_short;
+	bool batery_active;
+	bool low_charge_current;
+	bool int_over_temp;
+	bool charge_on;
+	uint8_t fault;
+
+	/* adc */
+	struct axp_adc_res adc;
+	/*power supply sysfs*/
+	struct power_supply batt;
+	struct power_supply	ac;
+	struct power_supply	usb;
+	struct power_supply bubatt;
+
+	/*i2c device*/
+	struct device *master;
+	/*monitor*/
+	struct delayed_work work;
+	/*battery info*/
+	struct power_supply_info *battery_info;
 };
 
-static struct task_struct *main_task;
-//static uint8_t coulomb_flag;
-static struct axp_charger *axp_charger;
-static int Total_Cap = 0;
-//static int Cap_Index = 0;
-//static int flag_state_change = 0;
-static int Bat_Cap_Buffer[AXP20_VOL_MAX];
-//static int counter = 0;
-//static int bat_cap = 0;
-static int charge_index = 0;
-static int state_count = 0;
-static int rdc_count = 0;
-#define CONFIG_USE_COL	//Elvis fool
-#if defined (CONFIG_USE_COL) 
-static int cap_count1 = 0,cap_count2 = 0,cap_count3 = 0,cap_count4 = 0;
-#endif
-static int axp_debug = 0;
-#endif
+/*
+ * export global axp_charger struct so this struct can be used by call back function.
+ */
+extern struct axp_charger *gcharger;
+
+/*
+ * R/W operation:
+ * @addr       : register addres you want to R/W
+ * @buf        : buffer used to maintain R/W data
+ * @start_addr : start register address for multiple R/W
+ * @size       : R/W size for multiple
+ * @val        : value write to register
+ */
+extern int axp_reg_read  (uint8_t addr, uint8_t *buf);
+extern int axp_reg_reads (uint8_t start_addr, uint8_t *buf, int size);
+extern int axp_reg_write (uint8_t addr, uint8_t val);
+extern int axp_reg_writes(uint8_t start_addr, uint8_t *buf, int size);
+
+extern int axp_set_charge_current(int chgcur);                          // set charge current, in uA, 0 to disable charger
+extern int axp_set_usb_voltage_limit(int voltage);                      // set usb voltage limit, in mV
+extern int axp_set_noe_delay(int delay);                                // set pmu_pwrnoe_time, in ms
+extern int axp_set_pek_on_time(int time);                               // set pmu_pekon_time, in ms
+extern int axp_set_pek_long_time(int time);                             // set pmu_peklong_time, in ms
+extern int axp_set_pek_off_en(int en);                                  // set pmu_pekoff_en,
+extern int axp_set_pwrok_delay(int delay);                              // set pmu_pwrok_time, in ms
+extern int axp_set_pek_off_time(int time);                              // set pmu_pekoff_time, in ms
+extern int axp_set_ot_power_off_en(int en);                             // set pmu_intotp_en, over temperature protect
+extern int axp_set_poweroff_voltage(int voltage);                       // set pmu_pwroff_vol, in mV
+extern int axp_charger_set_usbcur_limit_extern(int usbcur_limit);       // set usb current limit, in mA, 0 to disable limit
+
+extern int axp_get_battery_percent(void);                               // return percent of battery capacity now
+extern int axp_get_battery_voltage(void);                               // return battery voltage, in mV not OCV
+extern int axp_get_battery_current(void);                               // return battery current, in mA
+
+/*
+ * these functions are open to axp20_algorithm file, do not use them
+ */
+extern void axp_get_coulomb(struct axp_charger *charger, int *charge_c, int *discharge_c);
+extern void axp_caculate_ocv_vol(struct axp_charger *charger, int ocv);
+extern void axp_clear_coulomb(struct axp_charger *charger);
+#endif      /* _LINUX_AXP_SPLY_H_ */
 

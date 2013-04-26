@@ -30,10 +30,16 @@
 #include <linux/slab.h>
 #include <linux/aml_bl.h>
 #include <mach/power_gate.h>
-#ifdef CONFIG_ARCH_MESON6    
+#ifdef CONFIG_ARCH_MESON6
 #include <mach/mod_gate.h>
 #endif /* CONFIG_ARCH_MESON6 */
 
+#ifdef CONFIG_AML_BL_LATCH_ON_VSYNC
+#include <linux/spinlock.h>
+#include <linux/irq.h>
+#include <linux/interrupt.h>
+#include <plat/fiq_bridge.h>
+#endif
 
 #ifdef MESON_BACKLIGHT_DEBUG
 #define DPRINT(...) printk(KERN_INFO __VA_ARGS__)
@@ -42,6 +48,18 @@
 #define DPRINT(...)
 #define DTRACE()
 #endif /* MESON_BACKLIGHT_DEBUG */
+
+#ifdef CONFIG_AML_BL_LATCH_ON_VSYNC
+static bool bl_pulsed = false;
+static int bl_brightness = 0;
+static spinlock_t pulse_lock;
+
+static unsigned int bl_update_count = 0;
+module_param(bl_update_count, uint, 0644);
+
+static unsigned int bl_vsync_count = 0;
+module_param(bl_vsync_count, uint, 0644);
+#endif
 
 struct aml_bl {
     const struct aml_bl_platform_data   *pdata;
@@ -53,8 +71,8 @@ static int aml_bl_update_status(struct backlight_device *bd)
 {
     struct aml_bl *amlbl = bl_get_data(bd);
     int brightness = bd->props.brightness;
-#ifdef CONFIG_ARCH_MESON6  
-	static int led_pwm_off = 0; 
+#ifdef CONFIG_ARCH_MESON6
+	static int led_pwm_off = 0;
 #endif
     DPRINT("%s() brightness=%d\n", __FUNCTION__, brightness);
     DPRINT("%s() pdata->set_bl_level=%p\n", __FUNCTION__, amlbl->pdata->set_bl_level);
@@ -71,7 +89,8 @@ static int aml_bl_update_status(struct backlight_device *bd)
     else if (brightness > 255)
         brightness = 255;
 
-#ifdef CONFIG_ARCH_MESON6           
+#ifdef CONFIG_ARCH_MESON6
+    //static int led_pwm_off = 0;
     if (led_pwm_off && brightness > 0) {
     	switch_mod_gate_by_type(MOD_LED_PWM, 1);
     	led_pwm_off = 0;
@@ -85,8 +104,17 @@ static int aml_bl_update_status(struct backlight_device *bd)
     }
 #endif
 
+#ifndef CONFIG_AML_BL_LATCH_ON_VSYNC
     if (amlbl->pdata->set_bl_level)
         amlbl->pdata->set_bl_level(brightness);
+#else
+    spin_lock_irq(&pulse_lock);
+    bl_pulsed = true;
+    bl_brightness = brightness;
+    bl_update_count++;
+    spin_unlock_irq(&pulse_lock);
+#endif
+
 
 #ifndef CONFIG_MESON_CS_DCDC_REGULATOR
     if ((brightness == 0) && (IS_CLK_GATE_ON(VGHL_PWM))) {
@@ -95,7 +123,7 @@ static int aml_bl_update_status(struct backlight_device *bd)
     }
 #endif
 
-#ifdef CONFIG_ARCH_MESON6       
+#ifdef CONFIG_ARCH_MESON6
     if (brightness == 0) {
     	switch_mod_gate_by_type(MOD_LED_PWM, 0);
     	led_pwm_off = 1;
@@ -121,6 +149,32 @@ static const struct backlight_ops aml_bl_ops = {
     .get_brightness = aml_bl_get_brightness,
     .update_status  = aml_bl_update_status,
 };
+
+
+#ifdef CONFIG_AML_BL_LATCH_ON_VSYNC
+
+/*
+ * vsync fiq handler
+ */
+static irqreturn_t bl_vsync_isr(int irq, void *dev_id)
+{
+	struct aml_bl *amlbl = dev_id;
+	const struct aml_bl_platform_data *pdata = amlbl->pdata;
+
+	spin_lock_irq(&pulse_lock);
+	if (bl_pulsed) {
+		if( pdata->set_bl_level )
+		    pdata->set_bl_level(bl_brightness);
+		bl_pulsed = false;
+
+		bl_vsync_count++;
+	}
+	spin_unlock_irq(&pulse_lock);
+
+	return IRQ_HANDLED;
+}
+
+#endif
 
 static int aml_bl_probe(struct platform_device *pdev)
 {
@@ -174,6 +228,12 @@ static int aml_bl_probe(struct platform_device *pdev)
 
     bldev->props.power = FB_BLANK_UNBLANK;
     bldev->props.brightness = (pdata->dft_brightness > 0 ? pdata->dft_brightness : 200);
+
+#ifdef CONFIG_AML_BL_LATCH_ON_VSYNC
+    spin_lock_init(&pulse_lock);
+    /* register vsync isr for backlight */
+    retval = request_irq(INT_VIU_VSYNC, &bl_vsync_isr, IRQF_SHARED, "bl-vsync", amlbl);
+#endif
 
     if (pdata->bl_init)
         pdata->bl_init();

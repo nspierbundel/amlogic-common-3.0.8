@@ -469,7 +469,7 @@ static int nand_check_wp(struct mtd_info *mtd)
 	/* force WP for readonly add for shutdown protect */
 	if (chip->options & NAND_ROM){
 		printk("%s force WP for shutdown\n", __func__);
-		return 1;
+		return 0;
 	}
 	
 	/* Check the WP bit */
@@ -984,7 +984,7 @@ int nand_unlock(struct mtd_info *mtd, loff_t ofs, uint64_t len)
 	if (nand_check_wp(mtd)) {
 		DEBUG(MTD_DEBUG_LEVEL0, "%s: Device is write protected!!!\n",
 					__func__);
-		ret = -EIO;
+		ret = 0;//-EIO;
 		goto out;
 	}
 
@@ -1035,8 +1035,8 @@ int nand_lock(struct mtd_info *mtd, loff_t ofs, uint64_t len)
 	if (nand_check_wp(mtd)) {
 		DEBUG(MTD_DEBUG_LEVEL0, "%s: Device is write protected!!!\n",
 					__func__);
-		status = MTD_ERASE_FAILED;
-		ret = -EIO;
+		status = MTD_ERASE_DONE;//MTD_ERASE_FAILED;
+		ret = 0;//-EIO;
 		goto out;
 	}
 
@@ -2118,14 +2118,22 @@ static int nand_write_page(struct mtd_info *mtd, struct nand_chip *chip,
 
 /**
  * nand_fill_oob - [Internal] Transfer client buffer to oob
- * @chip:	nand chip structure
+ * @mtd:	MTD device structure
  * @oob:	oob data buffer
  * @len:	oob data write length
  * @ops:	oob ops structure
  */
-static uint8_t *nand_fill_oob(struct nand_chip *chip, uint8_t *oob, size_t len,
-						struct mtd_oob_ops *ops)
+static uint8_t *nand_fill_oob(struct mtd_info *mtd, uint8_t *oob, size_t len,
+			      struct mtd_oob_ops *ops)
 {
+	struct nand_chip *chip = mtd->priv;
+
+	/*
+	 * Initialise to all 0xFF, to avoid the possibility of left over OOB
+	 * data from a previous OOB read.
+	 */
+	memset(chip->oob_poi, 0xff, mtd->oobsize);
+
 	switch (ops->mode) {
 
 	case MTD_OOB_PLACE:
@@ -2211,7 +2219,7 @@ static int nand_do_write_ops(struct mtd_info *mtd, loff_t to,
 
 	/* Check, if it is write protected */
 	if (nand_check_wp(mtd))
-		return -EIO;
+		return 0;//-EIO;
 
 	realpage = (int)(to >> chip->page_shift);
 	page = realpage & chip->pagemask;
@@ -2222,11 +2230,6 @@ static int nand_do_write_ops(struct mtd_info *mtd, loff_t to,
 	    (chip->pagebuf << chip->page_shift) < (to + ops->len))
 		chip->pagebuf = -1;
 
-	/* If we're not given explicit OOB data, let it be 0xFF */
-	if (likely(!oob)) {
-		memset(chip->oob_poi, 0xa5, mtd->oobsize);			//a5 not ff for all ff data very dangerous
-		chip->oob_poi[chip->badblockpos] = 0xFF;
-	}
 	/* Don't allow multipage oob writes with offset */
 	if (oob && ops->ooboffs && (ops->ooboffs + ops->ooblen > oobmaxlen))
 		return -EINVAL;
@@ -2248,8 +2251,11 @@ static int nand_do_write_ops(struct mtd_info *mtd, loff_t to,
 
 		if (unlikely(oob)) {
 			size_t len = min(oobwritelen, oobmaxlen);
-			oob = nand_fill_oob(chip, oob, len, ops);
+			oob = nand_fill_oob(mtd, oob, len, ops);
 			oobwritelen -= len;
+		} else {
+			/* We still need to erase leftover OOB data */
+			memset(chip->oob_poi, 0xff, mtd->oobsize);
 		}
 
 		ret = chip->write_page(mtd, chip, wbuf, page, cached,
@@ -2417,16 +2423,14 @@ static int nand_do_write_oob(struct mtd_info *mtd, loff_t to,
 
 	/* Check, if it is write protected */
 	if (nand_check_wp(mtd))
-		return -EROFS;
+		return 0;//-EROFS;
 
 	/* Invalidate the page cache, if we write to the cached page */
 	if (page == chip->pagebuf)
 		chip->pagebuf = -1;
 
-	memset(chip->oob_poi, 0xff, mtd->oobsize);
-	nand_fill_oob(chip, ops->oobbuf, ops->ooblen, ops);
+	nand_fill_oob(mtd, ops->oobbuf, ops->ooblen, ops);
 	status = chip->ecc.write_oob(mtd, chip, page & chip->pagemask);
-	memset(chip->oob_poi, 0xff, mtd->oobsize);
 
 	if (status)
 		return status;
@@ -2570,7 +2574,7 @@ int nand_erase_nand(struct mtd_info *mtd, struct erase_info *instr,
 	if (nand_check_wp(mtd)) {
 		DEBUG(MTD_DEBUG_LEVEL0, "%s: Device is write protected!!!\n",
 					__func__);
-		instr->state = MTD_ERASE_FAILED;
+		instr->state = MTD_ERASE_DONE;//MTD_ERASE_FAILED;
 		goto erase_exit;
 	}
 

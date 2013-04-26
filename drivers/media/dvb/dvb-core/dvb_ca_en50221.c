@@ -161,7 +161,7 @@ struct dvb_ca_private {
 static void dvb_ca_en50221_thread_wakeup(struct dvb_ca_private *ca);
 static int dvb_ca_en50221_read_data(struct dvb_ca_private *ca, int slot, u8 * ebuf, int ecount);
 static int dvb_ca_en50221_write_data(struct dvb_ca_private *ca, int slot, u8 * ebuf, int ecount);
-
+static int dvb_ca_en50221_io_read_condition(struct dvb_ca_private *ca, int *result, int *_slot);
 
 /**
  * Safely find needle in haystack.
@@ -1188,6 +1188,15 @@ static int dvb_ca_en50221_io_do_ioctl(struct file *file,
 	struct dvb_ca_private *ca = dvbdev->priv;
 	int err = 0;
 	int slot;
+	u8 slotnum;
+	ca_lpdu_write_t *lpduw = NULL;
+	ca_lpdu_read_t *lpdur = NULL;
+	unsigned long timeout;
+	int written;
+	unsigned char *databuf;
+	int result = 0;
+	size_t idx;
+	size_t fraglen;
 
 	dprintk("%s\n", __func__);
 
@@ -1236,11 +1245,113 @@ static int dvb_ca_en50221_io_do_ioctl(struct file *file,
 		break;
 	}
 
+	case CA_LPDU_WRITE: {
+		lpduw = (ca_lpdu_write_t __user *)parg;
+
+		/* The first byte is slot_id. */
+		if (lpduw->wlen < 1)
+			return -EINVAL;
+
+		if (copy_from_user(&slotnum, lpduw->wdata , 1))
+			return -EFAULT;
+
+		databuf = kmalloc((lpduw->wlen-1) * sizeof(unsigned char), GFP_KERNEL);
+		if (!databuf) {
+			err = -ENOMEM;
+			goto out;
+		}
+
+		if (copy_from_user(databuf, lpduw->wdata + 1, lpduw->wlen -1)) {
+			err = -EFAULT;
+			goto out;
+		}
+
+		timeout = jiffies + HZ / 2;
+		written = 0;
+
+		while (!time_after(jiffies, timeout)) {
+			/* check the CAM hasn't been removed/reset in the meantime */
+			if (ca->slot_info[slotnum].slot_state != DVB_CA_SLOTSTATE_RUNNING) {
+				err = -EIO;
+				goto out;
+			}
+
+			mutex_lock(&ca->slot_info[slotnum].slot_lock);
+			err = dvb_ca_en50221_write_data(ca, slotnum, databuf, lpduw->wlen -1);
+			mutex_unlock(&ca->slot_info[slotnum].slot_lock);
+			if (err == (lpduw->wlen -1)) {
+				written = 1;
+				break;
+			}
+			if (err != -EAGAIN)
+				goto out;
+
+			msleep(1);
+		}
+		if (!written) {
+			err = -EIO;
+			goto out;
+		}
+		err = err + 1;
+		break;
+	}
+
+	case CA_LPDU_READ: {
+		lpdur= (ca_lpdu_read_t __user *)parg;
+
+		/* The first byte is slot_id. */
+		if (lpdur->rlen < 1)
+			return -EINVAL;
+
+		/* wait for some data */
+		if ((err = dvb_ca_en50221_io_read_condition(ca, &result, &slot)) == 0) {
+
+			/* if we're in nonblocking mode, exit immediately */
+			if (file->f_flags & O_NONBLOCK)
+				return -EWOULDBLOCK;
+
+			/* wait for some data */
+			err = wait_event_interruptible(ca->wait_queue,
+						dvb_ca_en50221_io_read_condition(ca, &result, &slot));
+		}
+		if ((err < 0) || (result < 0)) {
+			if (result)
+				return result;
+			return err;
+		}
+
+		idx = dvb_ringbuffer_pkt_next(&ca->slot_info[slot].rx_buffer, -1, &fraglen);
+		if (idx == -1) {
+			printk("dvb_ca adapter %d: BUG: read packet ended before last_fragment encountered\n",
+						ca->dvbdev->adapter->num);
+			err = -EIO;
+			goto exit;
+		}
+		if (fraglen > lpdur->rlen -1)
+			fraglen =  lpdur->rlen -1;
+		if ((err = dvb_ringbuffer_pkt_read_user(&ca->slot_info[slot].rx_buffer, idx, 0,
+						      lpdur->rdata + 1, fraglen)) < 0) {
+			goto exit;
+		}
+		dvb_ringbuffer_pkt_dispose(&ca->slot_info[slot].rx_buffer, idx);
+		err = copy_to_user(lpdur->rdata, &slot, 1);
+		if (err) {
+			err = -EFAULT;
+			goto exit;
+		}
+		err = fraglen + 1;
+		break;
+	}
+
 	default:
 		err = -EINVAL;
 		break;
 	}
 
+exit:
+	return err;
+out:
+	kfree(databuf);
 	return err;
 }
 

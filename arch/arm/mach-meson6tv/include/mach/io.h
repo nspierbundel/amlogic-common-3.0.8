@@ -50,6 +50,7 @@
 #define IO_PERIPH_PHY_BASE      0xc4300000  ///4k
 #define IO_APB_BUS_PHY_BASE     0xc8000000  ///8k
 #define IO_DOS_BUS_PHY_BASE     0xc8010000  ///64k
+#define IO_HDEC_BUS_PHY_BASE    0xc8014000  ///64k
 #define IO_AOBUS_PHY_BASE       0xc8100000  ///1M
 #define IO_AHB_BUS_PHY_BASE		0xc9000000	///8M
 	#define IO_USB_A_PHY_BASE       0xc9040000  ///512k
@@ -77,12 +78,13 @@
 #define IO_APB_BUS_BASE     0xf3000000  ///8k
     #define IO_HDMI_BUS_BASE     0xf3002000  ///64k
     #define IO_DOS_BUS_BASE     0xf3010000  ///64k
+    #define IO_HDEC_BUS_BASE 	0xf3014000  ///64k
 #define IO_AOBUS_BASE       0xf3100000  ///1M
 #define IO_AHB_BUS_BASE		0xf3200000
-	#define IO_USB_A_BASE       0xf3240000  ///512k
+	#define IO_USB_A_BASE       0xf3240000  ///256k
 	#define IO_USB_B_BASE       0xf32C0000  ///256k
-	#define IO_WIFI_BASE        0xf3300000  ///1M
-	#define IO_SATA_BASE        0xf3400000  ///64k
+	#define IO_USB_C_BASE       0xf3300000  ///256k
+	#define IO_USB_D_BASE       0xf3340000  ///256k
 #define IO_ETH_BASE         (IO_AHB_BUS_BASE + IO_ETH_PHY_BASE -IO_AHB_BUS_PHY_BASE)  ///64k
 #define IO_SPIMEM_BASE      0xf4000000  ///64M
 #define IO_A9_APB_BASE      0xf8000000  ///256k
@@ -140,6 +142,8 @@
 #define CBUS_REG_OFFSET(reg) ((reg) << 2)
 #define DOS_REG_ADDR(reg)	 (IO_DOS_BUS_BASE + CBUS_REG_OFFSET(reg))
 
+#define CBUS_REG_OFFSET(reg) ((reg) << 2)
+#define HDEC_REG_ADDR(reg)	 (IO_HDEC_BUS_BASE + CBUS_REG_OFFSET(reg))
 #define AXI_REG_OFFSET(reg)  ((reg) << 2)
 #define AXI_REG_ADDR(reg)	 (IO_AXI_BUS_BASE + AXI_REG_OFFSET(reg))
 

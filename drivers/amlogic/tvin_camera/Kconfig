@@ -53,6 +53,12 @@ config TVIN_VDIN
 	help
 		VDIN devices driver.
 
+config TVIN_VDIN_MINI_CONFIG
+	bool "Amlogic TVIN VDIN MINIMUM MEM CONFIG"
+	default n
+	help
+		if vdin's mem_size no more than  16M, enable it
+
 config GAMMA_PROC
 	bool "Amlogic GAMMA auto tunning module"
 	default n

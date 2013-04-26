@@ -68,8 +68,10 @@ TunerDescription tunerDescription= {
     OMEGA_open,
     OMEGA_close,
     OMEGA_set,
-    OMEGA_scripts,// NULL,
-    OMEGA_scriptSets,//NULL,
+    OMEGA_LNA_Config_2_scripts,
+    OMEGA_LNA_Config_2_scriptSets,
+//    OMEGA_scripts,// NULL,
+//    OMEGA_scriptSets,//NULL,
     OMEGA_ADDRESS,			/** tuner i2c address */
     2,						/** length of tuner register address */
     0,						/** tuner if */

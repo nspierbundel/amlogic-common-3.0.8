@@ -56,6 +56,11 @@ typedef struct dwc_otg_device {
 	 * require this. */
 	struct os_dependent os_dep;
 
+	/** Generic Device refercece from os_dep */
+	struct device * gen_dev;
+
+	const char * dev_name;
+
 	/** Pointer to the core interface structure. */
 	dwc_otg_core_if_t *core_if;
 

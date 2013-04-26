@@ -1996,6 +1996,8 @@ static void handle_hc_chhltd_intr_dma(dwc_otg_hcd_t * hcd,
 				    ("%s: Halt channel %d (assume incomplete periodic transfer)\n",
 				     __func__, hc->hc_num);
 #endif
+				if (hc->do_split && (hc->ep_type == DWC_OTG_EP_TYPE_INTR))
+					hcd->ssplit_lock = 0;
 				halt_channel(hcd, hc, qtd,
 					     DWC_OTG_HC_XFER_PERIODIC_INCOMPLETE);
 			} else {

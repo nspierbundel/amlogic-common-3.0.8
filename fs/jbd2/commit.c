@@ -227,6 +227,32 @@ static int journal_submit_data_buffers(journal_t *journal,
 	return ret;
 }
 
+int journal_has_data_buffers(journal_t *journal)
+{
+	struct jbd2_inode *jinode;
+	int  ret = 0;
+	struct address_space *mapping;
+
+	if(journal == NULL)
+		return ret;
+	if(journal->j_running_transaction == NULL)
+		return ret;
+
+	transaction_t *commit_transaction = journal->j_running_transaction;
+
+
+	spin_lock(&journal->j_list_lock);
+	list_for_each_entry(jinode, &commit_transaction->t_inode_list, i_list) {
+		mapping = jinode->i_vfs_inode->i_mapping;
+		if(mapping && mapping->nrpages)
+			ret = 1;
+	}
+	spin_unlock(&journal->j_list_lock);
+
+	return ret;
+}
+EXPORT_SYMBOL(journal_has_data_buffers);
+
 /*
  * Wait for data submitted for writeout, refile inodes to proper
  * transaction if needed.
@@ -683,7 +709,7 @@ start_journal_io:
 	if (commit_transaction->t_need_data_flush &&
 	    (journal->j_fs_dev != journal->j_dev) &&
 	    (journal->j_flags & JBD2_BARRIER))
-		blkdev_issue_flush(journal->j_fs_dev, GFP_KERNEL, NULL);
+		blkdev_issue_flush(journal->j_fs_dev, GFP_NOFS, NULL);
 
 	/* Done it all: now write the commit record asynchronously. */
 	if (JBD2_HAS_INCOMPAT_FEATURE(journal,
@@ -819,7 +845,7 @@ wait_for_iobuf:
 	if (JBD2_HAS_INCOMPAT_FEATURE(journal,
 				      JBD2_FEATURE_INCOMPAT_ASYNC_COMMIT) &&
 	    journal->j_flags & JBD2_BARRIER) {
-		blkdev_issue_flush(journal->j_dev, GFP_KERNEL, NULL);
+		blkdev_issue_flush(journal->j_dev, GFP_NOFS, NULL);
 	}
 
 	if (err)

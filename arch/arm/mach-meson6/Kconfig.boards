@@ -14,23 +14,4 @@ config MACH_MESON6_REF
 	help
           Support for Amlogic Meson6 reference development platform.
 
-config MACH_MESON6_G02
-        depends on ARCH_MESON6
-        bool "Meson6 g02 board"
-        help
-          Support for Amlogic Meson6 g02 reference platform.
-
-config MACH_MESON6_ATV520
-        depends on MACH_MESON6_G02
-        bool "MyGicca ATV 520"
-        default y
-	help
-          Support for Mygicca atv520.
-config MACH_MESON6_ATV1200
-        depends on MACH_MESON6_G02
-        bool "MyGicca ATV 1200"
-        help
-          Support for Mygicca atv1200.
-
-
 endif # ARCH_MESON6

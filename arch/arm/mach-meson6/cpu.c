@@ -84,6 +84,9 @@ static int __init meson_cache_init(void)
 		prefetch |= 0x6;
 #ifdef CONFIG_SMP
 		prefetch |= (1<<28) | (1<<29);
+#ifdef CONFIG_MESON_L2CC_DLF	
+		prefetch |= (1<<30);
+#endif
 #ifdef CONFIG_MESON_L2CC_OPTIMIZE
 		prefetch	|= (1<<24);
 #endif
@@ -93,6 +96,7 @@ static int __init meson_cache_init(void)
 		writel_relaxed(prefetch, l2x0_base + L2X0_PREFETCH_CTRL);
 #endif
 
+		printk(" prefetch=0x%x\n", prefetch);
 #ifdef 	CONFIG_MESON_L2CC_OPTIMIZE
 		write_actlr((read_actlr()|(1<<3) | (1<<1)));
 		read_actlr();

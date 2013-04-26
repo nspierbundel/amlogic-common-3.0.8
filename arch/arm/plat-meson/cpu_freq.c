@@ -39,6 +39,27 @@ static DEFINE_MUTEX(meson_cpufreq_mutex);
 
 static void adjust_jiffies(unsigned int freqOld, unsigned int freqNew);
 
+static struct cpufreq_frequency_table meson_freq_table[]=
+{
+//	0	, CPUFREQ_ENTRY_INVALID    , 
+//	1	, CPUFREQ_ENTRY_INVALID    , 
+	0	, 96000    ,
+	1	, 192000   , 
+	2	, 312000	, 
+	3	, 408000	, 
+	4	, 504000	, 
+	5	, 600000	, 
+	6	, 696000	, 
+	7	, 816000	, 
+	8	, 912000	, 
+	9	, 1008000	, 
+	10	, 1104000	, 
+	11	, 1200000	, 
+	12	, 1296000	, 
+	13	, 1416000	, 
+	14	, 1512000	,
+	15	, CPUFREQ_TABLE_END,
+	};
 
 static int meson_cpufreq_verify(struct cpufreq_policy *policy)
 {
@@ -226,10 +247,13 @@ static int meson_cpufreq_init(struct cpufreq_policy *policy)
             if (result)
                 return result;
         }
-        if (pdata->freq_table) {
-            cpufreq_frequency_table_get_attr(pdata->freq_table,
-                            policy->cpu);
-        }
+
+        if(!pdata->freq_table)//If not special freq_table in bsp, use default.
+            pdata->freq_table = meson_freq_table;
+
+        cpufreq_frequency_table_get_attr(pdata->freq_table,
+                        policy->cpu);
+
     }
 
     policy->min = policy->cpuinfo.min_freq = clk_round_rate(cpufreq.armclk, 0) / 1000;

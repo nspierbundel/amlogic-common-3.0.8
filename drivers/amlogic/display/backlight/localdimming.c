@@ -9,8 +9,9 @@
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  */
+#include <linux/slab.h>
 
-#include <linux/localdimming.h>
+#include <linux/panel/localdimming.h>
 
 
 struct backlight_block {
@@ -47,8 +48,8 @@ int local_dimming_update(unsigned int *lumas, unsigned int size)
 {
 	int i;
 	for (i = 0; i < size; i++) {
-		block_data[i].id = lumas[i].id;
-		block_data[i].luma = blocks[i].luma;
+		//block_data[i].id = lumas[i].id;
+		//block_data[i].luma = blocks[i].luma;
 	}
 	return 0;
 }

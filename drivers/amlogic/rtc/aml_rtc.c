@@ -702,6 +702,39 @@ static int get_gpo_flag(void)
 	return ret;
 }
 
+unsigned int aml_read_rtc_mem_reg(unsigned char reg_id)
+{
+	if (reg_id > 4)
+		return 0;
+	unsigned char reg_array[] = {
+		RTC_REGMEM_ADDR_0,
+		RTC_REGMEM_ADDR_1,
+		RTC_REGMEM_ADDR_2,
+		RTC_REGMEM_ADDR_3,
+	};
+	return  ser_access_read(reg_array[reg_id]);
+}
+
+int aml_write_rtc_mem_reg(unsigned char reg_id, unsigned int data)
+{
+	if (reg_id > 4)
+		return 0;
+	unsigned char reg_array[] = {
+		RTC_REGMEM_ADDR_0,
+		RTC_REGMEM_ADDR_1,
+		RTC_REGMEM_ADDR_2,
+		RTC_REGMEM_ADDR_3,
+	};
+	return  ser_access_write(reg_array[reg_id], data);
+}
+
+unsigned int aml_get_rtc_counter(void)
+{
+    unsigned int val;
+    val = ser_access_read(RTC_COUNTER_ADDR);
+    return val;
+}
+
 static void reset_gpo_work(struct work_struct *work)
 {
 	int count = 5;

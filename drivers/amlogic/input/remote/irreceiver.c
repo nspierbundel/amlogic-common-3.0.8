@@ -26,6 +26,7 @@
 #include <linux/init.h>
 #include <linux/interrupt.h>
 #include <linux/types.h>
+#include <linux/hrtimer.h>
 #include <linux/input.h>
 #include <linux/kernel.h>
 #include <linux/delay.h>
@@ -51,10 +52,11 @@
 //#define dbg(fmt, args...)
 //#endif
 
+#define HR_TIMER
+
 #define DEVICE_NAME "irreceiver"
 #define DEIVE_COUNT 32
 #define BUFFER_SIZE 4096
-
 static dev_t irreceiver_id;
 static struct class *irreceiver_class;
 static struct device *irreceiver_dev;
@@ -66,7 +68,7 @@ static int rec_idx, send_idx;
 static unsigned int last_jiffies;
 static unsigned long int time_count = 0; //10us time base
 static unsigned long int shot_time = 0; 
-
+static struct hrtimer hrtimer;
 static char logbuf[4096];
 
 static ssize_t dbg_operate(struct device * dev, struct device_attribute *attr, const char * buf, size_t count)
@@ -88,11 +90,11 @@ static ssize_t switch_write(struct device * dev, struct device_attribute *attr, 
     
     if(val == 0)//off
     {
-        CLEAR_CBUS_REG_MASK(PWM_MISC_REG_CD, (1 << 1));
+        CLEAR_CBUS_REG_MASK(PWM_MISC_REG_AB, ((1<<15)|(0<<8)|(1<<0)));
     }
     else //on
     {
-        SET_CBUS_REG_MASK(PWM_MISC_REG_CD, (1 << 1));
+        SET_CBUS_REG_MASK(PWM_MISC_REG_AB, ((1<<15)|(0<<8)|(1<<0)));
     }
 	return count;
 }
@@ -101,24 +103,34 @@ static void init_pwm_d(void)
 {
     CLEAR_CBUS_REG_MASK(PWM_MISC_REG_CD, (1 << 1));//close PWM_D by default
     msleep(100);
-
-    CLEAR_CBUS_REG_MASK(PERIPHS_PIN_MUX_11, (1<<23));
-	CLEAR_CBUS_REG_MASK(PERIPHS_PIN_MUX_5, (1<<23));
-	CLEAR_CBUS_REG_MASK(PERIPHS_PIN_MUX_6, (1<<11));
-	CLEAR_CBUS_REG_MASK(PERIPHS_PIN_MUX_8, (1<<12));
-	CLEAR_CBUS_REG_MASK(PERIPHS_PIN_MUX_8, (1<<13));
-	CLEAR_CBUS_REG_MASK(PERIPHS_PIN_MUX_8, (1<<14));
-    SET_CBUS_REG_MASK(PERIPHS_PIN_MUX_7, (1<<20));
+    SET_CBUS_REG_MASK(PERIPHS_PIN_MUX_2, (1<<3));
     msleep(100);
 
 	WRITE_CBUS_REG_BITS(PWM_PWM_D, pwm_level, 0, 16);  //low
     WRITE_CBUS_REG_BITS(PWM_PWM_D, pwm_level, 16, 16);  //hi
+}
+static void init_pwm_a(void)
+{
+    CLEAR_CBUS_REG_MASK(PWM_MISC_REG_AB, ((1<<15)|(0<<8)|(1<<0)));//close PWM_A by default
+    msleep(100);
+
+    //GPIOC_0
+    CLEAR_CBUS_REG_MASK(PERIPHS_PIN_MUX_0, (1<<21));//dis VGA_HS
+	CLEAR_CBUS_REG_MASK(PERIPHS_PIN_MUX_1, (1<<27));// dis VGHL_PWM
+    SET_CBUS_REG_MASK(PERIPHS_PIN_MUX_2, (1<<0));// enable pwma
+    msleep(100);
+
+	WRITE_CBUS_REG_BITS(PWM_PWM_A, pwm_level, 0, 16);  //low
+    WRITE_CBUS_REG_BITS(PWM_PWM_A, pwm_level, 16, 16);  //hi
 }
 
 static void set_timer_b_event(unsigned long t)
 {
     shot_time = t;
     time_count = 0;
+    #ifdef HR_TIMER
+    hrtimer_start(&hrtimer, ktime_set(0, shot_time * NSEC_PER_USEC), HRTIMER_MODE_REL);
+    #endif
 }
 
 static void oneshot_event(void)
@@ -126,17 +138,17 @@ static void oneshot_event(void)
     shot_time = 0;
     if(pwmSwitch == 0)
     {
-        strcat(logbuf, "open\n");
+        //strcat(logbuf, "open\n");
 
         pwmSwitch = 1;
-        SET_CBUS_REG_MASK(PWM_MISC_REG_CD, (1 << 1));//on
+        SET_CBUS_REG_MASK(PWM_MISC_REG_AB, ((1<<15)|(0<<8)|(1<<0)));//on
     }
     else
     {
-        strcat(logbuf, "close\n");
+        //strcat(logbuf, "close\n");
 
         pwmSwitch = 0;
-        CLEAR_CBUS_REG_MASK(PWM_MISC_REG_CD, (1 << 1));//off
+        CLEAR_CBUS_REG_MASK(PWM_MISC_REG_AB, ((1<<15)|(0<<8)|(1<<0)));//off
     }
     
     //set next window timer
@@ -149,11 +161,27 @@ static void oneshot_event(void)
     else //pwm should be off
     {
         //dbg("off pwm\n");
-        CLEAR_CBUS_REG_MASK(PWM_MISC_REG_CD, (1 << 1));
+        CLEAR_CBUS_REG_MASK(PWM_MISC_REG_AB, ((1<<15)|(0<<8)|(1<<0)));
         pwmSwitch = 0;
     }
 }
 
+
+
+#ifdef HR_TIMER
+static enum hrtimer_restart timer_hr_interrupt(struct hrtimer *timer)
+{  
+    oneshot_event();
+    return HRTIMER_NORESTART;
+}
+
+static void init_timer_b(void)
+{
+    printk(KERN_INFO "init_hrtimer\n");
+    hrtimer_init(&hrtimer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+    hrtimer.function = timer_hr_interrupt;
+}
+#else
 static void timer_b_interrupt(void)
 {
     char tmp[128];    
@@ -170,29 +198,30 @@ static void timer_b_interrupt(void)
 static void init_timer_b(void)
 {
     printk(KERN_INFO "init_timer_b\n");
-
     CLEAR_CBUS_REG_MASK(ISA_TIMER_MUX, TIMER_B_INPUT_MASK);
     SET_CBUS_REG_MASK(ISA_TIMER_MUX, TIMER_UNIT_10us << TIMER_B_INPUT_BIT);
     
     /* Set up the fiq handler */
     request_fiq(INT_TIMER_B, &timer_b_interrupt);
 }
+#endif
 
 static ssize_t show_key_value(struct device * dev, struct device_attribute *attr, char * buf)
 {
     int i = 0;
-    char tmp[10];
+    char tmp[64];
     memset(buf, 0, PAGE_SIZE);
-    sprintf(tmp, "num=%d\n", rec_win.winNum);
+    sprintf(tmp, "codelenth=\"%d\" code=\"", rec_win.winNum);
     strcat(buf, tmp);
     for(i=0; i<rec_win.winNum; i++)
     {
-        sprintf(tmp, "[%d]", rec_win.winArray[i]);
+        sprintf(tmp, "%d,", rec_win.winArray[i]);
         strcat(buf, tmp);
     }
-    strcat(buf, "\n");
+    strcat(buf, "\"\n");
     return strlen(buf);
 }
+
 
 static ssize_t show_log(struct device * dev, struct device_attribute *attr, char * buf)
 {
@@ -212,8 +241,8 @@ static int aml_ir_receiver_open(struct inode *inode, struct file *file)
 	return 0;
 }
 
-static int aml_ir_receiver_ioctl(struct inode *inode, struct file *filp,
-                 unsigned int cmd, unsigned long args)
+static long aml_ir_receiver_ioctl(struct file *filp, unsigned int cmd, unsigned long args)
+
 {
     int i;
     s32 r = 0;
@@ -227,13 +256,14 @@ static int aml_ir_receiver_ioctl(struct inode *inode, struct file *filp,
         if (copy_from_user(&send_win, argp, sizeof(struct ir_window)))
 		    return -EFAULT;
         
-        for(i=0; i<send_win.winNum; i++)
-            dbg("idx[%d]:[%d]\n", i, send_win.winArray[i]);
-
+        //for(i=0; i<send_win.winNum; i++)
+        //    dbg("idx[%d]:[%d]\n", i, send_win.winArray[i]);
+        dbg("send win [%d]\n", send_win.winNum);
+        
         logbuf[0] = 0;
         send_idx = 0;
         pwmSwitch = 1;
-        SET_CBUS_REG_MASK(PWM_MISC_REG_CD, (1 << 1));
+        SET_CBUS_REG_MASK(PWM_MISC_REG_AB, ((1<<15)|(0<<8)|(1<<0)));
         if(send_idx < send_win.winNum)
         {
             local_irq_save(flags);
@@ -274,7 +304,8 @@ static int aml_ir_receiver_release(struct inode *inode, struct file *file)
 static const struct file_operations aml_ir_receiver_fops = {
 	.owner		= THIS_MODULE,
 	.open		= aml_ir_receiver_open,  
-	.ioctl		= aml_ir_receiver_ioctl,
+	.unlocked_ioctl = aml_ir_receiver_ioctl,
+	//.ioctl		= aml_ir_receiver_ioctl,
 	.release	= aml_ir_receiver_release, 	
 };
 
@@ -312,19 +343,17 @@ static void ir_hardware_init(void)
     rec_idx = 0;
     last_jiffies = 0xffffffff;
     
-    //mask--mux gpio_e21 to remote
-    set_mio_mux(5, 1<<31);
+    //mask--mux gpio_A07 to remote
 
+	aml_set_reg32_mask(AOBUS_REG_ADDR(AO_RTI_PIN_MUX_REG),1<<0);
     //max frame time is 80ms, base rate is 2us
     control_value = 3<<28|(0x9c40 << 12)|0x1;
     am_remote_write_reg(AM_IR_DEC_REG0, control_value);
-
     /*[3-2]rising or falling edge detected
       [8-7]Measure mode
     */
     control_value = 0x8574;
     am_remote_write_reg(AM_IR_DEC_REG1, control_value);
-
     request_fiq(INT_REMOTE, &ir_fiq_interrupt);
 }
 
@@ -361,7 +390,8 @@ static int __init aml_ir_receiver_probe(struct platform_device *pdev)
     device_create_file(irreceiver_dev, &dev_attr_log);
     
     ir_hardware_init();
-    init_pwm_d();
+    //init_pwm_d();
+    init_pwm_a();
     init_timer_b();
     
 	return 0;
@@ -373,7 +403,11 @@ static int aml_ir_receiver_remove(struct platform_device *pdev)
 	
 	/* unregister everything */
     free_fiq(INT_REMOTE, &ir_fiq_interrupt);
+#ifdef HR_TIMER
+    hrtimer_cancel(&hrtimer);
+#else
     free_fiq(INT_TIMER_B, &timer_b_interrupt);
+#endif
     
     /* Remove the cdev */
     device_remove_file(irreceiver_dev, &dev_attr_debug);
@@ -406,8 +440,8 @@ static struct platform_device* aml_ir_receiver_device = NULL;
 
 static int __devinit aml_ir_receiver_init(void)
 {
-	dbg("IR Receiver Driver for Hisense\n");
-	aml_ir_receiver_device = platform_device_alloc(DEVICE_NAME,0);
+	dbg("IR Receiver Driver Init\n");
+	aml_ir_receiver_device = platform_device_alloc(DEVICE_NAME,-1);
     if (!aml_ir_receiver_device) {
         dbg("failed to alloc aml_ir_receiver_device\n");
         return -ENOMEM;

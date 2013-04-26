@@ -58,6 +58,14 @@ static struct clocksource clocksource_timer_e = {
     .flags  = CLOCK_SOURCE_IS_CONTINUOUS,
 };
 
+static struct clocksource clocksource_timer_f = {
+    .name   = "Timer-F",
+    .rating = 300,
+    .read   = cycle_read_timerE,
+    .mask   = CLOCKSOURCE_MASK(32),
+    .flags  = CLOCK_SOURCE_IS_CONTINUOUS,
+};
+
 #if CONFIG_HAVE_SCHED_CLOCK
 
 static DEFINE_CLOCK_DATA(cd);
@@ -93,6 +101,10 @@ static void __init meson_clocksource_init(void)
     clocksource_timer_e.shift = 22;
     clocksource_timer_e.mult = 4194304000u;
     clocksource_register(&clocksource_timer_e);
+
+    clocksource_timer_f.shift = 22;
+    clocksource_timer_f.mult = 3711016000u;
+    clocksource_register(&clocksource_timer_f);
 
     init_fixed_sched_clock(&cd, meson6_update_sched_clock, 32,
                            USEC_PER_SEC,

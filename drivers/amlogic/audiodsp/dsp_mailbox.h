@@ -5,6 +5,7 @@
 int audiodsp_init_mailbox(struct audiodsp_priv *priv) ;
 int audiodsp_release_mailbox(struct audiodsp_priv *priv);
 int dsp_mailbox_send(struct audiodsp_priv *priv,int overwrite,int num,int cmd,const char *data,int len);
+int audiodsp_get_audioinfo(struct audiodsp_priv *priv);
 #if 0
 #define pre_read_mailbox(reg)	\
 	dma_cache_inv((unsigned long)reg,sizeof(*reg))

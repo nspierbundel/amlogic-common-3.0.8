@@ -144,6 +144,15 @@ typedef struct _context_t {
     unsigned char state;
 } context_t;
 
+typedef enum  {
+    CEC_UNRECONIZED_OPCODE = 0x0,
+    CEC_NOT_CORRECT_MODE_TO_RESPOND,
+    CEC_CANNOT_PROVIDE_SOURCE,
+    CEC_INVALID_OPERAND,
+    CEC_REFUSED,
+    CEC_UNABLE_TO_DETERMINE,
+} cec_feature_abort_e;
+
 /*
  * CEC OPCODES
  */
@@ -493,6 +502,7 @@ typedef enum {
 extern cec_rx_msg_buf_t cec_rx_msg_buf;
 
 int cec_ll_tx(unsigned char *msg, unsigned char len, unsigned char *stat_header);
+int cec_ll_tx_irq(unsigned char *msg, unsigned char len);
 
 void cec_test_function(unsigned char* arg, unsigned char arg_cnt);
 void cec_init(hdmitx_dev_t* hdmitx_device);
@@ -551,7 +561,7 @@ void cec_system_audio_mode_request(void);
 void cec_report_audio_status(void);
 void cec_get_menu_language_smp(void);
 void cec_device_vendor_id_smp(void);
-void cec_menu_status_smp(cec_rx_message_t* pcec_message);
+void cec_menu_status_smp(void);
 
 void cec_report_physical_address_smp(void);
 void cec_imageview_on_smp(void);
@@ -560,11 +570,14 @@ void cec_active_source_smp(void);
 size_t cec_usrcmd_get_global_info(char * buf);
 void cec_usrcmd_set_dispatch(const char * buf, size_t count);
 void cec_usrcmd_set_config(const char * buf, size_t count);
+void cec_usrcmd_set_lang_config(const char * buf, size_t count); 
 void cec_input_handle_message(void);
 void cec_send_event_irq(void);
 void cec_standby_irq(void);
 void cec_user_control_released_irq(void);
 void cec_user_control_pressed_irq(void);
+void cec_inactive_source(void);
+void cec_set_standby(void);
 
 extern struct input_dev *remote_cec_dev;
 extern __u16 cec_key_map[];

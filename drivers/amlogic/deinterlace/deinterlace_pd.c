@@ -1,7 +1,6 @@
 /*
  * Amlogic M2
  * frame buffer driver-----------Deinterlace
- * Author: Rain Zhang <rain.zhang@amlogic.com>
  * Copyright (C) 2010 Amlogic, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -47,6 +46,25 @@
 #include <linux/amports/canvas.h>
 #include "deinterlace.h"
 #include "deinterlace_module.h"
+/*for hisense patch*/
+int pd_enable = 0;
+static uint field_diff_thresh = 0x12;
+static uint frame_diff_thresh = 0x20;
+static uint pd_pd1field_num   = 0x8;
+
+module_param(pd_enable,int,0664);
+MODULE_PARM_DESC(pd_enable,"\n pulldown detect for hisense enable\n");
+module_param(field_diff_thresh,uint,0664);
+MODULE_PARM_DESC(field_diff_thresh,"\n field different threshold\n");
+module_param(frame_diff_thresh,uint,0664);
+MODULE_PARM_DESC(frame_diff_thresh,"\n frame different threshold\n");
+module_param(pd_pd1field_num,uint,0664);
+MODULE_PARM_DESC(pd_pd1field_num,"\n the consecutive field consecutive check number\n");
+
+/* enable/disble print info about pull down mode detection  */
+static int print_en = 0;
+module_param(print_en,int,0664);
+MODULE_PARM_DESC(print_en,"\n enable/disable print\n");
 
 #define PATTERN32_NUM		2
 #define PATTERN22_NUM		32
@@ -385,10 +403,12 @@ int detect_pd32(void)
 { 
     int blend_mode = -1;
     int i, ii;
+    int  pd_pd1field = 0;
     pd_his_t* phis;
     pd_his_t* phis_22;
     unsigned pd22_pattern_len = pd22_match_num*4;
     unsigned pd32_pattern_len = pd32_match_num*5;
+    static int cur_pd1field_status;
 /*
 	   phis_22 = pd_his(pd22_pattern_len-1,pd22_pattern_len);
 	   if (pd22_th==0xff)
@@ -528,7 +548,43 @@ int detect_pd32(void)
             blend_mode=0; //blend with pervious
         }
     }
-  //     	}
+    /*for hisense static 1 filed output*/
+    if ((blend_mode == -1) && pd_enable){
+        phis = pd_his(pd_pd1field_num-1,pd_pd1field_num);	    
+        cur_pd1field_status = 1;
+        blend_mode = 2;
+        if (cur_pd1field_status){
+	    pd_pd1field = 1;
+	    for (ii = 0; ii < pd_pd1field_num ;ii ++){
+	        if (((phis+ii)->field_diff_num > field_diff_thresh) || ((phis+ii)->frame_diff_num > frame_diff_thresh)){
+		        cur_pd1field_status = 0;
+	            blend_mode = -1;
+		     pd_pd1field = 0;
+		     break;
+	        }
+	    }
+        }
+        else{
+	    pd_pd1field = 1;
+	    for (ii = 0; ii < pd_pd1field_num -1;ii ++){  
+  	        if (((phis+ii)->field_diff_num > field_diff_thresh) && ((phis+ii)->frame_diff_num > frame_diff_thresh)){
+		  pd_pd1field = 0;
+		  break;
+	        }
+	    }
+	    if (pd_pd1field) {
+            cur_pd1field_status =1;
+	        blend_mode = 2;
+	    }
+        }
+        if((blend_mode == 2)&& pd_enable && print_en)
+        {
+            pr_info("%s:cur_fd1field_status is %d,blend_mode is \
+                %d,phis->field_diff_num:%u,phis->frame_diff_num:%u\n",__func__,\
+                cur_pd1field_status,blend_mode,(phis+ii)->field_diff_num,(phis+ii)->frame_diff_num);
+        }
+    }
+    
     return blend_mode;
 }    
 

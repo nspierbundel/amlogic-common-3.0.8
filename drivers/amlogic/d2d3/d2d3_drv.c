@@ -17,7 +17,6 @@
 #include <linux/mutex.h>
 #include <linux/cdev.h>
 #include <linux/proc_fs.h>
-//#include <linux/aml_common.h>
 #include <asm/uaccess.h>
 
 #include <linux/amports/vframe.h>
@@ -49,16 +48,24 @@ static struct vframe_provider_s * prov = NULL;
 static dev_t d2d3_devno;
 static struct class *d2d3_clsp;
 struct semaphore thread_sem;
-static unsigned short d2d3_mode = 4;
-module_param(d2d3_mode, ushort, 0644);
-MODULE_PARM_DESC(d2d3_mode,"the mode of d2d3 processing.");
 
 static bool d2d3_dbg_en = 0;
 module_param(d2d3_dbg_en, bool, 0664);
 MODULE_PARM_DESC(d2d3_dbg_en, "\n d2d3_dbg_en\n");
 
-#define d2d3_pr      if(d2d3_dbg_en) printk
-                                        
+static unsigned long post_count = 0;
+module_param(post_count,ulong,0644);
+MODULE_PARM_DESC(post_count,"count the irq");
+
+static unsigned long pre_count = 0;
+module_param(pre_count,ulong,0644);
+MODULE_PARM_DESC(pre_count,"count the di pre");
+
+static unsigned int depth = 6;
+module_param(depth,uint,0644);
+MODULE_PARM_DESC(depth,"\n the depth of field\n");
+
+
 /*****************************
  * d2d3 processing mode
  * mode0:    DE_PRE-->DPG-->Memory
@@ -99,17 +106,6 @@ static const struct vframe_operations_s d2d3_vf_provider =
 static struct vframe_provider_s d2d3_vf_prov;
 
 /*****************************
- *    attr management :
- ******************************/
-static ssize_t store_dbg(struct device * dev, struct device_attribute *attr, const char * buf, size_t count)
-{
-        return count;
-}
-
-static DEVICE_ATTR(debug, S_IWUGO | S_IRUGO, NULL, store_dbg);
-
-
-/*****************************
  *    d2d3 process :
  ******************************/
 #define D2D3_IDX_MAX  2
@@ -139,89 +135,112 @@ static int d2d3_early_process_fun(void* arg)
         return ret;
 }
 /*
- *check the format , flow mode,out mode...
+ *check the input&output format 
  */
-static int d2d3_check_param(unsigned int width,unsigned int height, unsigned int reverse_flag)
+static void d2d3_update_param(struct d2d3_param_s *parm)
 {
-        int ret = 0;
-        if(width != d2d3_devp->param.width ||height != d2d3_devp->param.height){                
-                d2d3_pr("[d2d3..]fmt changed from %ux%u to %ux%u.\n",d2d3_devp->param.width, d2d3_devp->param.height, width, height);
-                
-                d2d3_devp->param.width  = width;
-                d2d3_devp->param.height = height;
-                /*update the canvas size*/
-                d2d3_canvas_init(d2d3_devp);
-                ret = 1;
-        }
-        if(reverse_flag != d2d3_devp->param.reverse_flag)
+        bool config_flag = false;
+        struct d2d3_param_s *local_parm = &d2d3_devp->param;
+
+        if((parm->input_w != local_parm->input_w)||(parm->input_h != local_parm->input_h))
         {                
-                d2d3_pr("[d2d3..]reverse flag changed from %u to %u.\n",d2d3_devp->param.reverse_flag,reverse_flag); 
-                d2d3_devp->param.reverse_flag = reverse_flag;
-                d2d3_canvas_reverse(d2d3_devp->param.reverse_flag);
+                pr_info("[d2d3]%s: input fmt changed from %ux%u to %ux%u.\n",__func__,
+                                local_parm->input_w, local_parm->input_h, parm->input_w, parm->input_h);
+                local_parm->input_w  = parm->input_w;
+                local_parm->input_h= parm->input_h;
+                config_flag = true;
         }
-        if(d2d3_mode != d2d3_devp->param.flow_mode){
-                d2d3_pr("[d2d3..]mode changed from %u to %u.\n",d2d3_devp->param.flow_mode,d2d3_mode); 
-                d2d3_devp->param.flow_mode = d2d3_mode;
-                ret = 1;
+        if((parm->output_w != local_parm->output_w)||(parm->output_h != local_parm->output_h))
+        {                
+                pr_info("[d2d3]%s: output fmt changed from %ux%u to %ux%u.\n",__func__,
+                                local_parm->output_w,local_parm->output_h, parm->output_w, parm->output_h);
+
+                local_parm->output_w = parm->output_w;
+                local_parm->output_h = parm->output_h;
+                config_flag = true;
         }
-        if(ret)
-                d2d3_config(d2d3_devp);
-        
-        return ret;
+        if(parm->reverse_flag != local_parm->reverse_flag){                
+                pr_info("[d2d3]%s: reverse flag changed from %u to %u.\n",__func__,
+                                local_parm->reverse_flag, parm->reverse_flag); 
+                local_parm->reverse_flag = parm->reverse_flag;
+                d2d3_canvas_reverse(local_parm->reverse_flag);
+        }
+        if(depth != local_parm->depth){
+                if(d2d3_depth_adjust(depth))
+                        pr_err("[d2d3]%s: the %u over the depth range [2:128].\n",__func__,depth);
+                else
+                        local_parm->depth = depth;
+        }
+        if(config_flag){
+                d2d3_config(d2d3_devp,local_parm);
+                d2d3_enable_hw(true,local_parm);
+        }
+        return;
 }
 
+static void d2d3_irq_process(unsigned int input_w, unsigned int input_h,unsigned int reverse_flag)
+{
+        struct d2d3_param_s parm;
+        parm.input_w = input_w;
+        parm.input_h = input_h;
+        parm.reverse_flag = reverse_flag;
+        get_real_display_size(&parm.output_w,&parm.output_h);
+        d2d3_update_param(&parm);
+        if( D2D3_DPG_MUX_NRW != d2d3_devp->param.dpg_path){
+                d2d3_update_canvas(d2d3_devp);
+        }else{
+                /*just update the dbr canvas config with the addr from di*/
+                d2d3_config_dbr_canvas(d2d3_devp);
+        }
+
+        return;
+}
 static int d2d3_post_process_fun(void* arg, unsigned zoom_start_x_lines,
                 unsigned zoom_end_x_lines, unsigned zoom_start_y_lines, unsigned zoom_end_y_lines)
 {
         int ret = 0;
         int idx = (int)arg;
         d2d3_devnox_t* p_d2d3_devnox = NULL;
-        di_buf_t *di_buf_p = NULL;
+        di_buf_t *di_buf_p = NULL;        
         if((idx>=0) && (idx<D2D3_IDX_MAX)){
                 p_d2d3_devnox = &d2d3_devnox[idx];
                 if(have_process_fun_private_data && p_d2d3_devnox->pre_process_fun){
                         ret = p_d2d3_devnox->pre_process_fun(p_d2d3_devnox->pre_private_data, zoom_start_x_lines, zoom_end_x_lines, zoom_start_y_lines, zoom_end_y_lines);
                 }
+        }else{
+                pr_info("[d2d3]%s: the index %d over the max index.\n",__func__,idx);
         }
-
+        post_count++;
         zoom_start_x_lines = zoom_start_x_lines&0xffff;
-        zoom_end_x_lines = zoom_end_x_lines&0xffff;
+        zoom_end_x_lines   = zoom_end_x_lines&0xffff;
         zoom_start_y_lines = zoom_start_y_lines&0xffff;
-        zoom_end_y_lines = zoom_end_y_lines&0xffff;
-
-        di_buf_p = p_d2d3_devnox->vf->private_data;
-        /* d2d3 process start, to do ... */
-        if(1 == d2d3_mode || 2 == d2d3_mode){
-                //use the depth addr from di update the dbr canvas addr
-                d2d3_devp->dpr_addr = di_buf_p->dp_buf_adr;
-                d2d3_config_dpr_canvas(d2d3_devp);
+        zoom_end_y_lines   = zoom_end_y_lines&0xffff;
+        if(d2d3_devp->flag & D2D3_REG)
+        	vf_notify_receiver(VFM_NAME,VFRAME_EVENT_PROVIDER_VFRAME_READY,NULL);
+        /*d2d3 irq process*/        
+        if(!(d2d3_devp->flag &D2D3_BYPASS)){
+                di_buf_p = p_d2d3_devnox->pre_private_data;
+                d2d3_devp->dbr_addr = di_buf_p->dp_buf_adr;               
+                d2d3_irq_process(zoom_end_x_lines-zoom_start_x_lines+1,
+                                zoom_end_y_lines-zoom_start_y_lines+1,di_buf_p->reverse_flag);
         }
-        else{//mode 3 mode 4
-                //swap_the_wr_rd_canvas_addr();
-                if(!d2d3_check_param(p_d2d3_devnox->vf->width,p_d2d3_devnox->vf->height,0)){
-                        d2d3_config_dpg_canvas(d2d3_devp);
-                        d2d3_config_dpr_canvas(d2d3_devp);
-                        swap(d2d3_devp->dpg_addr,d2d3_devp->dpr_addr);
-                }
-        }
-        if(p_d2d3_devnox->pre_process_fun)
-                p_d2d3_devnox->pre_process_fun(p_d2d3_devnox->pre_private_data, zoom_start_x_lines, zoom_end_x_lines, zoom_start_y_lines, zoom_end_y_lines);
-        /* d2d3 process end */
         return ret;
 }
 
-/*****************************
- *    d2d3 vfm interface :
- ******************************/
+/*
+ *    d2d3 vfm interface
+ */
 
 static vframe_t *d2d3_vf_peek(void* arg)
 {
         vframe_t* vframe_ret = NULL;
-
+        struct d2d3_param_s parm;
+        memset(&parm,0,sizeof(d2d3_param_t));
         if (prov && prov->ops && prov->ops->peek){
-                //printk("%s\n", __func__);
                 vframe_ret = prov->ops->peek(prov->op_arg);
-                //printk("%s %x\n", __func__, vframe_ret);
+        }
+        if(vframe_ret){
+
         }
         return vframe_ret;
 }
@@ -231,9 +250,7 @@ static vframe_t *d2d3_vf_get(void* arg)
         vframe_t* vframe_ret = NULL;
         int i;
         if (prov && prov->ops && prov->ops->get){
-                //printk("%s\n", __func__);
                 vframe_ret = prov->ops->get(prov->op_arg);
-
                 if(vframe_ret){
                         for(i=0; i<D2D3_IDX_MAX; i++){
                                 if(d2d3_devnox[i].vf == NULL){
@@ -241,7 +258,7 @@ static vframe_t *d2d3_vf_get(void* arg)
                                 }
                         }
                         if(i==D2D3_IDX_MAX){
-                                printk("D2D3 Error, idx is not enough\n");
+                                printk("[d2d3]%s:D2D3 Error, idx is not enough.\n",__func__);
                         }
                         else{
                                 d2d3_devnox[i].vf = vframe_ret;
@@ -257,8 +274,8 @@ static vframe_t *d2d3_vf_get(void* arg)
                                 /* d2d3 process code start*/
 
                                 /*d2d3 process code*/
-
-                                //printk("%s %d %x\n", __func__, i, vframe_ret);
+                                if(d2d3_dbg_en)
+                                        printk("[d2d3]%s: %d 0x%x.\n", __func__, i, (unsigned int)vframe_ret);
                         }
                 }
 
@@ -283,8 +300,8 @@ static void d2d3_vf_put(vframe_t *vf, void* arg)
                         vf->private_data = d2d3_devnox[idx].pre_private_data;
                 }
                 else{
-                        printk("[d2d3..] %s,error, return vf->private_data %x is not in the"\
-                        "range.\n", __func__,idx);
+                        printk("[d2d3]%s: error, return vf->private_data %x is not in the "\
+                                        "range.\n", __func__,idx);
                 }
                 prov->ops->put(vf, prov->op_arg);
         }
@@ -294,21 +311,24 @@ static int d2d3_event_cb(int type, void *data, void *private_data)
 {
         return 0;
 }
-
 static int d2d3_receiver_event_fun(int type, void* data, void* arg)
 {
-        int i;
+        int i, ret=0;
+        d2d3_param_t *parm = &d2d3_devp->param;     
         if((type == VFRAME_EVENT_PROVIDER_UNREG)||
                         (type == VFRAME_EVENT_PROVIDER_LIGHT_UNREG_RETURN_VFRAME)){
                 prov = NULL;
-
+                d2d3_enable_hw(false,parm);                
+                
+                vf_notify_receiver(VFM_NAME,VFRAME_EVENT_PROVIDER_UNREG,NULL);
                 vf_unreg_provider(&d2d3_vf_prov);
-                //disable hw
-                d2d3_pr("provider unregister,disable d2d3.\n");
-                        
+                d2d3_devp->flag &= (~D2D3_REG); // keep flag when unreg
+                pr_info("[d2d3]%s: provider unregister,disable d2d3.\n",__func__);
+
         }
         else if(type == VFRAME_EVENT_PROVIDER_REG){
-                char* provider_name = (char*)data;
+                char* provider_name = (char*)data;                           
+
                 if(strcmp(provider_name, "deinterlace")==0){
                         have_process_fun_private_data = 1;
                 }
@@ -316,27 +336,30 @@ static int d2d3_receiver_event_fun(int type, void* data, void* arg)
                         have_process_fun_private_data = 0;
                 }
                 vf_reg_provider(&d2d3_vf_prov);
+				
                 for(i=0; i<D2D3_IDX_MAX; i++){
                         d2d3_devnox[i].vf = NULL;
                 }
                 prov = vf_get_provider(VFM_NAME);
-                /*init the hardware*/        
+		d2d3_devp->flag |= D2D3_REG;
+                d2d3_enable_hw(false,parm);
+                d2d3_set_def_config(parm);
+                d2d3_depth_adjust(depth);
                 d2d3_canvas_init(d2d3_devp);
-                d2d3_config(d2d3_devp);
-                d2d3_pr("provider register,enable d2d3 hw.\n");
+                vf_notify_receiver(VFM_NAME,VFRAME_EVENT_PROVIDER_START,NULL);
         }
         else if((VFRAME_EVENT_PROVIDER_DPBUF_CONFIG == type) &&
-                        ((1 == d2d3_mode)||(2 == d2d3_mode)))
+                        (D2D3_DPG_MUX_NRW == parm->dpg_path))
         {
                 vframe_t * vf = (vframe_t*)data;
                 struct di_buf_s *di_buf = vf->private_data;
-                /*check the format & config canvas*/
-                if(!d2d3_check_param(vf->width,vf->height,di_buf->reverse_flag)){
-                        d2d3_devp->dpg_addr = di_buf->dp_buf_adr;
-                        d2d3_config_dpg_canvas(d2d3_devp);
-                }
+                d2d3_devp->dpg_addr = di_buf->dp_buf_adr;
+                /*just update the dpg canvas config with the addr from di*/
+                d2d3_config_dpg_canvas(d2d3_devp);
+                pre_count++;
+
         } 
-        return 0;
+        return ret;
 }
 
 
@@ -349,11 +372,11 @@ static struct platform_device* d2d3_platform_device = NULL;
 
 static int d2d3_open(struct inode *node, struct file *file)
 {
-        d2d3_dev_t *d2d3_in_devp;
+        d2d3_dev_t *d2d3_devp;
 
         /* Get the per-device structure that contains this cdev */
-        d2d3_in_devp = container_of(node->i_cdev, d2d3_dev_t, cdev);
-        file->private_data = d2d3_in_devp;
+        d2d3_devp = container_of(node->i_cdev, d2d3_dev_t, cdev);
+        file->private_data = d2d3_devp;
         return 0;
 }
 
@@ -364,8 +387,7 @@ static int d2d3_release(struct inode *node, struct file *file)
         return 0;
 }
 
-static int d2d3_add_cdev(struct cdev *cdevp, const struct file_operations 
-*file_ops,int minor)
+static int d2d3_add_cdev(struct cdev *cdevp, const struct file_operations *file_ops,int minor)
 {
         int ret = 0;
         dev_t devno = MKDEV(MAJOR(d2d3_devno),minor);
@@ -385,56 +407,142 @@ const static struct file_operations d2d3_fops = {
         .release  = d2d3_release,
 };
 
+/*
+ *  1.bypass d2d3 mode:echo bypass >/sys/class/d2d3/d2d3/debug
+ *  2.switch the dpg,dbr path,dbr output mode such as line interleave
+ *      echo swmode dpg_path dbr_path dbr_mode >/sys/class/d2d3/d2d3/debug
+ */
+static ssize_t store_dbg(struct device * dev, struct device_attribute *attr, const char * buf, size_t count)
+{
+        unsigned int n=0;
+        char *buf_orig, *ps, *token;
+        struct d2d3_dev_s *devp;
+        struct d2d3_param_s *parm;
+        char *parm_str[5];
+        buf_orig = kstrdup(buf, GFP_KERNEL);
+        pr_info("[d2d3]%s:input cmd: %s",__func__,buf_orig);
+        ps = buf_orig;
+        devp = dev_get_drvdata(dev);
+        parm = &devp->param;
+        while (1) {
+                token = strsep(&ps, " \n");
+                if (token == NULL)
+                        break;
+                if (*token == '\0')
+                        continue;
+                parm_str[n++] = token;
+        }
+        if(!strcmp(parm_str[0],"swmode")){
+                unsigned short dpg_path = 5, dbr_path = 2;
+                unsigned short dbr_mode = 0;                
+                dpg_path  = simple_strtoul(parm_str[1],NULL,10);
+                dbr_path  = simple_strtoul(parm_str[2],NULL,10);
+                dbr_mode = simple_strtol(parm_str[3],NULL,10);
+                /*load the default setting*/
+                d2d3_set_def_config(parm);
+                parm->dpg_path  = dpg_path;
+                parm->dbr_path   = dbr_path;
+                parm->dbr_mode = dbr_mode;
+                parm->input_w  = 0;
+                parm->input_h  = 0;
+                /*get the real vpp display size*/
+                get_real_display_size(&parm->output_w,&parm->output_h);                
+                d2d3_enable_hw(false,parm);
+                pr_info("[d2d3]%s: hw start: dpg path %u, dbr path %u,dbr mode %u.\n",__func__,
+                                devp->param.dpg_path, devp->param.dbr_path,devp->param.dbr_mode);                
+        }else if(!strcmp(parm_str[0],"bypass")){
+                d2d3_enable_hw(false,parm);        
+                devp->flag |=D2D3_BYPASS;
+        }else if(!strcmp(parm_str[0],"enable")){
+                d2d3_enable_hw(true,parm);
+                devp->flag &= (~D2D3_BYPASS);
+        }
+
+        kfree(buf_orig);
+        return count;
+}
+static ssize_t show_dbg(struct device * dev, struct device_attribute *attr, char * buf)
+{
+        struct d2d3_dev_s *devp = dev_get_drvdata(dev);
+        ssize_t len = 0;
+        len += sprintf(buf,"  1.the current dpg path %u, dbr path %u,dbr mode %u,%s bypass.\n"
+                        "  2.set depth:echo x >/sys/module/d2d3/parameters/depth"
+                        "  x's range[2~128].\n  3.get depth:cat /sys/module/d2d3/parameters/depth.\n",
+                        devp->param.dpg_path,devp->param.dbr_path,devp->param.dbr_mode,
+                        (devp->flag&D2D3_BYPASS)?"enable":"disable");
+        return len;
+}
+
+static DEVICE_ATTR(debug, S_IWUGO | S_IRUGO, show_dbg, store_dbg);
+
 static int d2d3_probe(struct platform_device *pdev)
 {
-        int ret;
+        int ret = 0;
         struct d2d3_dev_s *devp;
         struct resource *res;
 
-        printk("d2d3_probe\n");
         /* kmalloc d2d3 dev */
         devp = kmalloc(sizeof(struct d2d3_dev_s), GFP_KERNEL);
         if (!devp)
         {
-                printk("[d2d3..]: failed to allocate memory for d2d3 device.\n");
+                printk("[d2d3]%s: failed to allocate memory for d2d3 device.\n",__func__);
                 ret = -ENOMEM;
                 goto failed_kmalloc_devp;
         }        
         memset(devp,0,sizeof(d2d3_dev_t));
         d2d3_devp = devp;
         
-         /*create cdev and register with sysfs*/
+        d2d3_devp->flag = D2D3_BYPASS;
+        /*create cdev and register with sysfs*/
         ret = d2d3_add_cdev(&devp->cdev, &d2d3_fops,0);
         if (ret) {
-                printk("[d2d3..]%s failed to add device\n",__func__);
+                printk("[d2d3]%s: failed to add device.\n",__func__);
                 /* @todo do with error */
                 goto failed_add_cdev;
         }
         /*create the udev node /dev/...*/
         devp->dev = d2d3_create_device(&pdev->dev,0);
         if (devp->dev == NULL) {
-                printk("[d2d3..] %s device_create create error\n",__func__);
+                printk("[d2d3]%s: device_create create error.\n",__func__);
                 ret = -EEXIST;
                 goto failed_create_device;
         }
-        device_create_file(devp->dev, &dev_attr_debug);
+        ret = device_create_file(devp->dev, &dev_attr_debug);
+        if(ret < 0){
+                printk(KERN_ERR "[d2d3]%s: failed create device attr file.\n",__func__);
+                goto failed_create_device_file;
+        }
         /* get device memory */
         res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
         if (!res) {
-                pr_err("[d2d3..]: can't get memory resource\n");
+                pr_err("[d2d3]%s: can't get memory resource.\n",__func__);
                 ret = -EFAULT;
                 goto failed_get_resource;
         }
-        d2d3_devp->mem_start = res->start;
-        d2d3_devp->mem_size  = res->end - res->start + 1;
-        printk("[d2d3..] mem_start = 0x%x, mem_size = 0x%x\n", d2d3_devp->mem_start,d2d3_devp->mem_size);
+        devp->mem_start = res->start;
+        devp->mem_size  = res->end - res->start + 1;
+        printk("[d2d3]%s: mem_start = 0x%x, mem_size = 0x%x.\n",__func__, devp->mem_start,devp->mem_size);
+        /*get d2d3's irq*/
+        res = platform_get_resource(pdev,IORESOURCE_MEM,0);
+        if (!res) {
+                pr_err("[d2d3]%s: can't get irq resource.\n",__func__);
+                ret = -EFAULT;
+                goto failed_get_resource;
+        }
+        devp->irq = res->start;
+        sprintf(devp->irq_name,"d2d3_irq");
+        platform_set_drvdata(pdev,(void *)devp);
+        dev_set_drvdata(devp->dev,(void *)devp);
 
         vf_receiver_init(&d2d3_vf_recv, VFM_NAME, &d2d3_vf_receiver, NULL);
         vf_reg_receiver(&d2d3_vf_recv);
 
         vf_provider_init(&d2d3_vf_prov, VFM_NAME, &d2d3_vf_provider, NULL);
+        return ret;
 failed_get_resource:
         device_remove_file(&pdev->dev,&dev_attr_debug);
+failed_create_device_file:
+        device_del(&pdev->dev);
 failed_create_device:
         cdev_del(&devp->cdev);
 failed_add_cdev:
@@ -458,9 +566,26 @@ static int d2d3_remove(struct platform_device *pdev)
         return 0;
 }
 
+static int d2d3_suspend(struct platform_device *pdev)
+{
+        struct d2d3_dev_s *d2d3_devp;
+        d2d3_devp = platform_get_drvdata(pdev);
+        d2d3_enable_hw(false, &d2d3_devp->param);
+        return 0;
+}
+
+static int d2d3_resume(struct platform_device *pdev)
+{
+        struct d2d3_dev_s *d2d3_devp;
+        d2d3_devp = platform_get_drvdata(pdev);
+        d2d3_enable_hw(true, &d2d3_devp->param);
+        return 0;
+}
 static struct platform_driver d2d3_driver = {
         .probe      = d2d3_probe,
         .remove     = d2d3_remove,
+        .suspend    = d2d3_suspend,
+        .resume     = d2d3_resume,
         .driver     = {
                 .name   = D2D3_DEVICE_NAME,
                 .owner  = THIS_MODULE,
@@ -469,8 +594,7 @@ static struct platform_driver d2d3_driver = {
 
 static int  __init d2d3_drv_init(void)
 {
-        int ret = 0;
-        printk("d2d3_init\n");
+        int ret = 0;       
 #if 0
         d2d3_platform_device = platform_device_alloc(D2D3_DEVICE_NAME,0);
         if (!d2d3_platform_device) {
@@ -500,12 +624,15 @@ static int  __init d2d3_drv_init(void)
         d2d3_clsp = class_create(THIS_MODULE, D2D3_DEVICE_NAME);
         if (IS_ERR(d2d3_clsp)){
                 ret = PTR_ERR(d2d3_clsp);
+                printk(KERN_ERR "[d2d3..] %s create class error.\n",__func__);
                 goto failed_create_class;
         }
         if (platform_driver_register(&d2d3_driver)) {
                 printk("[d2d3..]%s failed to register d2d3 driver.\n",__func__);
                 goto failed_register_driver;
         }
+        printk("[d2d3..]%s:d2d3_init ok.\n",__func__);
+        return ret;
 #endif
 failed_register_driver:
         class_destroy(d2d3_clsp);

@@ -133,10 +133,19 @@ vpp_set_zoom_ratio(u32 r);
 
 extern u32
 vpp_get_zoom_ratio(void);
+
 extern void 
 vpp_set_osd_layer_preblend(u32*);
+
 extern 
 void vpp_set_osd_layer_position(s32*);
+
+extern
+s32 vpp_set_nonlinear_factor(u32 f);
+
+extern
+u32 vpp_get_nonlinear_factor(void);
+
 #ifdef CONFIG_AM_VIDEO2
 extern void
 vpp2_set_filters(u32 wide_mode, vframe_t * vf,

@@ -44,6 +44,13 @@
 #include <linux/adc_keypad.h>
 
 
+struct gpio_key {
+	int (*scan)(void);  
+  int code;
+  int steady_code;
+  int count;
+};
+
 struct kp {
         int (*led_control)(void *param);
 	int *led_control_param;
@@ -62,13 +69,80 @@ struct kp {
 	struct adc_key *key;
 	int key_num;
 	struct work_struct work_update;
+	struct gpio_key gpio_key;
+	int gpio_code;
+	int sense_key_up;
+
 };
 
 static struct kp *gp_kp=NULL;
 
 static int timer_count = 0;
 
-static int kp_search_key(struct kp *kp)
+
+static int ch_key_enable = 0;
+module_param(ch_key_enable, int, 0644);
+static int ch_key_value = 0;
+module_param(ch_key_value, int, 0644);
+
+
+static void kp_gpio_key(struct kp *kp)
+{
+  int code;
+  struct gpio_key *gk = &kp->gpio_key;
+ 
+  if (!gk->scan) return;
+  code = gk->scan() ? kp->gpio_code : 0;
+  
+  if ((!code) && (!gk->steady_code)) return;
+  else if (code != gk->code) {
+    gk->code = code;
+    gk->count = 0;
+  }
+  else if (++gk->count == 2) {
+		if (gk->steady_code != code) {
+
+			if (code) {
+				printk("gpio key %d down\n", code);
+				switch(ch_key_enable){
+				case 1:
+					printk("ch_key %d ch_key_enable=%d down\n", ch_key_value,ch_key_enable);
+					input_report_key(kp->input, ch_key_value, 1);
+					input_sync(kp->input);
+					 break;
+				case 0:
+					printk("gpio key %d ch_key_enable=%d down\n", code,ch_key_enable);
+					input_report_key(kp->input, code, 1);
+					input_sync(kp->input);
+					break;
+				default:
+					break;
+				}		
+			}
+			else{
+				printk("gpio key %d up\n", gk->steady_code);
+				switch(ch_key_enable){
+				case 1:
+					printk("ch_key %d ch_key_enable=%d up\n", ch_key_value,ch_key_enable);
+					input_report_key(kp->input,ch_key_value, 0);
+					input_sync(kp->input);
+					break;
+				case 0:
+					printk("gpio key %d ch_key_enable=%d up\n", code,ch_key_enable);
+					input_report_key(kp->input, gk->steady_code, 0);
+					input_sync(kp->input);
+					break;
+				default:
+					break;
+				}
+			}
+
+			gk->steady_code = code;
+		}
+  }
+}
+
+static struct adc_key * kp_search_key(struct kp *kp)
 {
 	struct adc_key *key;
 	int value, i, j;
@@ -83,7 +157,7 @@ static int kp_search_key(struct kp *kp)
 			if ((key->chan == kp->chan[i])
 			&& (value >= key->value - key->tolerance)
 			&& (value <= key->value + key->tolerance)) {
-				return key->code;
+				return key;
 			}
 			key++;
 		}
@@ -94,7 +168,8 @@ static int kp_search_key(struct kp *kp)
 
 static void kp_work(struct kp *kp)
 {
-	int code = kp_search_key(kp);
+	struct adc_key *key =  kp_search_key(kp);
+	int code = key ? key->code : 0;
 
 	if ((!code) && (!kp->cur_keycode)) {
 		return;
@@ -109,6 +184,7 @@ static void kp_work(struct kp *kp)
 				printk("key %d down\n", code);
 				input_report_key(kp->input, code, 1);
 				input_sync(kp->input);
+				kp->gpio_code = key->gpio_code;
 //				if (kp->led_control && (code!=KEY_PAGEUP) && (code!=KEY_PAGEDOWN)){
 //					kp->led_control_param[0] = 1;
 //					kp->led_control_param[1] = code;
@@ -116,9 +192,11 @@ static void kp_work(struct kp *kp)
 //				}
 			}
 			else {
-				printk("key %d up\n", kp->cur_keycode);
+				printk("jackkey %d up(%d)\n", kp->cur_keycode, kp->sense_key_up);
 				input_report_key(kp->input, kp->cur_keycode, 0);
+				//input_report_key(kp->input, kp->sense_key_up, 1);
 				input_sync(kp->input);
+				kp->gpio_code = 0;
 //				if (kp->led_control){
 //					kp->led_control_param[0] = 2;
 //					kp->led_control_param[1] = code;
@@ -136,7 +214,8 @@ static void update_work_func(struct work_struct *work)
 
 #if 1
     kp_work(kp_data);
-
+   kp_gpio_key(kp_data);
+    
     if (kp_data->led_control ){
 	if (timer_count>0)
 	{
@@ -267,6 +346,13 @@ static int __devinit kp_probe(struct platform_device *pdev)
     kp->cur_keycode = 0;
 		kp->tmp_code = 0;
 		kp->count = 0;
+
+    if (pdata->gpio_key_scan) {
+      kp->gpio_code = 0;
+      kp->gpio_key.steady_code = kp->gpio_key.code = 0;
+      kp->gpio_key.scan = pdata->gpio_key_scan;
+	  kp->sense_key_up = pdata->sense_key_up;
+    }
      
     INIT_WORK(&(kp->work_update), update_work_func);
      
@@ -276,7 +362,8 @@ static int __devinit kp_probe(struct platform_device *pdev)
     /* setup input device */
     set_bit(EV_KEY, input_dev->evbit);
     set_bit(EV_REP, input_dev->evbit);
-        
+    set_bit(BTN_TRIGGER_HAPPY18, input_dev->keybit);
+	
     kp->key = pdata->key;
     kp->key_num = pdata->key_num;
     if (pdata->led_control){
@@ -285,8 +372,11 @@ static int __devinit kp_probe(struct platform_device *pdev)
 
     key = pdata->key;
     kp->chan_num = 0;
+	
     for (i=0; i<kp->key_num; i++) {
         set_bit(key->code, input_dev->keybit);
+        set_bit(key->gpio_code, input_dev->keybit);
+		
         /* search the key chan */
         new_chan_flag = 1;
         for (j=0; j<kp->chan_num; j++) {

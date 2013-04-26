@@ -1520,7 +1520,7 @@ void trigger_key_init(void)
 
 }
 
-#if 0
+#if 1
 char asc_to_i(char para)
 {
     if(para>='0' && para<='9')
@@ -1549,11 +1549,11 @@ int get_aml_key_kernel(const char* key_name, unsigned char* data, int ascii_flag
 		return -1;
 	}
 	memset(buf, 0, MAX_BUF_LEN);
-	printk("11111111\n");
+	//printk("11111111\n");
 	key_name_store(NULL, NULL, key_name, strlen(key_name));
-	printk("2222222\n");
+	//printk("2222222\n");
 	ret = key_read_show(NULL, NULL, buf);
-	printk("hdcp strlen is %d\n", strlen(buf));
+	//printk("hdcp strlen is %d\n", strlen(buf));
 	if (ret >= 0) {
 		if (ascii_flag == 0) {
 			for (i=0, j=0; (i < MAX_BUF_LEN) && (buf[i]!=0); i++, j++){
@@ -1569,6 +1569,7 @@ int get_aml_key_kernel(const char* key_name, unsigned char* data, int ascii_flag
         return ret;
 }
 #endif
+EXPORT_SYMBOL(get_aml_key_kernel);
 
 /**
  *
@@ -1791,6 +1792,8 @@ int extenal_api_key_set_version(char *devvesion)
 	}
 	return err;
 }
+EXPORT_SYMBOL(extenal_api_key_set_version);
+
 int extenal_api_key_write(char *keyname,char *keydata)
 {
 	/*

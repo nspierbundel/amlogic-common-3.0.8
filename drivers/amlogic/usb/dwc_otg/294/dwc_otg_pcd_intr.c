@@ -1848,7 +1848,7 @@ static inline void pcd_setup(dwc_otg_pcd_t * pcd)
 			}
 		}
 #endif
-
+		core_if->device_connected = 1;
 		/* handle non-standard (class/vendor) requests in the gadget driver */
 		do_gadget_setup(pcd, &ctrl);
 		return;

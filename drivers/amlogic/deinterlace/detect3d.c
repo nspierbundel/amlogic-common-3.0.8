@@ -4,6 +4,7 @@
 /* Amlogic Headers */
 #include <mach/am_regs.h>
 
+#if MESON_CPU_TYPE == MESON_CPU_TYPE_MESON6TV
 /* Local include */
 #include <linux/tvin/tvin.h>
 #include "detect3d.h"
@@ -74,9 +75,13 @@ void det3d_enable(bool flag)
 			WRITE_CBUS_REG((DET3D_BASE_ADD + i), det3d_table[i]);
 		}
 
+		//Det 3D interrupt enble
+		WRITE_CBUS_REG_BITS(DET3D_MOTN_CFG, 1, DET3D_INTR_EN_BIT, DET3D_INTR_EN_WID);
 		//enable 3D detection
 		WRITE_CBUS_REG_BITS(NR2_SW_EN, 1, DET3D_EN_BIT, DET3D_EN_WID);
 	}else{
+		//Det 3D interrupt disable
+		WRITE_CBUS_REG_BITS(DET3D_MOTN_CFG, 0, DET3D_INTR_EN_BIT, DET3D_INTR_EN_WID);
 		//disable 3D detection
 		WRITE_CBUS_REG_BITS(NR2_SW_EN, 0, DET3D_EN_BIT, DET3D_EN_WID);
 	}
@@ -121,7 +126,7 @@ static void det3d_accumulate_score(int lr_score, int tb_score, int int_score, in
 		det3d_info.chs_valid_his[0]= chessbd_score; 
 		det3d_info.int_valid_his[0]= int_score;
 		det3d_info.tscore_3d_lr_accum = (lr_score <= 0) ? 1 : 0;
-		det3d_info.tscore_3d_lr_accum = (tb_score <= 0) ? 1 : 0;
+		det3d_info.tscore_3d_tb_accum = (tb_score <= 0) ? 1 : 0;
 	}else{
 		det3d_info.score_3d_lr = det3d_info.score_3d_lr + lr_score;
 		det3d_info.score_3d_tb = det3d_info.score_3d_tb + tb_score;
@@ -285,19 +290,19 @@ enum det3d_fmt_e det3d_fmt_detect(void)
 		det3d_info.score_3d_tb = 0;     
 
 	if ((det3d_info.score_3d_chs > CHESSBOADE_SCORE_LOWER_LIMIT) && (det3d_info.score_3d_int < NOT_INTERLACE_SCORE_UPPER_LIMIT)){
-		det3d_info.tfw_det3d_fmt= DET3D_FMT_CHESSBOARD;
+		det3d_info.tfw_det3d_fmt= TVIN_TFMT_3D_DET_CHESSBOARD;
 		det3d_info.score_3d_lr = 0;
 		det3d_info.score_3d_tb = 0;
 	}else if ((det3d_info.score_3d_int > INTERLACE_SCORE_LOWER_LIMIT) && (det3d_info.score_3d_chs < NOT_CHESSBOAD_SCORE_UPPER_LIMIT)){
-		det3d_info.tfw_det3d_fmt= DET3D_FMT_INTERLACE;
+		det3d_info.tfw_det3d_fmt= TVIN_TFMT_3D_DET_INTERLACE;
 		det3d_info.score_3d_lr = 0;
 		det3d_info.score_3d_tb = 0;
 	}else if ((det3d_info.score_3d_lr > LR_SCORE_LOWER_LIMIT) && (det3d_info.score_3d_lr > det3d_info.score_3d_tb)){
-		det3d_info.tfw_det3d_fmt = DET3D_FMT_LR;
+		det3d_info.tfw_det3d_fmt = TVIN_TFMT_3D_LRH_OLOR;
 	}else if ((det3d_info.score_3d_tb > TB_SCORE_LOWER_LIMIT) && (det3d_info.score_3d_lr < det3d_info.score_3d_tb)){
-		det3d_info.tfw_det3d_fmt = DET3D_FMT_TB;
+		det3d_info.tfw_det3d_fmt = TVIN_TFMT_3D_TB;
 	}else if ((det3d_info.score_3d_tb < NOT_LR_SCORE_UPPER_LIMIT) && (det3d_info.score_3d_lr < NOT_TB_SCORE_UPPER_LIMIT)){
-		det3d_info.tfw_det3d_fmt = DET3D_FMT_NULL;
+		det3d_info.tfw_det3d_fmt = TVIN_TFMT_2D;
 	}else{ 
 		// keep previous status
 		det3d_info.tfw_det3d_fmt = det3d_info.tfw_det3d_fmt;
@@ -309,8 +314,11 @@ enum det3d_fmt_e det3d_fmt_detect(void)
 		}
 	}  
 
+#if defined DER3D_DEBUG_EN
 	pr_info("det3d:frame = %d, 3D_fmt = %d, score_3d_lr = %d, score_3d_tb = %d, score_3d_int = %d, score_3d_chs = %d",
 			det3d_info.nfrm, det3d_info.tfw_det3d_fmt, det3d_info.score_3d_lr, det3d_info.score_3d_tb, det3d_info.score_3d_int, det3d_info.score_3d_chs);
-
+#endif
 	return det3d_info.tfw_det3d_fmt;
 }
+
+#endif

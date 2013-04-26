@@ -78,6 +78,16 @@ typedef struct ca_pid {
 	int index;		/* -1 == disable*/
 } ca_pid_t;
 
+typedef struct ca_lpdu_write {
+	int wlen;
+	unsigned char *wdata;
+} ca_lpdu_write_t;
+
+typedef struct ca_lpdu_read {
+	int rlen;
+	unsigned char *rdata;
+} ca_lpdu_read_t;
+
 #define CA_RESET          _IO('o', 128)
 #define CA_GET_CAP        _IOR('o', 129, ca_caps_t)
 #define CA_GET_SLOT_INFO  _IOR('o', 130, ca_slot_info_t)
@@ -86,5 +96,7 @@ typedef struct ca_pid {
 #define CA_SEND_MSG       _IOW('o', 133, ca_msg_t)
 #define CA_SET_DESCR      _IOW('o', 134, ca_descr_t)
 #define CA_SET_PID        _IOW('o', 135, ca_pid_t)
+#define CA_LPDU_WRITE        _IOW('o', 136, ca_lpdu_write_t)
+#define CA_LPDU_READ        _IOR('o', 137, ca_lpdu_read_t)
 
 #endif

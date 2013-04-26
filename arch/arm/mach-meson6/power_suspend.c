@@ -35,6 +35,9 @@
 #include <asm/cacheflush.h>
 #include <plat/regops.h>
 #include <linux/reboot.h>
+#ifdef CONFIG_SUSPEND_WATCHDOG
+#include <mach/watchdog.h>
+#endif /* CONFIG_SUSPEND_WATCHDOG */
 
 //appf functions
 #define APPF_INITIALIZE             0
@@ -47,6 +50,7 @@
 #define APPF_SAVE_DEBUG        (1<<3)
 #define APPF_SAVE_L2           (1<<4)
 
+#if 0
 #ifdef CONFIG_HARDWARE_WATCHDOG
 void disable_watchdog(void)
 {
@@ -68,6 +72,8 @@ void reset_watchdog(void)
     aml_write_reg32(P_WATCHDOG_RESET, 0);	
 }
 #endif /* CONFIG_HARDWARE_WATCHDOG */
+#endif
+
 
 int meson_power_suspend(void)
 {
@@ -87,12 +93,12 @@ int meson_power_suspend(void)
 		pwrtest_entry(APPF_INITIALIZE,0,0,0);
 	}
 #ifdef CONFIG_SUSPEND_WATCHDOG
-	disable_watchdog();
+	DISABLE_SUSPEND_WATCHDOG;
 #endif
 	printk("power down cpu --\n");
 	pwrtest_entry(APPF_POWER_DOWN_CPU,0,0,APPF_SAVE_PMU|APPF_SAVE_VFP|APPF_SAVE_L2);
 #ifdef CONFIG_SUSPEND_WATCHDOG
-	enable_watchdog();
+	ENABLE_SUSPEND_WATCHDOG;
 #endif
 	return 0;
 }

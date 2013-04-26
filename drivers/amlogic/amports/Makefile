@@ -68,6 +68,7 @@ amvdec_real-y    := vreal.o ${meson-arch}/ucode/real/vreal_mc.o
 
 obj-$(CONFIG_AM_JPEGDEC) += jpegdec.o ${meson-arch}/ucode/jpeg/jpeg_mc.o
 
+obj-$(CONFIG_AM_ENCODER) += encoder.o ${meson-arch}/ucode/encoder/encoder_mc.o
 obj-$(CONFIG_AM_VIDEO) += amvideo.o
 amvideo-objs := video.o vpp.o
 amvideo-y    := video.o vpp.o

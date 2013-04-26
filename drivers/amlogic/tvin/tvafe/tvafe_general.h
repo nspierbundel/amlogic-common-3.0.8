@@ -32,6 +32,8 @@ typedef struct tvafe_cal_operand_s {
 	unsigned int bpg_h;
 	unsigned int bpg_v;
 	unsigned int clk_ctl;
+	unsigned int vafe_ctl;
+	unsigned int sync_mux :1;
 	unsigned int clk_ext  :1;
 	unsigned int bpg_m    :2;
 	unsigned int lpf_a    :1;

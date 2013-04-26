@@ -2210,7 +2210,7 @@ int dwc_otg_pcd_ep_queue(dwc_otg_pcd_t * pcd, void *ep_handle,
 		req->dw_align_buf = DWC_DMA_ALLOC(buflen,
 				 &req->dw_align_buf_dma);
 	DWC_SPINLOCK_IRQSAVE(pcd->lock, &flags);
-
+#if 0
 	/*
 	 * After adding request to the queue for IN ISOC wait for In Token Received
 	 * when TX FIFO is empty interrupt and for OUT ISOC wait for OUT Token 
@@ -2234,7 +2234,7 @@ int dwc_otg_pcd_ep_queue(dwc_otg_pcd_t * pcd, void *ep_handle,
 		}
 		return 0;
 	}
-
+#endif
 	/*
 	 * For EP0 IN without premature status, zlp is required?
 	 */

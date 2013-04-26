@@ -139,15 +139,25 @@ void arm_machine_restart(char mode, const char *cmd)
 #if defined (CONFIG_PLAT_MESON) && !defined(CONFIG_ARCH_MESON2)
     u32 reboot_reason = MESON_NORMAL_BOOT;
     if (cmd) {
-        if (strcmp(cmd, "recovery") == 0)
-            reboot_reason = MESON_FACTORY_RESET_REBOOT;
-        else if (strcmp(cmd, "charging_reboot") == 0)
+        if (strcmp(cmd, "charging_reboot") == 0)
             reboot_reason = MESON_CHARGING_REBOOT;
+        else if (strcmp(cmd, "recovery") == 0 || strcmp(cmd, "factory_reset") == 0)
+            reboot_reason = MESON_FACTORY_RESET_REBOOT;
+        else if (strcmp(cmd, "update") == 0)
+            reboot_reason = MESON_UPDATE_REBOOT;
+        else if (strcmp(cmd, "report_crash") == 0)
+            reboot_reason = MESON_CRASH_REBOOT;
         else if (strcmp(cmd, "factory_testl_reboot") == 0)
             reboot_reason = MESON_FACTORY_TEST_REBOOT;
-		else if (strcmp(cmd, "usb_burner_reboot") == 0)
+        else if (strcmp(cmd, "switch_system") == 0)
+            reboot_reason = MESON_SYSTEM_SWITCH_REBOOT;
+        else if (strcmp(cmd, "safe_mode") == 0)
+            reboot_reason = MESON_SAFE_REBOOT;
+        else if (strcmp(cmd, "lock_system") == 0)
+            reboot_reason = MESON_LOCK_REBOOT;
+        else if (strcmp(cmd, "usb_burner_reboot") == 0)
             reboot_reason = MESON_USB_BURNER_REBOOT;
-    }
+	}
     aml_write_reg32(P_AO_RTI_STATUS_REG1, reboot_reason);
     printk("reboot_reason(0x%x) = 0x%x\n", P_AO_RTI_STATUS_REG1, aml_read_reg32(P_AO_RTI_STATUS_REG1));
 #endif /* CONFIG_PLAT_MESON */
@@ -243,10 +253,10 @@ void cpu_idle(void)
 {
     local_fiq_enable();
 
-    /* endless idle loop with no priority at all */
+	/* endless idle loop with no priority at all */
     while (1) {
-        tick_nohz_stop_sched_tick(1);
         idle_notifier_call_chain(IDLE_START);
+        tick_nohz_stop_sched_tick(1);
         while (!need_resched()) {
 #ifdef CONFIG_HOTPLUG_CPU
             if (cpu_is_offline(smp_processor_id()))
@@ -293,7 +303,16 @@ __setup("reboot=", reboot_setup);
 void machine_shutdown(void)
 {
 #ifdef CONFIG_SMP
-    smp_send_stop();
+	/*
+	 * Disable preemption so we're guaranteed to
+	 * run to power off or reboot and prevent
+	 * the possibility of switching to another
+	 * thread that might wind up blocking on
+	 * one of the stopped CPUs.
+	 */
+	preempt_disable();
+
+	smp_send_stop();
 #endif
 }
 

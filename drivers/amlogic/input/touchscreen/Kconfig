@@ -113,5 +113,18 @@ config UOR6X5X_RESISTIVE_TOUCHSCREEN
 	default n
 	help
 	  Say Y here if you want to use the UOR6X5X resistive panel.
+	  
+
+config GSL2680_CAPACITIVE_TOUCHSCREEN
+	tristate "GSL2680 I2C capacitive touchscreen"
+	depends on I2C
+	default n
+	help
+	  Say Y here if you want to use the Gsl2680 capacitive panel.
+
+# VTL TouchScreen Driver Config
+menu "Ct36x Touch device support"
+source "drivers/amlogic/input/touchscreen/ct36x_ts/Kconfig"
+endmenu
 
 endif # MESON_INPUT_TOUCHSCREEN

@@ -28,6 +28,17 @@
 #define SET_VREG_MASK(r, mask) WRITE_VREG(r, READ_VREG(r) | (mask))
 #define CLEAR_VREG_MASK(r, mask) WRITE_VREG(r, READ_VREG(r) & ~(mask))
 
+#define READ_HREG(r) (__raw_readl(HDEC_REG_ADDR(r)))
+#define WRITE_HREG(r, val) __raw_writel(val, HDEC_REG_ADDR(r))
+#define WRITE_HREG_BITS(r, val, start, len) \
+    WRITE_HREG(r, (READ_HREG(r) & ~(((1L<<(len))-1)<<(start)))|((unsigned)((val)&((1L<<(len))-1)) << (start)))
+#define SET_HREG_MASK(r, mask) WRITE_HREG(r, READ_HREG(r) | (mask))
+#define CLEAR_HREG_MASK(r, mask) WRITE_HREG(r, READ_HREG(r) & ~(mask))
+
+#define READ_SEC_REG(r) (__raw_readl(SECBUS_REG_ADDR(r)))
+#define WRITE_SEC_REG(r, val) __raw_writel(val, SECBUS_REG_ADDR(r))
+#define WRITE_SEC_REG_BITS(r, val, start, len) \
+    WRITE_SEC_REG(r, (READ_SEC_REG(r) & ~(((1L<<(len))-1)<<(start)))|((unsigned)((val)&((1L<<(len))-1)) << (start)))
 #define ASSIST_MBOX1_CLR_REG VDEC_ASSIST_MBOX1_CLR_REG
 #define ASSIST_MBOX1_MASK VDEC_ASSIST_MBOX1_MASK
 #define ASSIST_AMR1_INT0 VDEC_ASSIST_AMR1_INT0

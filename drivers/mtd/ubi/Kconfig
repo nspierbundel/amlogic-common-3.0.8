@@ -12,7 +12,7 @@ if MTD_UBI
 
 config MTD_UBI_WL_THRESHOLD
 	int "UBI wear-leveling threshold"
-	default 4096
+	default 2048
 	range 2 65536
 	help
 	  This parameter defines the maximum difference between the highest
@@ -62,7 +62,7 @@ config MTD_UBI_DEBUG
 
 config MTD_UBI_IGNORE_IO_BITFLIPS
 	bool "ignore UBI UBI_IO_BITFLIPS"
-	default y
+	default n
 	help
 	  this option ignore UBI_IO_BITFLIPS
 

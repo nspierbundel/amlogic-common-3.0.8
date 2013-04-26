@@ -51,6 +51,13 @@ config MESON_CLOCK_TICK_RATE
 	int "Clock Tick Rate"
 	default 25000000
 
+config MESON_ARM_GIC_FIQ
+	bool "ARM Generic Interrupt Controller FIQ"
+	depends on ARM_GIC
+	help
+	 	enable ARM GIC FIQ	 
+	 default n
+	 
 config MESON_SUSPEND
 	bool "Support Meson A9 domain power down"
 	depends on SUSPEND 
@@ -63,14 +70,9 @@ config MESON_SUSPEND_FIRMWARE_BASE
 	help
 	  The base address of 1MB of memory reserved for suspend firmware.
 
-config HARDWARE_WATCHDOG
-	bool "Enable hardware watchdog while system panic"
-	depends on MESON_SUSPEND
-	default n
-	
 config SUSPEND_WATCHDOG
 	bool "Enable hardware watchdog while system halt in suspend or resume process"
-	depends on MESON_SUSPEND && HARDWARE_WATCHDOG
+	depends on MESON_SUSPEND
 	default n
 	
 config MESON_SUSPEND_TEST
@@ -99,10 +101,12 @@ config MESON_PLATFORM_API
 	default n
 	help
 	  This is the new Meson platform structure API
+
 source "arch/arm/mach-meson1/Kconfig"
 source "arch/arm/mach-meson2/Kconfig"
 source "arch/arm/mach-meson3/Kconfig"
 source "arch/arm/mach-meson6/Kconfig"
+source "arch/arm/mach-meson6tv/Kconfig"
 
 config MESON_CUSTOM_BOARD_SUPPORT
 	bool "Support customer board"

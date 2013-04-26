@@ -35,7 +35,9 @@
 #include <linux/slab.h>
 #include <linux/module.h>
 #include <linux/kref.h>
-#include <linux/spinlock.h>
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,0,0))
+#include <linux/smp_lock.h>
+#endif
 #include <linux/netdevice.h>
 #include <linux/skbuff.h>
 #include <linux/usb.h>
@@ -518,11 +520,15 @@ _func_enter_;
 	if (ph2c == NULL)
 		return _FAIL;
 
+	_memset(ph2c, 0, sizeof(struct cmd_obj));
+
 	psurveyPara = (struct sitesurvey_parm*)_malloc(sizeof(struct sitesurvey_parm));
 	if (psurveyPara == NULL) {
 		_mfree((unsigned char*) ph2c, sizeof(struct cmd_obj));
 		return _FAIL;
 	}
+
+	_memset(psurveyPara, 0, sizeof(struct sitesurvey_parm));
 
 	init_h2fwcmd_w_parm_no_rsp(ph2c, psurveyPara, GEN_CMD_CODE(_SiteSurvey));
 
@@ -533,6 +539,10 @@ _func_enter_;
 	if ((pssid != NULL) && (pssid->SsidLength)) {
 		_memcpy(psurveyPara->ss_ssid, pssid->Ssid, pssid->SsidLength);
 		psurveyPara->ss_ssidlen = cpu_to_le32(pssid->SsidLength);
+		// Commented by Kurt 20120323
+		// In Android 4.0 system, it would set passive scan cmd before set scan
+		// We have to change it to active scan to send probe request.
+		psurveyPara->passive_mode = 1;	// 1: active
 	}
 
 	set_fwstate(pmlmepriv, _FW_UNDER_SURVEY);
@@ -595,6 +605,12 @@ u8 set_chplan_cmd(_adapter *padapter, int chplan)
 
 _func_enter_;
 
+	//check input parameter
+	if(!rtw_is_channel_plan_valid(chplan)) {
+		res = _FAIL;
+		goto exit;
+	}
+	
 	ph2c = (struct cmd_obj*)_malloc(sizeof(struct cmd_obj));
 	if (ph2c == NULL) {
 		res = _FAIL;
@@ -1354,6 +1370,9 @@ _func_enter_;
         } else {
 		_memcpy(&psetstakey_para->key, &psecuritypriv->dot118021XGrpKey[psecuritypriv->dot118021XGrpKeyid-1].skey, 16);
         }
+
+	//jeff: set this becasue at least sw key is ready
+	padapter->securitypriv.busetkipkey=_TRUE;
 
 	enqueue_cmd(pcmdpriv, ph2c);
 

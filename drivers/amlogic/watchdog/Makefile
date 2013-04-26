@@ -1,7 +1,7 @@
 #
-# AMLOGIC Watchdog.
+# Makefile for MHL
 #
 
-obj-$(CONFIG_AML_WATCHDOG) += aml_wdt.o
-aml_wdt-objs := aml_wdt_drv.o
+obj-$(CONFIG_AML_WATCHDOG)		+= wdt/
+obj-$(CONFIG_AML_WATCHDOG_TV)		+= wdt_tv/
 

@@ -42,8 +42,6 @@
 #include "edid.h"
 #include "dvin.h"
 
-//#define DEBUG_DVIN
-
 #define DEVICE_NAME "it660x"
 #define HDMI_RX_COUNT 4
 
@@ -182,8 +180,8 @@ int active_start_pix_fo;
 int active_start_line_fe; 
 int active_start_line_fo; 
 int line_width;           
-int field_height; 
-#endif       
+int field_height;        
+#endif
 static ssize_t store_dbg(struct device * dev, struct device_attribute *attr, const char * buf, size_t count)
 {
     char tmpbuf[128];
@@ -792,33 +790,13 @@ static void start_vdin(int width, int height, int frame_rate, int field_flag)
         hdmirx_device.cur_height = height;
         hdmirx_device.cur_frame_rate = frame_rate;
         
-#ifdef DEBUG_DVIN  
-        hs_pol_inv = 0;
-        vs_pol_inv = height>480?0:1;          
-        de_pol_inv = 0;          
-        field_pol_inv = 0;       
-        ext_field_sel = 0;       
-        de_mode = 0;             
-        data_comp_map = 0;       
-        mode_422to444 = 0;       
-        dvin_clk_inv = 0;        
-        vs_hs_tim_ctrl = 0;      
-        hs_lead_vs_odd_min = 0;  
-        hs_lead_vs_odd_max = 0;  
-        active_start_pix_fe = getHDMIRXHorzBackPorch(); 
-        active_start_pix_fo = getHDMIRXHorzBackPorch(); 
-        active_start_line_fe = getHDMIRXVertSyncBackPorch();
-        active_start_line_fo = getHDMIRXVertSyncBackPorch();
-        line_width = getHDMIRXHorzTotal();          
-        field_height = getHDMIRXVertTotal();
-#endif
         if(field_flag && height <= 480 ){
             config_dvin(0, //hs_pol_inv,          
                       1, //vs_pol_inv,          
                       0, //de_pol_inv,          
                       0, //field_pol_inv,       
                       0, //ext_field_sel,       
-                      2, //de_mode,             
+                      3, //de_mode,             
                       0, //data_comp_map,       
                       0, //mode_422to444,       
                       0, //dvin_clk_inv,        
@@ -837,9 +815,9 @@ static void start_vdin(int width, int height, int frame_rate, int field_flag)
             config_dvin(0, //hs_pol_inv,          
                       height>480?0:1, //vs_pol_inv,          
                       0, //de_pol_inv,          
-                      0, //field_pol_inv,       
+                      (field_flag && height>=540)?1:0, //field_pol_inv, set to 1 for 1080i
                       0, //ext_field_sel,       
-                      0, //de_mode,             
+                      3, //de_mode,             
                       0, //data_comp_map,       
                       0, //mode_422to444,       
                       0, //dvin_clk_inv,        

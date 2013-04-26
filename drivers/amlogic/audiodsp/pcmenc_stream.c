@@ -8,8 +8,7 @@
  *  Created: 04/16 2012
  *
  *******************************************************************/
-/*Dirty hack to include cpu types"*/
-#include <mach/cpu.h>
+
 #include "pcmenc_stream.h"
 #include <linux/amports/dsp_register.h>
 #include <linux/dma-mapping.h>

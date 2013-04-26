@@ -14,6 +14,7 @@ config MEM_MIPI
 	bool "Amlogic MEM_MIPI device"
 	default n
 	depends on  AMLOGIC_MIPI
+	select AM_GE2D
 	help
 		Amlogic MEM_MIPI device driver.
 

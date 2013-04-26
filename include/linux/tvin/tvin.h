@@ -15,6 +15,30 @@
 #ifndef __TVIN_H
 #define __TVIN_H
 
+#include <plat/io.h>
+
+#define R_CBUS_REG(reg) aml_read_reg32(CBUS_REG_ADDR(reg))
+#define W_CBUS_REG(reg, val) aml_write_reg32(CBUS_REG_ADDR(reg), val)
+#define R_CBUS_BIT(reg, start, len) \
+	aml_get_reg32_bits(CBUS_REG_ADDR(reg), start, len)
+#define W_CBUS_BIT(reg, val, start, len) \
+	aml_set_reg32_bits(CBUS_REG_ADDR(reg), val, start, len)
+
+#define R_APB_REG(reg) aml_read_reg32(APB_REG_ADDR(reg))
+#define W_APB_REG(reg, val) aml_write_reg32(APB_REG_ADDR(reg), val)
+#define R_APB_BIT(reg, start, len) \
+	aml_get_reg32_bits(APB_REG_ADDR(reg), start, len)
+#define W_APB_BIT(reg, val, start, len) \
+	aml_set_reg32_bits(APB_REG_ADDR(reg), val, start, len)
+
+
+enum {
+	MEMP_VDIN_WITHOUT_3D = 0,
+	MEMP_VDIN_WITH_3D,
+	MEMP_DCDR_WITHOUT_3D,
+	MEMP_DCDR_WITH_3D,
+};
+
 // ***************************************************************************
 // *** TVIN general definition/enum/struct ***********************************
 // ***************************************************************************
@@ -25,7 +49,6 @@ typedef enum tvin_port_e {
         TVIN_PORT_BT656   = 0x00000200,
         TVIN_PORT_BT601,
         TVIN_PORT_CAMERA,
-        TVIN_PORT_CAMERA_YUYV,
         TVIN_PORT_VGA0    = 0x00000400,
         TVIN_PORT_VGA1,
         TVIN_PORT_VGA2,
@@ -68,16 +91,8 @@ typedef enum tvin_port_e {
         TVIN_PORT_HDMI7,
         TVIN_PORT_DVIN0   = 0x00008000,
         TVIN_PORT_VIU     = 0x0000C000,
-        TVIN_PORT_VIU_ENCT,
-        TVIN_PORT_VIU_ENCP,
-        TVIN_PORT_VIU_ENCI,
-#if defined(CONFIG_ARCH_MESON6)
         TVIN_PORT_MIPI    = 0x00010000,
-        TVIN_PORT_MIPI_NV21 = 0x00010001,
-        TVIN_PORT_MIPI_NV12 = 0x00010002,
-#endif
-        TVIN_PORT_VIU_GAMMA_PROC,
-        TVIN_PORT_MAX       = 0x80000000,
+        TVIN_PORT_MAX     = 0x80000000,
 } tvin_port_t;
 
 const char * tvin_port_str(enum tvin_port_e port);
@@ -155,13 +170,13 @@ typedef enum tvin_sig_fmt_e {
         TVIN_SIG_FMT_VGA_1280X768P_59HZ_D870            = 0x042,
         TVIN_SIG_FMT_VGA_1280X768P_59HZ_D995            = 0x043,
         TVIN_SIG_FMT_VGA_1280X768P_60HZ_D100            = 0x044,
-        TVIN_SIG_FMT_VGA_1280X768P_60HZ_D100_A          = 0x045,
+        TVIN_SIG_FMT_VGA_1280X768P_85HZ_D000            = 0x045,
         TVIN_SIG_FMT_VGA_1280X768P_74HZ_D893            = 0x046,
         TVIN_SIG_FMT_VGA_1280X768P_84HZ_D837            = 0x047,
         TVIN_SIG_FMT_VGA_1280X800P_59HZ_D810            = 0x048,
         TVIN_SIG_FMT_VGA_1280X800P_59HZ_D810_A          = 0x049,
         TVIN_SIG_FMT_VGA_1280X800P_60HZ_D000            = 0x04a,
-        TVIN_SIG_FMT_VGA_1280X800P_60HZ_D000_A          = 0x04b,
+        TVIN_SIG_FMT_VGA_1280X800P_85HZ_D000            = 0x04b,
         TVIN_SIG_FMT_VGA_1280X960P_60HZ_D000            = 0x04c,
         TVIN_SIG_FMT_VGA_1280X960P_60HZ_D000_A          = 0x04d,
         TVIN_SIG_FMT_VGA_1280X960P_75HZ_D000            = 0x04e,
@@ -206,7 +221,7 @@ typedef enum tvin_sig_fmt_e {
         TVIN_SIG_FMT_VGA_1920X1200P_59HZ_D950           = 0x075,
         TVIN_SIG_FMT_VGA_1024X768P_60HZ_D000_C          = 0x076,
         TVIN_SIG_FMT_VGA_1024X768P_60HZ_D000_D          = 0x077,
-        TVIN_SIG_FMT_VGA_RESERVE3                       = 0x078,
+        TVIN_SIG_FMT_VGA_1920X1200P_59HZ_D988            = 0x078,
         TVIN_SIG_FMT_VGA_RESERVE4                       = 0x079,
         TVIN_SIG_FMT_VGA_RESERVE5                       = 0x07a,
         TVIN_SIG_FMT_VGA_RESERVE6                       = 0x07b,
@@ -375,6 +390,11 @@ typedef enum tvin_trans_fmt {
         TVIN_TFMT_3D_LRF,  // Secondary: Side-by-Side(Full)
         TVIN_TFMT_3D_LD,   // Secondary: L+depth
         TVIN_TFMT_3D_LDGD, // Secondary: L+depth+Graphics+Graphics-depth
+        /* normal 3D format */
+        TVIN_TFMT_3D_DET_TB,
+        TVIN_TFMT_3D_DET_LR,
+        TVIN_TFMT_3D_DET_INTERLACE,
+        TVIN_TFMT_3D_DET_CHESSBOARD,
 } tvin_trans_fmt_t;
 
 const char *tvin_trans_fmt_str(enum tvin_trans_fmt trans_fmt);
@@ -730,6 +750,8 @@ typedef struct tvafe_pin_mux_s {
 #define TVIN_IOC_RESUME_DEC         _IO(TVIN_IOC_MAGIC, 0x42)
 #define TVIN_IOC_VF_REG             _IO(TVIN_IOC_MAGIC, 0x43)
 #define TVIN_IOC_VF_UNREG           _IO(TVIN_IOC_MAGIC, 0x44)
+#define TVIN_IOC_FREEZE_VF          _IO(TVIN_IOC_MAGIC, 0x45)
+#define TVIN_IOC_UNFREEZE_VF        _IO(TVIN_IOC_MAGIC, 0x46)
 
 
 //TVAFE

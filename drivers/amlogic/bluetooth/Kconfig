@@ -14,5 +14,8 @@ config BCM4329_BT
     depends on BT_DEVICE
     help
         Say y here if you want to use BCM4329 BT.
+        
+source "drivers/amlogic/bluetooth/rtk8723/Kconfig"
     
+source "drivers/amlogic/bluetooth/mtk_wcn_bt/Kconfig"
 endmenu

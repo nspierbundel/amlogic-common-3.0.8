@@ -4,7 +4,10 @@
 #include <plat/fiq_bridge.h>
 
 //remote config  ioctl  cmd
+#define   REMOTE_IOC_UNFCODE_CONFIG              _IOW_BAD('I',12,sizeof(short))
+#define   REMOTE_IOC_INFCODE_CONFIG              _IOW_BAD('I',13,sizeof(short))
 #define REMOTE_IOC_RESET_KEY_MAPPING	    _IOW_BAD('I',3,sizeof(short))
+#define REMOTE_IOC_SET_REPEAT_KEY_MAPPING   _IOW_BAD('I',20,sizeof(short))
 #define REMOTE_IOC_SET_KEY_MAPPING		    _IOW_BAD('I',4,sizeof(short))
 #define REMOTE_IOC_SET_MOUSE_MAPPING	    _IOW_BAD('I',5,sizeof(short))
 #define REMOTE_IOC_SET_REPEAT_DELAY		    _IOW_BAD('I',6,sizeof(short))
@@ -69,19 +72,20 @@
 #define REMOTE_SW_RC6_PATTERN                   (0x2<<4)
 #define REMOTE_SW_RC5_PATTERN                   (0x3<<4)
 #define REMOTE_SW_COMCAST_PATTERN                   (0x4<<4)
-
 #define REMOTE_WORK_MODE_SW 				(0)
 #define REMOTE_WORK_MODE_HW					(1)
 #define REMOTE_WORK_MODE_FIQ				(2)
 #define REMOTE_WORK_MODE_INV				(3)
 #define REMOTE_WORK_MODE_MASK 				(7)
 #define REMOTE_WORK_MODE_FIQ_RCMM			(4)
+#define REMOTE_WORK_MODE_RCA       (6)
 
 #define REMOTE_TOSHIBA_HW			(REMOTE_HW_TOSHIBA_PATTERN|REMOTE_WORK_MODE_HW)
 #define REMOTE_NEC_HW				(REMOTE_HW_NEC_PATTERN|REMOTE_WORK_MODE_HW)
 #define REMOTE_WORK_MODE_RC6       (REMOTE_SW_RC6_PATTERN|REMOTE_WORK_MODE_FIQ)
 #define REMOTE_WORK_MODE_RC5       (REMOTE_SW_RC5_PATTERN|REMOTE_WORK_MODE_FIQ)
 #define REMOTE_WORK_MODE_COMCAST       (REMOTE_SW_COMCAST_PATTERN|REMOTE_WORK_MODE_SW)
+
 
 #define REMOTE_STATUS_WAIT       0
 #define REMOTE_STATUS_LEADER     1
@@ -120,7 +124,7 @@ struct remote {
 	unsigned int repeate_flag;
 	unsigned int repeat_enable;
 	unsigned int debounce;
-	unsigned int custom_code;
+	unsigned int custom_code[2];
 	unsigned int release_delay;
 	unsigned int debug_enable;
 	//sw
@@ -128,7 +132,7 @@ struct remote {
 	unsigned int step;
 	unsigned int send_data;
 	bridge_item_t fiq_handle_item;
-
+	unsigned int key_repeat_map[100];
 	unsigned int bit_count;
 	unsigned int bit_num;
 	unsigned int last_jiffies;
@@ -148,6 +152,7 @@ extern type_printk input_dbg;
 extern irqreturn_t remote_bridge_isr(int irq, void *dev_id);
 extern irqreturn_t remote_rc5_bridge_isr(int irq, void *dev_id);
 extern irqreturn_t remote_rc6_bridge_isr(int irq, void *dev_id);
+extern irqreturn_t remote_rca_bridge_isr(int irq, void *dev_id);
 extern int register_fiq_bridge_handle(bridge_item_t * c_item);
 extern int unregister_fiq_bridge_handle(bridge_item_t * c_item);
 extern int fiq_bridge_pulse_trigger(bridge_item_t * c_item);
@@ -155,6 +160,7 @@ extern int fiq_bridge_pulse_trigger(bridge_item_t * c_item);
 void remote_sw_reprot_key(unsigned long data);
 extern void remote_rc5_reprot_key(unsigned long data);
 extern void remote_rc6_reprot_key(unsigned long data);
+extern void remote_rca_reprot_key(unsigned long data);
 void remote_send_key(struct input_dev *dev, unsigned int scancode,
                  unsigned int type);
 

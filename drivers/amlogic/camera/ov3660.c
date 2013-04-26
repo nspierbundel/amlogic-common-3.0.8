@@ -45,10 +45,6 @@
 #include "common/plat_ctrl.h"
 #include "common/vmapi.h"
 #include <mach/mod_gate.h>
-#ifdef CONFIG_HAS_EARLYSUSPEND
-#include <linux/earlysuspend.h>
-static struct early_suspend ov3660_early_suspend;
-#endif
 
 #define OV3660_CAMERA_MODULE_NAME "ov3660"
 #define TEST_I2C   1
@@ -88,11 +84,7 @@ static struct v4l2_fract ov3660_frmintervals_active = {
 
 #define EMDOOR_DEBUG_OV3660        1
 static struct i2c_client *ov3660_client;
-#ifdef CONFIG_VIDEO_AMLOGIC_FLASHLIGHT
-#include <media/amlogic/flashlight.h>
-extern aml_plat_flashlight_status_t get_flashlightflag(void);
-extern int set_flashlight(bool mode);
-#endif
+
 /* supported controls */
 static struct v4l2_queryctrl ov3660_qctrl[] = {
 	{
@@ -231,6 +223,12 @@ static struct ov3660_fmt formats[] = {
 	{
 		.name     = "YUV420P",
 		.fourcc   = V4L2_PIX_FMT_YUV420,
+		.depth    = 12,
+	}
+	,
+	{
+		.name     = "YVU420P",
+		.fourcc   = V4L2_PIX_FMT_YVU420,
 		.depth    = 12,
 	}
 };
@@ -2078,19 +2076,7 @@ static int vidioc_s_fmt_vid_cap(struct file *file, void *priv,
 		OV3660_set_resolution(dev,fh->height,fh->width);
 	}
 	#endif
-#ifdef CONFIG_VIDEO_AMLOGIC_FLASHLIGHT	
-	if (dev->platform_dev_data.flash_support) {
-		if (f->fmt.pix.pixelformat == V4L2_PIX_FMT_RGB24) {
-			if (get_flashlightflag() == FLASHLIGHT_ON) {
-				set_flashlight(true);
-			}
-		} else if(f->fmt.pix.pixelformat == V4L2_PIX_FMT_NV21){
-			if (get_flashlightflag() != FLASHLIGHT_TORCH) {
-				set_flashlight(false);
-			}		
-		}
-	}
-#endif	
+
 	ret = 0;
 out:
 	mutex_unlock(&q->vb_lock);
@@ -2224,7 +2210,11 @@ static int vidioc_enum_framesizes(struct file *file, void *fh,struct v4l2_frmsiz
 	}
 	if (fmt == NULL)
 		return -EINVAL;
-	if (fmt->fourcc == V4L2_PIX_FMT_NV21){
+	if ((fmt->fourcc == V4L2_PIX_FMT_NV21)
+		||(fmt->fourcc == V4L2_PIX_FMT_NV12)
+		||(fmt->fourcc == V4L2_PIX_FMT_YUV420)
+		||(fmt->fourcc == V4L2_PIX_FMT_YVU420)
+		){
 		if (fsize->index >= ARRAY_SIZE(ov3660_prev_resolution))
 			return -EINVAL;
 		frmsize = &ov3660_prev_resolution[fsize->index];
@@ -2563,29 +2553,6 @@ static const struct v4l2_subdev_ops ov3660_ops = {
 	.core = &ov3660_core_ops,
 };
 
-#ifdef CONFIG_HAS_EARLYSUSPEND
-static void aml_ov3660_early_suspend(struct early_suspend *h)
-{
-	printk("enter -----> %s \n",__FUNCTION__);
-	if(h && h->param) {
-		aml_plat_cam_data_t* plat_dat= (aml_plat_cam_data_t*)h->param;
-		if (plat_dat && plat_dat->early_suspend) {
-			plat_dat->early_suspend();
-		}
-	}
-}
-
-static void aml_ov3660_late_resume(struct early_suspend *h)
-{
-	printk("enter -----> %s \n",__FUNCTION__);
-	if(h && h->param) {
-		aml_plat_cam_data_t* plat_dat= (aml_plat_cam_data_t*)h->param;
-		if (plat_dat && plat_dat->late_resume) {
-			plat_dat->late_resume();
-		}
-	}
-}
-#endif
 #ifdef EMDOOR_DEBUG_OV3660
 //add by emdoor jf.s for debug ov3660
 unsigned int ov3660_reg_addr;
@@ -2675,14 +2642,6 @@ static int ov3660_probe(struct i2c_client *client,
 		kfree(t);
 		return err;
 	}
-#ifdef CONFIG_HAS_EARLYSUSPEND
-    printk("******* enter itk early suspend register *******\n");
-    ov3660_early_suspend.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN;
-    ov3660_early_suspend.suspend = aml_ov3660_early_suspend;
-    ov3660_early_suspend.resume = aml_ov3660_late_resume;
-    ov3660_early_suspend.param = plat_dat;
-	register_early_suspend(&ov3660_early_suspend);
-#endif
 #ifdef EMDOOR_DEBUG_OV3660
 	//add by emdoor jf.s for debug ov3660
 	ov3660_client = client;
@@ -2703,32 +2662,6 @@ static int ov3660_remove(struct i2c_client *client)
 	return 0;
 }
 
-static int ov3660_suspend(struct i2c_client *client, pm_message_t state)
-{
-	struct v4l2_subdev *sd = i2c_get_clientdata(client);
-	struct ov3660_device *t = to_dev(sd);
-	struct ov3660_fh  *fh = to_fh(t);
-	if(fh->stream_on == 1){
-		stop_tvin_service(0);
-	}
-	power_down_ov3660(t);
-	return 0;
-}
-
-static int ov3660_resume(struct i2c_client *client)
-{
-	struct v4l2_subdev *sd = i2c_get_clientdata(client);
-	struct ov3660_device *t = to_dev(sd);
-    struct ov3660_fh  *fh = to_fh(t);
-    tvin_parm_t para;
-    para.port  = TVIN_PORT_CAMERA;
-    para.fmt_info.fmt = TVIN_SIG_FMT_CAMERA_1280X720P_30Hz;
-    //OV3660_init_regs(t);
-	if(fh->stream_on == 1){
-        start_tvin_service(0,&para);
-	}
-	return 0;
-}
 static const struct i2c_device_id ov3660_id[] = {
 	{ "ov3660_i2c", 0 },
 	{ }
@@ -2739,7 +2672,5 @@ static struct v4l2_i2c_driver_data v4l2_i2c_data = {
 	.name = "ov3660",
 	.probe = ov3660_probe,
 	.remove = ov3660_remove,
-	.suspend = ov3660_suspend,
-	.resume = ov3660_resume,
 	.id_table = ov3660_id,
 };

@@ -47,8 +47,6 @@
 #include <linux/amlog.h>
 #include <mach/power_gate.h>
 
-#include <plat/io.h>
-
 #define PIN_MUX_REG_0	  0x202c
 #define P_PIN_MUX_REG_0  CBUS_REG_ADDR(PIN_MUX_REG_0)
 static    disp_module_info_t    *info;
@@ -70,7 +68,7 @@ SET_TV_CLASS_ATTR(vdac_setting,parse_vdac_setting)
 static const tvmode_t vmode_tvmode_tab[] =
 {
 	TVMODE_480I, TVMODE_480CVBS,TVMODE_480P, TVMODE_576I,TVMODE_576CVBS, TVMODE_576P, TVMODE_720P, TVMODE_1080I, TVMODE_1080P,
-    TVMODE_720P_50HZ, TVMODE_1080I_50HZ, TVMODE_1080P_50HZ,TVMODE_VGA,TVMODE_SVGA,TVMODE_XGA,TVMODE_SXGA
+    TVMODE_720P_50HZ, TVMODE_1080I_50HZ, TVMODE_1080P_50HZ,TVMODE_1080P_24HZ,TVMODE_VGA,TVMODE_SVGA,TVMODE_XGA,TVMODE_SXGA
 };
 
 
@@ -208,6 +206,17 @@ static const vinfo_t tv_info[] =
         .sync_duration_num = 50,
         .sync_duration_den = 1,
     },
+    { /* VMODE_1080P_24HZ */
+		.name              = "1080p24hz",
+		.mode              = VMODE_1080P_24HZ,
+        .width             = 1920,
+        .height            = 1080,
+        .field_height      = 1080,
+        .aspect_ratio_num  = 16,
+        .aspect_ratio_den  = 9,
+        .sync_duration_num = 24,
+        .sync_duration_den = 1,
+    },
     { /* VMODE_vga */
 		.name              = "vga",
 		.mode              = VMODE_VGA,
@@ -327,7 +336,7 @@ static int tv_vmode_is_supported(vmode_t mode)
 }
 static int tv_module_disable(vmode_t cur_vmod)
 {
-	video_dac_disable();
+	//video_dac_disable();
 	return 0;
 }
 #ifdef  CONFIG_PM

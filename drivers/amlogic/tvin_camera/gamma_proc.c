@@ -506,6 +506,7 @@ int gamma_adjust(void)
 		set_lcd_gamma_table_lvds(gamma_table, LCD_H_SEL_B);
 		gamma_proc_enable = 0;
 		local_irq_restore(flags);
+		return 0;
 	}
 	if (gamma_type == 1) {
 		gamma_proc_enable = 0;
@@ -760,6 +761,7 @@ gamma_proc_store(struct class *cla,struct class_attribute *attr,
 		para.fmt_info.hsync_phase = 1;
 		para.fmt_info.vsync_phase  = 0;	
 		if (gamma_proc_on == 0) {
+			aml_write_reg32(P_VPU_VIU_VENC_MUX_CTRL, (aml_read_reg32(P_VPU_VIU_VENC_MUX_CTRL)&(~0xff3))|0x880);
 			start_tvin_service(0,&para);
 			gamma_proc_on = 1;
 			printk("start gamma calc function\n");

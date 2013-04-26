@@ -93,11 +93,16 @@ MODULE_AMLOG(LOG_LEVEL_ERROR, 0, LOG_LEVEL_DESC, LOG_DEFAULT_MASK_DESC);
 #define STAT_TIMER_ARM      0x10
 #define STAT_VDEC_RUN       0x20
 
-#define FORCE_SET_PROG
+#define DEC_CONTROL_FLAG_FORCE_2500_720_576_INTERLACE  0x0002
+#define DEC_CONTROL_FLAG_FORCE_3000_704_480_INTERLACE  0x0004
+#define DEC_CONTROL_FLAG_FORCE_2500_704_576_INTERLACE  0x0008
+#define DEC_CONTROL_FLAG_FORCE_2500_544_576_INTERLACE  0x0010
+#define DEC_CONTROL_FLAG_FORCE_2500_480_576_INTERLACE  0x0020
 
 #if MESON_CPU_TYPE >= MESON_CPU_TYPE_MESON6  
 #define NV21
 #endif
+#define CCBUF_SIZE		5*1024
 
 static vframe_t *vmpeg_vf_peek(void*);
 static vframe_t *vmpeg_vf_get(void*);
@@ -136,10 +141,11 @@ static struct vframe_s *vfp_pool_display[VF_POOL_SIZE+1];
 static struct vframe_s *vfp_pool_recycle[VF_POOL_SIZE+1];
 static vfq_t newframe_q, display_q, recycle_q;
 
+static u32 dec_control = 0;
 static u32 frame_width, frame_height, frame_dur, frame_prog;
 static struct timer_list recycle_timer;
 static u32 stat;
-static u32 buf_start, buf_size;
+static u32 buf_start, buf_size, ccbuf_phyAddress;
 static DEFINE_SPINLOCK(lock);
 
 /* for error handling */
@@ -232,30 +238,55 @@ static irqreturn_t vmpeg12_isr(int irq, void *dev_id)
 
     reg = READ_VREG(MREG_BUFFEROUT);
 
-    if (reg) {
+	if ((reg >> 16) == 0xfe)
+	{	
+		wakeup_userdata_poll(reg & 0xffff, ccbuf_phyAddress, CCBUF_SIZE);
+		WRITE_VREG(MREG_BUFFEROUT, 0);
+	}
+	else   if (reg) {
         info = READ_VREG(MREG_PIC_INFO);
         offset = READ_VREG(MREG_FRAME_OFFSET);
 
-        if (((info & PICINFO_TYPE_MASK) == PICINFO_TYPE_I) &&
-            (pts_lookup_offset(PTS_TYPE_VIDEO, offset, &pts, 0) == 0)) {
+        if ((((info & PICINFO_TYPE_MASK) == PICINFO_TYPE_I) || ((info & PICINFO_TYPE_MASK) == PICINFO_TYPE_P))
+             && (pts_lookup_offset(PTS_TYPE_VIDEO, offset, &pts, 0) == 0)) {
             pts_valid = 1;
         }
 
         /*if (frame_prog == 0)*/ {
             frame_prog = info & PICINFO_PROG;
         }
-#ifdef FORCE_SET_PROG
-		if ((frame_width == 1920) &&
-			(frame_height == 1080) &&
-			(frame_dur == 3200)) {
-			 frame_prog = frame_prog | PICINFO_PROG;;
-		}
-		else if ((frame_width == 1440) &&
-			(frame_height == 1080) &&
-			(frame_dur == 3200)) {
-			 frame_prog = frame_prog | PICINFO_PROG;;
-		}
-#endif
+
+        if ((dec_control & DEC_CONTROL_FLAG_FORCE_2500_720_576_INTERLACE) &&
+            (frame_width == 720) &&
+            (frame_height == 576) &&
+            (frame_dur == 3840)) {
+            frame_prog = 0;
+        }
+        else if ((dec_control & DEC_CONTROL_FLAG_FORCE_3000_704_480_INTERLACE) &&
+            (frame_width == 704) &&
+            (frame_height == 480) &&
+            (frame_dur == 3200)) {
+            frame_prog = 0;
+        }
+        else if ((dec_control & DEC_CONTROL_FLAG_FORCE_2500_704_576_INTERLACE) &&
+            (frame_width == 704) &&
+            (frame_height == 576) &&
+            (frame_dur == 3840)) {
+            frame_prog = 0;
+        }
+        else if ((dec_control & DEC_CONTROL_FLAG_FORCE_2500_544_576_INTERLACE) &&
+            (frame_width == 544) &&
+            (frame_height == 576) &&
+            (frame_dur == 3840)) {
+            frame_prog = 0;
+        }
+	else if ((dec_control & DEC_CONTROL_FLAG_FORCE_2500_480_576_INTERLACE) &&
+            (frame_width == 480) &&
+            (frame_height == 576) &&
+            (frame_dur == 3840)) {
+            frame_prog = 0;
+        }
+
 
         if (frame_prog & PICINFO_PROG) {
             u32 index = ((reg & 7) - 1) & 3;
@@ -338,7 +369,7 @@ static irqreturn_t vmpeg12_isr(int irq, void *dev_id)
             set_frame_info(vf);
 
             vf->index = index;
-#if MESON_CPU_TYPE >= MESON_CPU_TYPE_MESON6  
+#if MESON_CPU_TYPE == MESON_CPU_TYPE_MESON6
             /* it is just a patch for display dithering, I do NOT find the root cause */
             vf->type = (info & PICINFO_TOP_FIRST) ?
                        VIDTYPE_INTERLACE_TOP : VIDTYPE_INTERLACE_BOTTOM;
@@ -535,7 +566,8 @@ static void vmpeg12_canvas_init(void)
         }
     }
 
-    WRITE_VREG(MREG_CO_MV_START, buf_start + 4 * decbuf_size);
+	ccbuf_phyAddress = buf_start + 4 * decbuf_size;
+    WRITE_VREG(MREG_CO_MV_START, buf_start + 4 * decbuf_size + CCBUF_SIZE);
 
 }
 
@@ -771,6 +803,8 @@ static void __exit amvdec_mpeg12_driver_remove_module(void)
 
 module_param(stat, uint, 0664);
 MODULE_PARM_DESC(stat, "\n amvdec_mpeg12 stat \n");
+module_param(dec_control, uint, 0664);
+MODULE_PARM_DESC(dec_control, "\n amvmpeg12 decoder control \n");
 
 module_init(amvdec_mpeg12_driver_init_module);
 module_exit(amvdec_mpeg12_driver_remove_module);

@@ -33,6 +33,8 @@ typedef enum tvafe_vga_auto_phase_state_e {
 	VGA_PHASE_ADJ,                      //write all the phase value, get the best value by the sum value
 	VGA_PHASE_EXCEPTION,
 	VGA_PHASE_END,
+	VGA_BORDER_DET,
+	VGA_VDIN_BORDER_DET,
 } tvafe_vga_auto_phase_state_t;
 
 typedef struct tvafe_vga_border_s {
@@ -90,5 +92,8 @@ extern bool tvafe_adc_check_frame_skip(struct tvafe_adc_s *adc);
 extern void tvafe_adc_configure( enum tvin_sig_fmt_e fmt);
 extern void tvafe_adc_digital_reset(void);
 extern void tvafe_adc_comphase_pr(void);
+extern void tvin_vdin_bar_detect(enum tvin_sig_fmt_e fmt, struct tvafe_adc_s *adc);
+extern void tvin_vdin_bbar_init(enum tvin_sig_fmt_e fmt);
+
 #endif // _TVAFE_ADC_H
 

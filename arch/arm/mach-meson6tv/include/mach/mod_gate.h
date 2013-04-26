@@ -37,6 +37,8 @@ typedef enum {
     MOD_MISC_RDMA,
     MOD_USB0,
     MOD_USB1,
+    MOD_USB2,
+    MOD_USB3,
     MOD_SDIO,
     MOD_VI_CORE,
     MOD_LED_PWM,

@@ -43,6 +43,7 @@
 #define CWI_DEFAULT 13
 #define BWI_DEFAULT 4
 #define BGT_DEFAULT 20
+#define CLK_SRC_DEFAULT 0
 
 typedef struct SMCCARD_HW_Reg0
 {
@@ -104,19 +105,19 @@ typedef struct SMCCARD_HW_Reg2
 	unsigned recv_lsb_msb: 1;           // Bit 8
 	unsigned recv_parity: 1;            // Bit 9
 	unsigned recv_no_parity: 1;         // Bit 10
-	unsigned unused1: 1;                // Bit 11
+	unsigned pulse_irq: 1;                // Bit 11
 	unsigned clk_tcnt: 8;               // Bit 19:12
 	unsigned det_filter_sel: 3;         // Bit 22:20
 	unsigned io_filter_sel: 3;          // Bit 25:23
 	unsigned recv_retry_cnt: 3;         // Bit 28:26
-	unsigned unused2: 3;                // Bit 31:29
+	unsigned clk_sel: 3;                // Bit 31:29
 #else
-	unsigned unused2: 3;                // Bit 31:29
+	unsigned clk_sel: 3;                // Bit 31:29
 	unsigned recv_retry_cnt: 3;         // Bit 28:26
 	unsigned io_filter_sel: 3;          // Bit 25:23
 	unsigned det_filter_sel: 3;         // Bit 22:20
 	unsigned clk_tcnt: 8;               // Bit 19:12
-	unsigned unused1: 1;                // Bit 11
+	unsigned pulse_irq: 1;                // Bit 11
 	unsigned recv_no_parity: 1;         // Bit 10
 	unsigned recv_parity: 1;            // Bit 9
 	unsigned recv_lsb_msb: 1;           // Bit 8

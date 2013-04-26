@@ -49,11 +49,6 @@ inline bool bufq_empty_available(mipi_buf_t* buff)
     return bufq_empty(&buff->available_q);
 }
 
-inline bool bufq_empty_recycle(mipi_buf_t* buff)
-{
-    return bufq_empty(&buff->recycle_q);
-}
-
 inline void bufq_push(bufq_t *q, am_csi2_frame_t *frame)
 {
     u32 index = q->wr_index;
@@ -86,16 +81,6 @@ inline void bufq_push_available(mipi_buf_t* buff, am_csi2_frame_t *frame)
     spin_lock(&buff->q_lock);
     frame->status = AM_CSI2_BUFF_STATUS_AVAIL;
     bufq_push(&buff->available_q, frame);
-    spin_unlock(&buff->q_lock);
-}
-
-inline void bufq_push_recycle(mipi_buf_t* buff, am_csi2_frame_t *frame)
-{
-    if(frame == NULL)
-        return;
-    spin_lock(&buff->q_lock);
-    frame->status = AM_CSI2_BUFF_STATUS_RECYCLE;
-    bufq_push(&buff->recycle_q, frame);
     spin_unlock(&buff->q_lock);
 }
 
@@ -140,14 +125,6 @@ inline am_csi2_frame_t *bufq_pop_available(mipi_buf_t* buff)
     return frame;
 }
 
-inline am_csi2_frame_t *bufq_pop_recycle(mipi_buf_t* buff)
-{
-    am_csi2_frame_t * frame = NULL;
-    spin_lock(&buff->q_lock);
-    frame = bufq_pop(&buff->recycle_q);
-    spin_unlock(&buff->q_lock);
-    return frame;
-}
 
 static inline am_csi2_frame_t *bufq_peek(bufq_t *q)
 {
@@ -162,10 +139,8 @@ void bufq_init(mipi_buf_t* buff, am_csi2_frame_t* frame, unsigned count)
     spin_lock(&buff->q_lock);
     buff->free_q.rd_index = buff->free_q.wr_index = 0;
     buff->available_q.rd_index = buff->available_q.wr_index = 0;
-    buff->recycle_q.rd_index = buff->recycle_q.wr_index = 0;
     buff->free_q.count = count;
     buff->available_q.count = count;
-    buff->recycle_q.count = count;
     for (i = 0; i < count ; i++){
         frame[i].status = AM_CSI2_BUFF_STATUS_FREE;
         frame[i].w = 0;

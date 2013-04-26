@@ -76,6 +76,8 @@ extern u32 osddev_get_osd_order(u32 index);
 extern void osddev_change_osd_order(u32 index,u32 order);
 extern void osddev_free_scale_enable(u32 index ,u32 enable);
 extern void osddev_get_free_scale_enable(u32 index, u32 * free_scale_enable);
+extern void osddev_free_scale_mode(u32 index ,u32 freescale_mode);
+extern void osddev_get_free_scale_mode(u32 index, u32 *freescale_mode);
 extern void osddev_free_scale_width(u32 index ,u32 width);
 extern void osddev_get_free_scale_width(u32 index, u32 * free_scale_width);
 extern void osddev_free_scale_height(u32 index ,u32 height);
@@ -84,6 +86,8 @@ extern void osddev_get_free_scale_axis(u32 index, s32 *x0, s32 *y0, s32 *x1, s32
 extern void osddev_set_free_scale_axis(u32 index, s32 x0, s32 y0, s32 x1, s32 y1);
 extern void osddev_get_scale_axis(u32 index, s32 *x0, s32 *y0, s32 *x1, s32 *y1);
 extern void osddev_set_scale_axis(u32 index, s32 x0, s32 y0, s32 x1, s32 y1);
+extern void osddev_get_window_axis(u32 index, s32 *x0, s32 *y0, s32 *x1, s32 *y1);
+extern void osddev_set_window_axis(u32 index, s32 x0, s32 y0, s32 x1, s32 y1);
 extern void osddev_get_osd_info(u32 index, s32 (*posdval)[4], u32 (*posdreq)[5], s32 info_flag);
 extern void osddev_get_block_windows(u32 index, u32 *windows);
 extern void osddev_set_block_windows(u32 index, u32 *windows);
@@ -92,6 +96,9 @@ extern void osddev_set_block_mode(u32 index, u32 mode);
 extern int osddev_select_mode(struct myfb_dev *fbdev);
 extern void osddev_enable_3d_mode(u32 index ,u32 enable);
 extern void osddev_set_2x_scale(u32 index,u16 h_scale_enable,u16 v_scale_enable);
+extern void osddev_get_flush_rate(u32 *break_rate);
+extern void osddev_get_osd_reverse(u32 index, u32 *reverse);
+extern void osddev_set_osd_reverse(u32 index, u32 reverse);
 extern void osddev_set(struct myfb_dev *fbdev);
 extern void osddev_update_disp_axis(struct myfb_dev *fbdev,int  mode_change) ;
 extern int osddev_setcolreg(unsigned regno, u16 red, u16 green, u16 blue,

@@ -100,6 +100,10 @@ static void early_suspend(struct work_struct *work)
 #ifdef CONFIG_SCREEN_ON_EARLY
 	mutex_lock(&suspend_mutex);
 #endif
+#ifdef CONFIG_SUSPEND_STATE_VAL
+	extern int suspend_state_val;
+	suspend_state_val=0;
+#endif
 	list_for_each_entry(pos, &early_suspend_handlers, link) {
 		if (pos->suspend != NULL) {
 			if (debug_mask & DEBUG_VERBOSE)
@@ -113,13 +117,20 @@ static void early_suspend(struct work_struct *work)
 	mutex_unlock(&early_suspend_lock);
 
 	if (debug_mask & DEBUG_SUSPEND)
-		pr_info("early_suspend: sync\n");
+		pr_info("early_suspend: sync...");
 
 	sys_sync();
+
+	if (debug_mask & DEBUG_SUSPEND)
+		pr_info("done.\n");
 abort:
 	spin_lock_irqsave(&state_lock, irqflags);
 	if (state == SUSPEND_REQUESTED_AND_SUSPENDED)
+	{
+		if (debug_mask & DEBUG_SUSPEND)
+			pr_info("wake_unlock...\n");
 		wake_unlock(&main_wake_lock);
+	}
 	spin_unlock_irqrestore(&state_lock, irqflags);
 }
 
@@ -154,6 +165,10 @@ static void late_resume(struct work_struct *work)
 	}
 	if (debug_mask & DEBUG_SUSPEND)
 		pr_info("late_resume: done\n");
+#ifdef CONFIG_SUSPEND_STATE_VAL
+	extern int suspend_state_val;
+	suspend_state_val=1;
+#endif
 abort:
 	mutex_unlock(&early_suspend_lock);
 }

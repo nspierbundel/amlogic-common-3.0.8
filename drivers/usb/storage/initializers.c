@@ -104,3 +104,59 @@ int usb_stor_huawei_e220_init(struct us_data *us)
 	US_DEBUGP("Huawei mode set result is %d\n", result);
 	return 0;
 }
+
+#define IS_HUAWEI_DONGLES 1
+#define NOT_HUAWEI_DONGLES 0
+
+static int usb_stor_huawei_dongles_pid(struct us_data *us)
+{
+	int ret = NOT_HUAWEI_DONGLES;
+	struct usb_interface_descriptor *idesc = NULL;
+	idesc = &us->pusb_intf->cur_altsetting->desc;
+	if (NULL != idesc ) {
+		if ( (0x0000 == idesc->bInterfaceNumber)) {
+			if ((0x1401 <= us->pusb_dev->descriptor.idProduct
+				&& 0x1600 >=us->pusb_dev->descriptor.idProduct)
+			|| (0x1c02 <= us->pusb_dev->descriptor.idProduct
+				&& 0x2202 >= us->pusb_dev->descriptor.idProduct)
+			|| (0x1001 == us->pusb_dev->descriptor.idProduct)
+			|| (0x1003 == us->pusb_dev->descriptor.idProduct)
+			|| (0x1004 == us->pusb_dev->descriptor.idProduct)) {
+				if ((0x1501 <= us->pusb_dev->descriptor.idProduct)
+				&& (0x1504 >=  us->pusb_dev->descriptor.idProduct)) {
+					ret = NOT_HUAWEI_DONGLES;
+				} else {
+					ret = IS_HUAWEI_DONGLES;
+				}
+			}
+		}
+	}
+	return ret;
+}
+
+int usb_stor_huawei_scsi_init(struct us_data *us)
+{
+	int result = 0;
+	int act_len = 0;
+	unsigned  char  cmd[32] =  {0x55,  0x53, 0x42,  0x43,  0x00, 0x00,  0x00, 0x00,
+								0x00,  0x00, 0x00,  0x00,  0x00,  0x00,  0x00, 0x11,
+								0x06,  0x30, 0x00,  0x00,  0x01,  0x00,  0x01, 0x00,
+								0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+	result = usb_stor_bulk_transfer_buf (us, us->send_bulk_pipe, cmd, 31, &act_len);
+	US_DEBUGP("usb_stor_bulk_transfer_buf  performing  result  is  %d, transfer the actual length=%d\n", result, act_len);
+	return result;
+}
+
+int usb_stor_huawei_init(struct us_data *us)
+{
+	int result = 0;
+	if(usb_stor_huawei_dongles_pid(us)){
+		if ((0x1446 <= us->pusb_dev->descriptor.idProduct )){
+			result = usb_stor_huawei_scsi_init(us);
+		}else{
+			result = usb_stor_huawei_e220_init(us);
+		}
+	}
+	return result;
+}
+

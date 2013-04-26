@@ -46,10 +46,6 @@
 #if MESON_CPU_TYPE >= MESON_CPU_TYPE_MESON6
 #include <mach/mod_gate.h>
 #endif
-#ifdef CONFIG_HAS_EARLYSUSPEND
-#include <linux/earlysuspend.h>
-static struct early_suspend gc0329_early_suspend;
-#endif
 
 #define GC0329_CAMERA_MODULE_NAME "gc0329"
 
@@ -247,6 +243,11 @@ static struct gc0329_fmt formats[] = {
 	{
 		.name     = "YUV420P",
 		.fourcc   = V4L2_PIX_FMT_YUV420,
+		.depth    = 12,
+	},
+	{
+		.name     = "YVU420P",
+		.fourcc   = V4L2_PIX_FMT_YVU420,
 		.depth    = 12,
 	}
 #if 0
@@ -2061,7 +2062,11 @@ static int vidioc_enum_framesizes(struct file *file, void *fh,struct v4l2_frmsiz
 	}
 	if (fmt == NULL)
 		return -EINVAL;
-	if (fmt->fourcc == V4L2_PIX_FMT_NV21){
+	if ((fmt->fourcc == V4L2_PIX_FMT_NV21)
+		||(fmt->fourcc == V4L2_PIX_FMT_NV12)
+		||(fmt->fourcc == V4L2_PIX_FMT_YUV420)
+		||(fmt->fourcc == V4L2_PIX_FMT_YVU420)
+		){
 		if (fsize->index >= ARRAY_SIZE(gc0329_prev_resolution))
 			return -EINVAL;
 		frmsize = &gc0329_prev_resolution[fsize->index];
@@ -2400,34 +2405,6 @@ static const struct v4l2_subdev_core_ops gc0329_core_ops = {
 static const struct v4l2_subdev_ops gc0329_ops = {
 	.core = &gc0329_core_ops,
 };
-static struct i2c_client *this_client;
-
-#ifdef CONFIG_HAS_EARLYSUSPEND
-static void aml_gc0329_early_suspend(struct early_suspend *h)
-{
-	printk("enter -----> %s \n",__FUNCTION__);
-	if(h && h->param && gc0329_have_open) {
-		aml_plat_cam_data_t* plat_dat= (aml_plat_cam_data_t*)h->param;
-		if (plat_dat && plat_dat->early_suspend) {
-			plat_dat->early_suspend();
-		}
-	}
-}
-
-static void aml_gc0329_late_resume(struct early_suspend *h)
-{
-	aml_plat_cam_data_t* plat_dat;
-	if(gc0329_have_open){
-	    printk("enter -----> %s \n",__FUNCTION__);
-	    if(h && h->param) {
-		    plat_dat= (aml_plat_cam_data_t*)h->param;
-		    if (plat_dat && plat_dat->late_resume) {
-			    plat_dat->late_resume();
-		    }
-	    }
-	}
-}
-#endif
 
 static int gc0329_probe(struct i2c_client *client,
 			const struct i2c_device_id *id)
@@ -2478,7 +2455,6 @@ static int gc0329_probe(struct i2c_client *client,
 	
 	wake_lock_init(&(t->wake_lock),WAKE_LOCK_SUSPEND, "gc0329");
 
-	this_client=client;
 	/* Register it */
 	if (plat_dat) {
 		t->platform_dev_data.device_init=plat_dat->device_init;
@@ -2501,14 +2477,6 @@ static int gc0329_probe(struct i2c_client *client,
 		return err;
 	}
 
-#ifdef CONFIG_HAS_EARLYSUSPEND
-    gc0329_early_suspend.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN;
-	gc0329_early_suspend.suspend = aml_gc0329_early_suspend;
-	gc0329_early_suspend.resume = aml_gc0329_late_resume;
-	gc0329_early_suspend.param = plat_dat;
-	register_early_suspend(&gc0329_early_suspend);
-#endif
-
 	return 0;
 }
 
@@ -2523,37 +2491,6 @@ static int gc0329_remove(struct i2c_client *client)
 	kfree(t);
 	return 0;
 }
-static int gc0329_suspend(struct i2c_client *client, pm_message_t state)
-{
-	struct v4l2_subdev *sd = i2c_get_clientdata(client);
-	struct gc0329_device *t = to_dev(sd);
-	struct gc0329_fh  *fh = to_fh(t);
-	if (gc0329_have_open) {
-	    if(fh->stream_on == 1){
-		    stop_tvin_service(0);
-	    }
-	    power_down_gc0329(t);
-	}
-	return 0;
-}
-
-static int gc0329_resume(struct i2c_client *client)
-{
-    struct v4l2_subdev *sd = i2c_get_clientdata(client);
-    struct gc0329_device *t = to_dev(sd);
-    struct gc0329_fh  *fh = to_fh(t);
-    tvin_parm_t para;
-    if (gc0329_have_open) {
-        para.port  = TVIN_PORT_CAMERA;
-        para.fmt_info.fmt = TVIN_SIG_FMT_MAX+1;
-        GC0329_init_regs(t);
-	if(fh->stream_on == 1){
-            start_tvin_service(0,&para);
-	}
-    }
-    return 0;
-}
-
 
 static const struct i2c_device_id gc0329_id[] = {
 	{ "gc0329_i2c", 0 },
@@ -2565,8 +2502,6 @@ static struct v4l2_i2c_driver_data v4l2_i2c_data = {
 	.name = "gc0329",
 	.probe = gc0329_probe,
 	.remove = gc0329_remove,
-	.suspend = gc0329_suspend,
-	.resume = gc0329_resume,
 	.id_table = gc0329_id,
 };
 

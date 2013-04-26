@@ -851,6 +851,16 @@ typedef enum camera_focus_mode_e {
     CAM_FOCUS_MODE_CONTI_PIC,
 }camera_focus_mode_t;
 
+//removed this when move to new v4l2
+#define V4L2_CID_AUTO_FOCUS_START               (V4L2_CID_CAMERA_CLASS_BASE+28)
+#define V4L2_CID_AUTO_FOCUS_STOP                (V4L2_CID_CAMERA_CLASS_BASE+29)
+#define V4L2_CID_AUTO_FOCUS_STATUS              (V4L2_CID_CAMERA_CLASS_BASE+30)
+#define V4L2_AUTO_FOCUS_STATUS_IDLE             (0 << 0)
+#define V4L2_AUTO_FOCUS_STATUS_BUSY             (1 << 0)
+#define V4L2_AUTO_FOCUS_STATUS_REACHED          (1 << 1)
+#define V4L2_AUTO_FOCUS_STATUS_FAILED           (1 << 2)
+//removed this when move to new v4l2
+
 typedef enum camera_night_mode_flip_e {
     CAM_NM_AUTO = 0,
     CAM_NM_ENABLE,

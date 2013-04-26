@@ -1,13 +1,15 @@
 #
-# AMLOGIC Watchdog
+# watchdog configuration
 #
 
-menu "Amlogic Watchdog Timer Support"
+menuconfig AML_WDT
+	tristate "Amlogic Watchdog Support"
+	default n
 
-config AML_WATCHDOG
-	tristate "Amlogic Watchdog"
-	default y
-	help
-	  Amlogic watchdog timer embedded in chip.
-endmenu
+if AML_WDT
+
+source "drivers/amlogic/watchdog/wdt/Kconfig"
+source "drivers/amlogic/watchdog/wdt_tv/Kconfig"
+
+endif
 

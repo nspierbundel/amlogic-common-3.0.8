@@ -991,7 +991,7 @@ static ssize_t remote_wakeup_show(struct device *_dev,
 	return sprintf(buf,
 		       "Remote Wakeup Sig = %d Enabled = %d LPM Remote Wakeup = %d\n",
 		       dwc_otg_get_remotewakesig(otg_dev->core_if),
-		       dwc_otg_pcd_get_rmwkup_enable(otg_dev->pcd),
+		       otg_dev->pcd ? dwc_otg_pcd_get_rmwkup_enable(otg_dev->pcd) : -1,
 		       dwc_otg_get_lpm_remotewakeenabled(otg_dev->core_if));
 #else
 	return sprintf(buf, "Host Only Mode!\n");

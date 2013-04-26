@@ -197,6 +197,15 @@ static struct v4l2_queryctrl ov5640_qctrl[] = {
 		.step		= 90,
 		.default_value	= 0,
 		.flags         = V4L2_CTRL_FLAG_SLIDER,
+	},{
+        .id            = V4L2_CID_AUTO_FOCUS_STATUS,
+        .type          = 8,//V4L2_CTRL_TYPE_BITMASK,
+        .name          = "focus status",
+        .minimum       = 0,
+        .maximum       = ~3,
+        .step          = 0x1,
+        .default_value = V4L2_AUTO_FOCUS_STATUS_IDLE,
+        .flags         = V4L2_CTRL_FLAG_READ_ONLY,
 	}
 };
 
@@ -275,31 +284,35 @@ struct ov5640_fmt {
 };
 
 static struct ov5640_fmt formats[] = {
-    {
-        .name     = "RGB565 (BE)",
-        .fourcc   = V4L2_PIX_FMT_RGB565X, /* rrrrrggg gggbbbbb */
-        .depth    = 16,
-    }, {
-        .name     = "RGB888 (24)",
-        .fourcc   = V4L2_PIX_FMT_RGB24, /* 24  RGB-8-8-8 */
-        .depth    = 24,
-    }, {
-        .name     = "BGR888 (24)",
-        .fourcc   = V4L2_PIX_FMT_BGR24, /* 24  BGR-8-8-8 */
-        .depth    = 24,
-    }, {
-        .name     = "12  Y/CbCr 4:2:0SP",
-        .fourcc   = V4L2_PIX_FMT_NV12,
-        .depth    = 12,    
-    }, {
-        .name     = "12  Y/CbCr 4:2:0SP",
-        .fourcc   = V4L2_PIX_FMT_NV21,
-        .depth    = 12,    
-    }, {
-        .name     = "YUV420P",
-        .fourcc   = V4L2_PIX_FMT_YUV420,
-        .depth    = 12,
-    }
+	{
+	 	.name     = "RGB565 (BE)",
+	 	.fourcc   = V4L2_PIX_FMT_RGB565X, /* rrrrrggg gggbbbbb */
+	 	.depth    = 16,
+	}, {
+		.name     = "RGB888 (24)",
+		.fourcc   = V4L2_PIX_FMT_RGB24, /* 24  RGB-8-8-8 */
+		.depth    = 24,
+	}, {
+		.name     = "BGR888 (24)",
+		.fourcc   = V4L2_PIX_FMT_BGR24, /* 24  BGR-8-8-8 */
+		.depth    = 24,
+	}, {
+		.name     = "12  Y/CbCr 4:2:0SP",
+		.fourcc   = V4L2_PIX_FMT_NV12,
+		.depth    = 12,    
+	}, {
+		.name     = "12  Y/CbCr 4:2:0SP",
+		.fourcc   = V4L2_PIX_FMT_NV21,
+		.depth    = 12,    
+	}, {
+		.name     = "YUV420P",
+		.fourcc   = V4L2_PIX_FMT_YUV420,
+		.depth    = 12,
+	},{
+		.name     = "YVU420P",
+		.fourcc   = V4L2_PIX_FMT_YVU420,
+		.depth    = 12,
+	}
 };
 
 static struct ov5640_fmt *get_format(struct v4l2_format *f)
@@ -401,6 +414,8 @@ struct ov5640_device {
 	int firmware_ready;
 };
 
+static DEFINE_MUTEX(firmware_mutex);
+
 static inline struct ov5640_device *to_dev(struct v4l2_subdev *sd)
 {
 	return container_of(sd, struct ov5640_device, sd);
@@ -437,7 +452,7 @@ static struct aml_camera_i2c_fig_s OV5640_script[] = {
 	{0x3034, 0x1a},//
 	{0x3035, 0x21},//
 	{0x3036, 0x46},//0x46->30fps
-	{0x3037, 0x13},//////div
+	{0x3037, 0x12},//////div //0x12 //boot the preview frame rate to 22.5
 	{0x3c00, 0x04},
 	{0x3c01, 0xb4},
 	{0x3108, 0x01},//
@@ -971,7 +986,10 @@ struct aml_camera_i2c_fig_s OV5640_capture_5M_script[] = {
     {0x3824, 0x01},
         
     //{0x5001, 0x83},
-    {0x3035, 0x21},  // 0x21
+    //{0x3035, 0x21},  // 0x21
+   //modify 2012 
+    //{0x3035, 0x31}, 
+    {0x3036, 0x65},
 
     {0x3820, 0x41},  // #3 ck. 0x47,
     {0x3821, 0x07},  // #3 ck. 0x01, 
@@ -1199,6 +1217,8 @@ static void do_download(struct work_struct *work)
 	int mcu_on = 0, afc_on = 0;
 	int ret;
 	int i = 10;
+	mutex_lock(&firmware_mutex);
+	if (ov5640_have_opened) {
 	if(OV5640_download_firmware(dev) >= 0) {
 	    while(i-- && ov5640_have_opened) {
 			ret = i2c_get_byte(client, 0x3029);
@@ -1209,7 +1229,9 @@ static void do_download(struct work_struct *work)
 			msleep(5);
 		}
 	}
+	}
 	dev->firmware_ready = 1;
+	mutex_unlock(&firmware_mutex);
 	if (start_focus_mode) {
 		OV5640_AutoFocus(dev,(int)start_focus_mode);
 		start_focus_mode = CAM_FOCUS_MODE_RELEASE;
@@ -1435,8 +1457,11 @@ static int Get_preview_exposure_gain(struct ov5640_device *dev)
 	return rc;
 }
 
+//#define CAPTURE_FRAMERATE 750
+//#define PREVIEW_FRAMERATE 1500
+
 #define CAPTURE_FRAMERATE 750
-#define PREVIEW_FRAMERATE 1500
+#define PREVIEW_FRAMERATE 2250
 static int cal_exposure(struct ov5640_device *dev)
 {
 	int rc = 0;
@@ -1501,7 +1526,7 @@ static int cal_exposure(struct ov5640_device *dev)
 	printk("ExposureLow=%d\n", ExposureLow);
 	printk("ExposureMid=%d\n", ExposureMid);
 	printk("ExposureHigh=%d\n", ExposureHigh);
-	msleep(250);
+	//msleep(250);
 	return rc;
 }
 #endif
@@ -1906,15 +1931,15 @@ static int OV5640_FlashCtrl(struct ov5640_device *dev, int flash_mode)
 static resulution_size_type_t get_size_type(int width, int height)
 {
 	resulution_size_type_t rv = SIZE_NULL;
-	if ((width >= 2500) && (height >= 1900))
+	if (width * height >= 2500 * 1900)
 		rv = SIZE_QSXGA_2560X2048;
-	else if ((width >= 2000) && (height >= 1500))
+	else if (width * height >= 2000 * 1500)
 		rv = SIZE_QXGA_2048X1536;
-	else if ((width >= 1600) && (height >= 1200))
+	else if (width * height >= 1600 * 1200)
 		rv = SIZE_UXGA_1600X1200;
-	else if ((width >= 600) && (height >= 400))
+	else if (width * height >= 600 * 400)
 		rv = SIZE_VGA_640X480;
-	else if ((width >= 300) && (height >= 200))
+	else if (width * height >= 300 * 200)
 		rv = SIZE_QVGA_320x240;
 	return rv;
 }
@@ -1981,14 +2006,20 @@ static int ov5640_setting(struct ov5640_device *dev,int PROP_ID,int value )
 	struct i2c_client *client = v4l2_get_subdevdata(&dev->sd);
 	switch(PROP_ID)  {
 	case V4L2_CID_BRIGHTNESS:
+		mutex_lock(&firmware_mutex);
 		dprintk(dev, 1, "setting brightned:%d\n",v4l_2_ov5640(value));
 		ret=i2c_put_byte(client,0x0201,v4l_2_ov5640(value));
+		mutex_unlock(&firmware_mutex);
 		break;
 	case V4L2_CID_CONTRAST:
+		mutex_lock(&firmware_mutex);
 		ret=i2c_put_byte(client,0x0200, value);
+		mutex_unlock(&firmware_mutex);
 		break;    
 	case V4L2_CID_SATURATION:
+		mutex_lock(&firmware_mutex);
 		ret=i2c_put_byte(client,0x0202, value);
+		mutex_unlock(&firmware_mutex);
 		break;
 	case V4L2_CID_HFLIP:    /* set flip on H. */
 		value = value & 0x3;
@@ -2000,41 +2031,53 @@ static int ov5640_setting(struct ov5640_device *dev,int PROP_ID,int value )
 	case V4L2_CID_VFLIP:    /* set flip on V. */
 		break;    
 	case V4L2_CID_DO_WHITE_BALANCE:
+		mutex_lock(&firmware_mutex);
 		if(ov5640_qctrl[4].default_value!=value){
 			ov5640_qctrl[4].default_value=value;
 			OV5640_set_param_wb(dev,value);
 			printk(KERN_INFO " set camera  white_balance=%d. \n ",value);
 		}
+		mutex_unlock(&firmware_mutex);
 		break;
 	case V4L2_CID_EXPOSURE:
+		mutex_lock(&firmware_mutex);
 		if(ov5640_qctrl[5].default_value!=value){
 			ov5640_qctrl[5].default_value=value;
 			OV5640_set_param_exposure(dev,value);
 			printk(KERN_INFO " set camera  exposure=%d. \n ",value);
 		}
+		mutex_unlock(&firmware_mutex);
 		break;
 	case V4L2_CID_COLORFX:
+		mutex_lock(&firmware_mutex);
 		if(ov5640_qctrl[6].default_value!=value){
 			ov5640_qctrl[6].default_value=value;
 			OV5640_set_param_effect(dev,value);
 			printk(KERN_INFO " set camera  effect=%d. \n ",value);
 		}
+		mutex_unlock(&firmware_mutex);
 		break;
 	case V4L2_CID_WHITENESS:
+		mutex_lock(&firmware_mutex);
 		if(ov5640_qctrl[7].default_value!=value){
 			ov5640_qctrl[7].default_value=value;
 			OV5640_set_param_banding(dev,value);
 			printk(KERN_INFO " set camera  banding=%d. \n ",value);
 		}
+		mutex_unlock(&firmware_mutex);
 		break;
 	case V4L2_CID_FOCUS_AUTO:
-		if (dev->firmware_ready) 
-			ret = OV5640_AutoFocus(dev,value);
-		else if (value == CAM_FOCUS_MODE_CONTI_VID ||
-        			value == CAM_FOCUS_MODE_CONTI_PIC)
-			start_focus_mode = value;
-		else
-			ret = -1;
+		mutex_lock(&firmware_mutex);
+		if (ov5640_have_opened) {
+			if (dev->firmware_ready) 
+				ret = OV5640_AutoFocus(dev,value);
+			else if (value == CAM_FOCUS_MODE_CONTI_VID ||
+        				value == CAM_FOCUS_MODE_CONTI_PIC)
+				start_focus_mode = value;
+			else
+				ret = -1;
+		}
+		mutex_unlock(&firmware_mutex);
 		break;
 	case V4L2_CID_BACKLIGHT_COMPENSATION:
 		if (dev->platform_dev_data.flash_support) 
@@ -2139,9 +2182,6 @@ unlock:
 	return;
 }
 
-#define frames_to_ms(frames)                    \
-    ((frames * WAKE_NUMERATOR * 1000) / WAKE_DENOMINATOR)
-
 static void ov5640_sleep(struct ov5640_fh *fh)
 {
 	struct ov5640_device *dev = fh->dev;
@@ -2158,7 +2198,7 @@ static void ov5640_sleep(struct ov5640_fh *fh)
     	goto stop_task;
 
     /* Calculate time to wake up */
-	timeout = msecs_to_jiffies(frames_to_ms(1));
+	timeout = msecs_to_jiffies(2);
 
 	ov5640_thread_tick(fh);
 
@@ -2579,39 +2619,47 @@ static int vidioc_streamoff(struct file *file, void *priv, enum v4l2_buf_type i)
 	return ret;
 }
 
-static int vidioc_enum_framesizes(struct file *file, void *fh,struct v4l2_frmsizeenum *fsize)
+static int vidioc_enum_framesizes
+(struct file *file, void *fh, struct v4l2_frmsizeenum *fsize)
 {
 	int ret = 0,i=0;
 	struct ov5640_fmt *fmt = NULL;
 	struct v4l2_frmsize_discrete *frmsize = NULL;
 	for (i = 0; i < ARRAY_SIZE(formats); i++) {
-    	if (formats[i].fourcc == fsize->pixel_format){
-        	fmt = &formats[i];
-        	break;
-        }
-    }
+		if (formats[i].fourcc == fsize->pixel_format){
+			fmt = &formats[i];
+		break;
+		}
+	}
 	if (fmt == NULL)
     	return -EINVAL;
-	if (fmt->fourcc == V4L2_PIX_FMT_NV21){
-		printk("ov5640_prev_resolution[fsize->index]   before fsize->index== %d\n",fsize->index);//potti
-    	if (fsize->index >= ARRAY_SIZE(prev_resolution_array))
-        	return -EINVAL;
-    	frmsize = &prev_resolution_array[fsize->index].frmsize;
-		printk("ov5640_prev_resolution[fsize->index]   after fsize->index== %d\n",fsize->index);
-    	fsize->type = V4L2_FRMSIZE_TYPE_DISCRETE;
-    	fsize->discrete.width = frmsize->width;
-    	fsize->discrete.height = frmsize->height;
-    }
-	else if(fmt->fourcc == V4L2_PIX_FMT_RGB24){
-		printk("ov5640_pic_resolution[fsize->index]   before fsize->index== %d\n",fsize->index);
-    	if (fsize->index >= ARRAY_SIZE(capture_resolution_array))
-        	return -EINVAL;
-    	frmsize = &capture_resolution_array[fsize->index].frmsize;
-		printk("ov5640_pic_resolution[fsize->index]   after fsize->index== %d\n",fsize->index);    
-    	fsize->type = V4L2_FRMSIZE_TYPE_DISCRETE;
-    	fsize->discrete.width = frmsize->width;
-    	fsize->discrete.height = frmsize->height;
-    }
+	if ((fmt->fourcc == V4L2_PIX_FMT_NV21)
+		||(fmt->fourcc == V4L2_PIX_FMT_NV12)
+		||(fmt->fourcc == V4L2_PIX_FMT_YUV420)
+		||(fmt->fourcc == V4L2_PIX_FMT_YVU420)
+		){
+		printk("ov5640_prev_resolution[fsize->index]"
+			"   before fsize->index== %d\n",fsize->index);//potti
+		if (fsize->index >= ARRAY_SIZE(prev_resolution_array))
+			return -EINVAL;
+		frmsize = &prev_resolution_array[fsize->index].frmsize;
+		printk("ov5640_prev_resolution[fsize->index]"
+			"   after fsize->index== %d\n",fsize->index);
+		fsize->type = V4L2_FRMSIZE_TYPE_DISCRETE;
+		fsize->discrete.width = frmsize->width;
+		fsize->discrete.height = frmsize->height;
+	} else if (fmt->fourcc == V4L2_PIX_FMT_RGB24){
+		printk("ov5640_pic_resolution[fsize->index]"
+			"   before fsize->index== %d\n",fsize->index);
+		if (fsize->index >= ARRAY_SIZE(capture_resolution_array))
+			return -EINVAL;
+		frmsize = &capture_resolution_array[fsize->index].frmsize;
+		printk("ov5640_pic_resolution[fsize->index]"
+			"   after fsize->index== %d\n",fsize->index);    
+		fsize->type = V4L2_FRMSIZE_TYPE_DISCRETE;
+		fsize->discrete.width = frmsize->width;
+		fsize->discrete.height = frmsize->height;
+	}
 	return ret;
 }
 
@@ -2708,6 +2756,7 @@ static int vidioc_g_ctrl(struct file *file, void *priv,
 	struct ov5640_device *dev = fh->dev;
 	struct i2c_client *client = v4l2_get_subdevdata(&dev->sd);
 	int i;
+	int i2cret = -1;
 
 	for (i = 0; i < ARRAY_SIZE(ov5640_qctrl); i++)
     	if (ctrl->id == ov5640_qctrl[i].id) {
@@ -2726,6 +2775,21 @@ static int vidioc_g_ctrl(struct file *file, void *priv,
 					printk("pause auto focus\n");
 				}
 			}
+		}else if( V4L2_CID_AUTO_FOCUS_STATUS == ctrl->id){
+
+			i2cret = i2c_get_byte(client, 0x3029);
+			if( 0x00 == i2cret){
+				ctrl->value = V4L2_AUTO_FOCUS_STATUS_BUSY;
+			}else if( 0x10 == i2cret){
+				ctrl->value = V4L2_AUTO_FOCUS_STATUS_REACHED;
+			}else if( 0x20 == i2cret){
+				ctrl->value = V4L2_AUTO_FOCUS_STATUS_IDLE;
+			}else{
+				printk("should resart focus\n");
+				ctrl->value = V4L2_AUTO_FOCUS_STATUS_FAILED;
+			}
+
+			return 0;
 		}
         	ctrl->value = dev->qctl_regs[i];
         	return 0;
@@ -2766,7 +2830,9 @@ static int ov5640_open(struct file *file)
 	int retval = 0;
 	int reg_val;
 	int i = 0;
+	mutex_lock(&firmware_mutex);
 	ov5640_have_opened=1;
+	mutex_unlock(&firmware_mutex);
 #if MESON_CPU_TYPE >= MESON_CPU_TYPE_MESON6
 	switch_mod_gate_by_name("ge2d", 1);
 #endif	
@@ -2869,8 +2935,10 @@ static int ov5640_close(struct file *file)
 	struct ov5640_device *dev       = fh->dev;
 	struct ov5640_dmaqueue *vidq = &dev->vidq;
 	struct video_device  *vdev = video_devdata(file);
+	mutex_lock(&firmware_mutex);
 	ov5640_have_opened=0;
 	dev->firmware_ready = 0;
+	mutex_unlock(&firmware_mutex);
 	ov5640_stop_thread(vidq);
 	videobuf_stop(&fh->vb_vidq);
 	if(fh->stream_on){

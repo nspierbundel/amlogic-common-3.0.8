@@ -270,6 +270,10 @@ static void vvc1_isr(void)
 
         intra_output = 1;
 
+        if (picture_type == B_PICTURE) {
+            pts_valid = 0;
+        }
+
 #ifdef DEBUG_PTS
         if (picture_type == I_PICTURE) {
             //printk("I offset 0x%x, pts_valid %d\n", offset, pts_valid);
@@ -872,15 +876,15 @@ static struct platform_driver amvdec_vc1_driver = {
     }
 };
 
-#ifdef CONFIG_ARCH_MESON3
+#if defined(CONFIG_ARCH_MESON)/*meson1 only support progressive*/
 static struct codec_profile_t amvdec_vc1_profile = {
 	.name = "vc1",
-	.profile = "progressive, interlace, wmv3"
+	.profile = "progressive, wmv3"
 };
 #else
 static struct codec_profile_t amvdec_vc1_profile = {
 	.name = "vc1",
-	.profile = "progressive, wmv3"
+	.profile = "progressive, interlace, wmv3"
 };
 #endif
 

@@ -1,8 +1,8 @@
 /*
 * Customer code to add GPIO control during WLAN start/stop
-* Copyright (C) 1999-2011, Broadcom Corporation
+* Copyright (C) 1999-2012, Broadcom Corporation
 * 
-*         Unless you and Broadcom execute a separate written software license
+*      Unless you and Broadcom execute a separate written software license
 * agreement governing use of this software, this software is licensed to you
 * under the terms of the GNU General Public License version 2 (the "GPL"),
 * available at http://www.broadcom.com/licenses/GPLv2.php, with the
@@ -20,7 +20,7 @@
 * software in any way with any other Broadcom software provided under a license
 * other than the GPL, without Broadcom's express prior written consent.
 *
-* $Id: dhd_custom_gpio.c 339054 2012-06-15 04:56:55Z $
+* $Id: dhd_custom_gpio.c 353167 2012-08-24 22:11:30Z $
 */
 
 #include <typedefs.h>
@@ -37,16 +37,15 @@
 #define WL_ERROR(x) printf x
 #define WL_TRACE(x)
 
-
 #ifdef CUSTOMER_HW_AMLOGIC
 extern  void sdio_reinit(void);
-//extern  void extern_wifi_reset(int is_on);
-//extern void extern_wifi_power(int is_on);
 extern void extern_wifi_set_enable(int is_on);
 #endif /* CUSTOMER_HW_AMLOGIC */
 
-
 #ifdef CUSTOMER_HW
+#if defined(CUSTOMER_OOB)
+extern int bcm_wlan_get_oob_irq(void);
+#endif
 extern  void bcm_wlan_power_off(int);
 extern  void bcm_wlan_power_on(int);
 #endif /* CUSTOMER_HW */
@@ -62,7 +61,7 @@ int wifi_get_irq_number(unsigned long *irq_flags_ptr) { return -1; }
 int wifi_get_mac_addr(unsigned char *buf) { return -1; }
 void *wifi_get_country_code(char *ccode) { return NULL; }
 #endif /* CONFIG_WIFI_CONTROL_FUNC */
-#endif /* CUSTOMER_HW2 */
+#endif 
 
 #if defined(OOB_INTR_ONLY)
 
@@ -76,13 +75,6 @@ extern int sdioh_mmc_irq(int irq);
 
 /* Customer specific Host GPIO defintion  */
 static int dhd_oob_gpio_num = -1;
-
-#ifdef HARDKERNEL_OOB
-#include <linux/gpio.h>
-#include <mach/gpio.h>
-#include <mach/regs-gpio.h>
-#include <plat/gpio-cfg.h>
-#endif
 
 module_param(dhd_oob_gpio_num, int, 0644);
 MODULE_PARM_DESC(dhd_oob_gpio_num, "DHD oob gpio number");
@@ -102,25 +94,22 @@ int dhd_customer_oob_irq_map(unsigned long *irq_flags_ptr)
 {
 	int  host_oob_irq = CUSTOM_OOB_GPIO_NUM;
 
-#ifdef CUSTOMER_HW2
+#if defined(CUSTOMER_HW2)
 	host_oob_irq = wifi_get_irq_number(irq_flags_ptr);
 
-#elif defined(HARDKERNEL_OOB)
-	printk("GPIO(WL_HOST_WAKE) = EXYNOS4_GPX0(7) = %d\n", EXYNOS4_GPX0(7));
-	host_oob_irq = gpio_to_irq(EXYNOS4_GPX0(7));
-	gpio_direction_input(EXYNOS4_GPX0(7));
-	printk("host_oob_irq: %d \r\n", host_oob_irq);
+#elif defined(CUSTOMER_OOB)
+	host_oob_irq = bcm_wlan_get_oob_irq();
 
 #else
 #if defined(CUSTOM_OOB_GPIO_NUM)
 	if (dhd_oob_gpio_num < 0) {
 		dhd_oob_gpio_num = CUSTOM_OOB_GPIO_NUM;
 	}
-#endif /* CUSTOMER_HW2 */
+#endif /* CUSTOMER_OOB_GPIO_NUM */
 
 	if (dhd_oob_gpio_num < 0) {
 		WL_ERROR(("%s: ERROR customer specific Host GPIO is NOT defined \n",
-			__FUNCTION__));
+		__FUNCTION__));
 		return (dhd_oob_gpio_num);
 	}
 
@@ -134,11 +123,11 @@ int dhd_customer_oob_irq_map(unsigned long *irq_flags_ptr)
 	host_oob_irq = gpio_to_irq(dhd_oob_gpio_num);
 	gpio_direction_input(dhd_oob_gpio_num);
 #endif /* CUSTOMER_HW */
-#endif /* CUSTOMER_HW2 */
+#endif 
 
 	return (host_oob_irq);
 }
-#endif /* defined(OOB_INTR_ONLY) */
+#endif 
 
 /* Customer function to control hw specific wlan gpios */
 void
@@ -151,13 +140,9 @@ dhd_customer_gpio_wlan_ctrl(int onoff)
 #ifdef CUSTOMER_HW
 			bcm_wlan_power_off(2);
 #endif /* CUSTOMER_HW */
-#ifdef CUSTOMER_HW2
+#if defined(CUSTOMER_HW2)
 			wifi_set_power(0, 0);
 #endif
-#ifdef CUSTOMER_HW_AMLOGIC
-			extern_wifi_set_enable(0);
-#endif /* CUSTOMER_HW_AMLOGIC */
-
 			WL_ERROR(("=========== WLAN placed in RESET ========\n"));
 		break;
 
@@ -167,16 +152,9 @@ dhd_customer_gpio_wlan_ctrl(int onoff)
 #ifdef CUSTOMER_HW
 			bcm_wlan_power_on(2);
 #endif /* CUSTOMER_HW */
-#ifdef CUSTOMER_HW2
+#if defined(CUSTOMER_HW2)
 			wifi_set_power(1, 0);
 #endif
-#ifdef CUSTOMER_HW_AMLOGIC
-			extern_wifi_set_enable(0);
-			mdelay(200);
-			extern_wifi_set_enable(1);
-			mdelay(200);
-			sdio_reinit();
-#endif /* CUSTOMER_HW_AMLOGIC */
 			WL_ERROR(("=========== WLAN going back to live  ========\n"));
 		break;
 
@@ -189,7 +167,6 @@ dhd_customer_gpio_wlan_ctrl(int onoff)
 
 #ifdef CUSTOMER_HW_AMLOGIC
 			extern_wifi_set_enable(0);
-			//extern_wifi_power(0);
 #endif /* CUSTOMER_HW_AMLOGIC */
 			WL_ERROR(("=========== WLAN placed in POWER OFF ========\n"));
 		break;
@@ -205,9 +182,9 @@ dhd_customer_gpio_wlan_ctrl(int onoff)
 
 #ifdef CUSTOMER_HW_AMLOGIC
 			extern_wifi_set_enable(0);
-			mdelay(200);
+			msleep(200);
 			extern_wifi_set_enable(1);
-			mdelay(200);
+			msleep(200);
 			sdio_reinit();
 #endif /* CUSTOMER_HW_AMLOGIC */
 			WL_ERROR(("=========== WLAN placed in POWER ON ========\n"));

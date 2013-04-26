@@ -73,8 +73,6 @@ typedef struct {
     vinfo_t lcd_info;
 } lcd_dev_t;
 
-static unsigned long ddr_pll_clk = 0;
-
 static lcd_dev_t *pDev = NULL;
 
 static void _lcd_init(Lcd_Config_t *pConf) ;
@@ -1658,6 +1656,709 @@ static int lcd_reboot_notifier(struct notifier_block *nb, unsigned long state, v
     return NOTIFY_DONE;
 }
 
+//****************************
+//gamma debug
+//****************************
+#ifdef CONFIG_AML_GAMMA_DEBUG
+static unsigned short gamma_adjust_r[256];
+static unsigned short gamma_adjust_g[256];
+static unsigned short gamma_adjust_b[256];
+
+static void read_original_gamma_table(void)
+{
+    unsigned i;
+
+    printk("read original gamma table R:\n");
+    for (i=0; i<256; i++)
+    {
+        printk("%u,", gamma_adjust_r[i]);
+    }
+    printk("\n\nread original gamma table G:\n");
+    for (i=0; i<256; i++)
+    {
+        printk("%u,", gamma_adjust_g[i]);
+    }
+    printk("\n\nread original gamma table B:\n");
+    for (i=0; i<256; i++)
+    {
+        printk("%u,", gamma_adjust_b[i]);
+    }
+    printk("\n");
+}
+
+static void read_current_gamma_table(void)
+{
+	unsigned i;
+
+	printk("read current gamma table R:\n");
+    for (i=0; i<256; i++)
+    {
+        printk("%d ", pDev->conf.lcd_effect.GammaTableR[i]);
+    }
+    printk("\n\nread current gamma table G:\n");
+    for (i=0; i<256; i++)
+    {
+        printk("%d ", pDev->conf.lcd_effect.GammaTableG[i]);
+    }
+    printk("\n\nread current gamma table B:\n");
+    for (i=0; i<256; i++)
+    {
+        printk("%d ", pDev->conf.lcd_effect.GammaTableB[i]);
+    }
+    printk("\n");
+}
+
+static void write_gamma_table(void)
+{
+    if (pDev->conf.lcd_basic.lcd_type == LCD_DIGITAL_TTL)
+    {
+        aml_write_reg32(P_GAMMA_CNTL_PORT, aml_read_reg32(P_GAMMA_CNTL_PORT) & ~(1<<0));
+        set_lcd_gamma_table_ttl(pDev->conf.lcd_effect.GammaTableR, LCD_H_SEL_R);
+        set_lcd_gamma_table_ttl(pDev->conf.lcd_effect.GammaTableG, LCD_H_SEL_G);
+        set_lcd_gamma_table_ttl(pDev->conf.lcd_effect.GammaTableB, LCD_H_SEL_B);
+        aml_write_reg32(P_GAMMA_CNTL_PORT, aml_read_reg32(P_GAMMA_CNTL_PORT) | (1<<0));
+        printk("write ttl gamma table ");
+    }
+    else
+    {
+        aml_write_reg32(P_L_GAMMA_CNTL_PORT, aml_read_reg32(P_L_GAMMA_CNTL_PORT) & ~(1<<0));
+        set_lcd_gamma_table_lvds(pDev->conf.lcd_effect.GammaTableR, LCD_H_SEL_R);
+        set_lcd_gamma_table_lvds(pDev->conf.lcd_effect.GammaTableG, LCD_H_SEL_G);
+        set_lcd_gamma_table_lvds(pDev->conf.lcd_effect.GammaTableB, LCD_H_SEL_B);
+        aml_write_reg32(P_L_GAMMA_CNTL_PORT, aml_read_reg32(P_L_GAMMA_CNTL_PORT) | (1<<0));
+        printk("write lvds/mlvds gamma table ");
+    }
+}
+
+static void set_gamma_coeff(unsigned r_coeff, unsigned g_coeff, unsigned b_coeff)
+{
+	int i;
+
+    for (i=0; i<256; i++) {
+        pDev->conf.lcd_effect.GammaTableR[i] = (unsigned short)(gamma_adjust_r[i] * r_coeff / 100);
+        pDev->conf.lcd_effect.GammaTableG[i] = (unsigned short)(gamma_adjust_g[i] * g_coeff / 100);
+        pDev->conf.lcd_effect.GammaTableB[i] = (unsigned short)(gamma_adjust_b[i] * b_coeff / 100);
+    }
+
+	write_gamma_table();
+	printk("with scale factor R:%u\%, G:%u\%, B:%u\%.\n", r_coeff, g_coeff, b_coeff);
+}
+
+static const char * usage_str =
+{"Usage:\n"
+"    echo coeff <R_coeff> <G_coeff> <B_coeff> > write ; set R,G,B gamma scale factor, base on the original gamma table\n"
+"data format:\n"
+"    <R/G/B_coeff>  : a number in Dec(0~100), means a percent value\n"
+"\n"
+"    echo [r|g|b] <step> <value> <value> <value> <value> <value> <value> <value> <value> > write ; input R/G/B gamma table\n"
+"    echo w [0 | 8 | 10] > write ; apply the original/8bit/10bit gamma table\n"
+"data format:\n"
+"    <step>  : 0xX, 4bit in Hex, there are 8 steps(0~7, 8bit gamma) or 16 steps(0~f, 10bit gamma) for a single cycle\n"
+"    <value> : 0xXXXXXXXX, 32bit in Hex, 2 or 4 gamma table values (8 or 10bit gamma) combia in one <value>\n"
+"\n"
+"    echo f[r | g | b | w] <level_value> > write ; write R/G/B/white gamma level with fixed level_value\n"
+"data format:\n"
+"    <level_value>  : a number in Dec(0~255)\n"
+"\n"
+"    echo [0 | 1] > read ; readback original/current gamma table\n"
+};
+
+static ssize_t gamma_help(struct class *class, struct class_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%s\n",usage_str);
+}
+
+static ssize_t aml_lcd_gamma_read(struct class *class, 
+			struct class_attribute *attr,	const char *buf, size_t count)
+{
+	if (buf[0] == '0')
+		read_original_gamma_table();
+	else
+		read_current_gamma_table();
+
+	return count;
+	//return 0;
+}
+
+static unsigned gamma_adjust_r_temp[128];
+static unsigned gamma_adjust_g_temp[128];
+static unsigned gamma_adjust_b_temp[128];
+static ssize_t aml_lcd_gamma_debug(struct class *class, struct class_attribute *attr, const char *buf, size_t count)
+{
+	unsigned int ret;
+	unsigned int i, j;
+	unsigned t[8];
+	unsigned short t_bit;
+
+    switch (buf[0])
+    {
+    case 'c':
+        t[0] = 100;
+        t[1] = 100;
+        t[2] = 100;
+        ret = sscanf(buf, "coeff %u %u %u", &t[0], &t[1], &t[2]);
+        set_gamma_coeff(t[0], t[1], t[2]);
+        break;
+    case 'r':
+        ret = sscanf(buf, "r %x %x %x %x %x %x %x %x %x", &i, &t[0], &t[1], &t[2], &t[3], &t[4], &t[5], &t[6], &t[7]);
+        if (i<16)
+        {
+            i =  i * 8;
+            for (j=0; j<8; j++)
+            {
+                gamma_adjust_r_temp[i+j] = t[j];
+            }
+            printk("write R table: step %u.\n", i/8);
+        }
+        break;
+    case 'g':
+        ret = sscanf(buf, "g %x %x %x %x %x %x %x %x %x", &i, &t[0], &t[1], &t[2], &t[3], &t[4], &t[5], &t[6], &t[7]);
+        if (i<16)
+        {
+            i =  i * 8;
+            for (j=0; j<8; j++)
+            {
+                gamma_adjust_g_temp[i+j] = t[j];
+            }
+            printk("write G table: step %u.\n", i/8);
+        }
+        break;
+    case 'b':
+        ret = sscanf(buf, "b %x %x %x %x %x %x %x %x %x", &i, &t[0], &t[1], &t[2], &t[3], &t[4], &t[5], &t[6], &t[7]);
+        if (i<16)
+        {
+            i =  i * 8;
+            for (j=0; j<8; j++)
+            {
+                gamma_adjust_b_temp[i+j] = t[j];
+            }
+            printk("write B table: step %u.\n", i/8);
+        }
+        break;
+    case 'w':
+        t_bit = 0;
+        ret = sscanf(buf, "w %d", &t_bit);
+        if (t_bit == 8)
+        {
+            for (i=0; i<64; i++) {
+                for (j=0; j<4; j++){
+                    pDev->conf.lcd_effect.GammaTableR[i*4+j] = (unsigned short)(((gamma_adjust_r_temp[i] >> (24-j*8)) & 0xff) << 2);
+                    pDev->conf.lcd_effect.GammaTableG[i*4+j] = (unsigned short)(((gamma_adjust_g_temp[i] >> (24-j*8)) & 0xff) << 2);
+                    pDev->conf.lcd_effect.GammaTableB[i*4+j] = (unsigned short)(((gamma_adjust_b_temp[i] >> (24-j*8)) & 0xff) << 2);					
+                }
+            }
+            write_gamma_table();
+            printk("8bit finished.\n");
+        }
+        else if (t_bit == 10)
+        {
+            for (i=0; i<128; i++) {
+                for (j=0; j<2; j++){
+                    pDev->conf.lcd_effect.GammaTableR[i*2+j] = (unsigned short)((gamma_adjust_r_temp[i] >> (16-j*16)) & 0xffff);
+                    pDev->conf.lcd_effect.GammaTableG[i*2+j] = (unsigned short)((gamma_adjust_g_temp[i] >> (16-j*16)) & 0xffff);
+                    pDev->conf.lcd_effect.GammaTableB[i*2+j] = (unsigned short)((gamma_adjust_b_temp[i] >> (16-j*16)) & 0xffff);
+                }
+            }
+            write_gamma_table();
+            printk("10bit finished.\n");
+        }
+        else
+        {
+            for (i=0; i<256; i++) {
+                pDev->conf.lcd_effect.GammaTableR[i] = gamma_adjust_r[i];
+                pDev->conf.lcd_effect.GammaTableG[i] = gamma_adjust_g[i];
+                pDev->conf.lcd_effect.GammaTableB[i] = gamma_adjust_b[i];
+            }
+            write_gamma_table();
+            printk("to original.\n");
+        }
+        break;
+    case 'f':
+        t_bit=255;
+        if (buf[1] == 'r')
+        {
+            ret = sscanf(buf, "fr %u", &t_bit);
+            t_bit &= 0xff;
+            for (i=0; i<256; i++) {
+                pDev->conf.lcd_effect.GammaTableR[i] = t_bit<<2;
+            }
+            write_gamma_table();
+            printk("with R fixed value %u finished.\n", t_bit);
+        }
+        else if (buf[1] == 'g')
+        {
+            ret = sscanf(buf, "fg %u", &t_bit);
+            t_bit &= 0xff; 
+            for (i=0; i<256; i++) {
+                pDev->conf.lcd_effect.GammaTableG[i] = t_bit<<2;
+            }
+            write_gamma_table();
+            printk("with G fixed value %u finished.\n", t_bit);
+        }
+        else if (buf[1] == 'b')
+        {
+            ret = sscanf(buf, "fb %u", &t_bit);
+            t_bit &= 0xff;
+            for (i=0; i<256; i++) {
+                pDev->conf.lcd_effect.GammaTableB[i] = t_bit<<2;
+            }
+            write_gamma_table();
+            printk("with B fixed value %u finished.\n", t_bit);
+        }
+        else
+        {
+            ret = sscanf(buf, "fw %u", &t_bit);
+            t_bit &= 0xff;
+            for (i=0; i<256; i++) {
+                pDev->conf.lcd_effect.GammaTableR[i] = t_bit<<2;
+                pDev->conf.lcd_effect.GammaTableG[i] = t_bit<<2;
+                pDev->conf.lcd_effect.GammaTableB[i] = t_bit<<2;
+            }
+            write_gamma_table();
+            printk("with fixed value %u finished.\n", t_bit);
+        }
+        break;
+        default:
+            printk("wrong format of gamma table writing.\n");
+    }
+
+	if (ret != 1 || ret !=2)
+		return -EINVAL;
+
+	return count;
+	//return 0;
+}
+
+static struct class_attribute aml_lcd_class_attrs[] = {
+	__ATTR(write,  S_IRUGO | S_IWUSR, gamma_help, aml_lcd_gamma_debug),
+	__ATTR(read,  S_IRUGO | S_IWUSR, gamma_help, aml_lcd_gamma_read),
+	__ATTR(help,  S_IRUGO | S_IWUSR, gamma_help, NULL),
+    __ATTR_NULL
+};
+
+static struct class aml_gamma_class = {
+    .name = "gamma",
+    .class_attrs = aml_lcd_class_attrs,
+};
+#endif
+//****************************
+
+//****************************
+//LCD debug
+//****************************
+static Lcd_Config_t lcd_config_temp;
+static int lvds_repack_temp, pn_swap_temp;
+
+static Lvds_Phy_Control_t lcd_lvds_phy_control = 
+{
+    .lvds_prem_ctl = 0x0,		
+    .lvds_swing_ctl = 0x4,	    
+    .lvds_vcm_ctl = 0x7,
+    .lvds_ref_ctl = 0x15, 
+};
+
+static Lvds_Config_t lcd_lvds_config=
+{
+    .lvds_repack=0,   //data mapping  //0:JEIDA mode, 1:VESA mode
+	.pn_swap=0,		  //0:normal, 1:swap
+};
+
+static const char * lcd_usage_str =
+{"Usage:\n"
+"    echo basic <h_active> <v_active> <h_period> <v_period> <lcd_type> <lcd_bits> > debug ; write lcd basic config\n"
+"    echo timing <pll_ctrl> <div_ctrl> <clk_ctrl> <hs_rising> <hs_failing> <vs_rising> <vs_failing> > debug ; write lcd timing\n"
+"data format:\n"
+"    <lcd_type>	: 1 for TTL, 2 for LVDS\n"
+"    <pll_ctrl>, <div_ctrl>, <clk_ctrl>	: lcd clock parameters in Hex\n"
+"    all the other data above are decimal numbers\n"
+"\n"
+"    echo ttl <clk_pol> <rb_swap> <bit_swap> > debug ; write ttl config\n"
+"    echo lvds <lvds_repack> <pn_swap> > debug ; write lvds config\n"
+"data format:\n"
+"    <clk_pol>  : 0 for failing edge, 1 for rising edge\n"
+"    <rb_swap>  : 0 for normal, 1 for swap r/b\n"
+"    <bit_swap> : 0 for normal, 1 for swap msb/lsb\n"
+"    <lvds_repack>  : 0 for JEIDA mode, 1 for VESA mode\n"
+"    <pn_swap>  	: 0 for normal, 1 for swap lvds p/n channels\n"
+"\n"
+"    echo write > debug ; update lcd display config\n"
+"    echo reset > debug ; reset lcd config\n"
+"    echo read > debug ; read current lcd config\n"
+"\n"
+"    echo disable > debug ; power off lcd \n"
+"    echo enable > debug ; power on lcd \n"
+};
+
+static ssize_t lcd_debug_help(struct class *class, struct class_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%s\n",lcd_usage_str);
+}
+
+static void read_current_lcd_config(Lcd_Config_t *pConf)
+{	
+	int sync_duration;
+	
+	printk("Current lcd config:\n");
+	printk("h_active	%d,\nv_active	%d,\nh_period	%d,\nv_period	%d,\nlcd_bits	%d,\n", pConf->lcd_basic.h_active, pConf->lcd_basic.v_active, pConf->lcd_basic.h_period, pConf->lcd_basic.v_period, pConf->lcd_basic.lcd_bits);
+	printk("pll_ctrl	0x%x,\ndiv_ctrl	0x%x,\nclk_ctrl	0x%x,\nhs_rising	%d,\nhs_failing	%d,\nvs_rising	%d,\nvs_failing	%d,\n", pConf->lcd_timing.pll_ctrl, pConf->lcd_timing.div_ctrl, pConf->lcd_timing.clk_ctrl, pConf->lcd_timing.sth1_hs_addr, pConf->lcd_timing.sth1_he_addr, pConf->lcd_timing.stv1_vs_addr, pConf->lcd_timing.stv1_ve_addr);
+	if (pConf->lcd_basic.lcd_type == LCD_DIGITAL_TTL)
+		printk("clk_pol	%d,\nrb_swap	%d,\nbit_swap	%d,\n", (pConf->lcd_timing.pol_cntl_addr >> LCD_CPH1_POL) & 0x1, (pConf->lcd_timing.dual_port_cntl_addr >> LCD_RGB_SWP) & 0x1, (pConf->lcd_timing.dual_port_cntl_addr >> LCD_BIT_SWP) & 0x1);
+	else
+		printk("lvds_repack	%d,\npn_swap	%d,\n", pConf->lvds_mlvds_config.lvds_config->lvds_repack, pConf->lvds_mlvds_config.lvds_config->pn_swap);
+	
+	printk("\nLCD type: %s.\n", ((pConf->lcd_basic.lcd_type == LCD_DIGITAL_TTL) ? "TTL" : "LVDS"));
+	sync_duration = pConf->lcd_timing.sync_duration_num / 10;
+	printk("Frame rate: %d.%dHz.\n\n", sync_duration, pConf->lcd_timing.sync_duration_num - sync_duration * 10);
+}
+
+static pinmux_item_t lcd_ttl_pinmux[] = {    
+    {
+        .reg = PINMUX_REG(0),	
+        .setmask = (1 << 0) | (1 << 2) | (1 << 4),	//6bit RGB	
+		.clrmask = (1<<22) | (1<<23) | (1<<24) | (1<<27),	//clera tcon pinmux
+    },
+	{
+        .reg = PINMUX_REG(1),
+        .setmask = (1<<14) | (1<<17) | (1<<18) | (1<<19),	//cph1, oeh, stv1, sth1 
+    },
+	{
+        .reg = PINMUX_REG(5),	
+        .clrmask = (0x3 << 15) | (0x1f << 19),	//clera 6bit RGB pinmux
+    },
+    PINMUX_END_ITEM
+};
+
+static pinmux_set_t lcd_ttl_pinmux_set = {
+    .chip_select = NULL,
+    .pinmux = &lcd_ttl_pinmux[0],
+};
+
+static void enalbe_lcd_ports(Lcd_Config_t *pConf)
+{
+	int lcd_type, lcd_bits;
+	
+	lcd_bits = pConf->lcd_basic.lcd_bits;
+	lcd_type = pConf->lcd_basic.lcd_type;
+	switch(lcd_type){
+        case LCD_DIGITAL_TTL:
+			if (lcd_bits == 8)
+			{	
+				lcd_ttl_pinmux[0].setmask = (3 << 0) | (3 << 2) | (3 << 4);	//8bit RGB
+				lcd_ttl_pinmux[2].clrmask = (0x1ff << 15);	//clera 8bit RGB pinmux
+			}
+            pinmux_set(&lcd_ttl_pinmux_set);
+            break;
+        case LCD_DIGITAL_LVDS:
+        	aml_set_reg32_bits(P_LVDS_PHY_CNTL3, 1, 0, 1);
+			aml_set_reg32_bits(P_LVDS_GEN_CNTL, 1, 3, 1);
+			if (lcd_bits == 6)
+				aml_set_reg32_bits(P_LVDS_PHY_CNTL4, 0x27, 0, 7);
+			else
+				aml_set_reg32_bits(P_LVDS_PHY_CNTL4, 0x2f, 0, 7);		
+            break;
+        case LCD_DIGITAL_MINILVDS:
+			//to do
+            break;
+        default:
+            printk("Invalid LCD type.\n");
+			break;
+    }	
+}
+
+static void scale_framebuffer(void)
+{		
+	if ((pDev->conf.lcd_basic.h_active != lcd_config_temp.lcd_basic.h_active) || (pDev->conf.lcd_basic.v_active != lcd_config_temp.lcd_basic.v_active)) 
+	{
+		printk("\nPlease input below commands:\n");
+		printk("echo 0 0 %d %d > /sys/class/video/axis\n", pDev->conf.lcd_basic.h_active, pDev->conf.lcd_basic.v_active);
+		printk("echo %d > /sys/class/graphics/fb0/scale_width\n", lcd_config_temp.lcd_basic.h_active);
+		printk("echo %d > /sys/class/graphics/fb0/scale_height\n", lcd_config_temp.lcd_basic.v_active);
+		printk("echo 1 > /sys/class/graphics/fb0/free_scale\n\n");
+	}
+}
+
+static void lcd_tcon_config(Lcd_Config_t *pConf)
+{
+	if (pConf->lcd_basic.lcd_type == LCD_DIGITAL_TTL)
+	{
+		pConf->lcd_timing.sth1_vs_addr = 0;
+		pConf->lcd_timing.sth1_ve_addr = pConf->lcd_basic.v_period - 1;
+		pConf->lcd_timing.stv1_hs_addr = 0;
+		pConf->lcd_timing.stv1_he_addr = pConf->lcd_basic.h_period - 1;
+	}
+	else if (pConf->lcd_basic.lcd_type == LCD_DIGITAL_LVDS)
+	{
+		pConf->lcd_timing.sth1_vs_addr = 0;
+		pConf->lcd_timing.sth1_ve_addr = pConf->lcd_basic.v_period - 1;
+		pConf->lcd_timing.stv1_hs_addr = 10;
+		pConf->lcd_timing.stv1_he_addr = 20;
+	}	
+}
+
+static void lcd_sync_duration(Lcd_Config_t *pConf)
+{
+	unsigned m, n, od, div, xd, pre_div;
+	unsigned h_period, v_period, sync_duration;	
+
+	m = ((pConf->lcd_timing.pll_ctrl) >> 0) & 0x1ff;
+	n = ((pConf->lcd_timing.pll_ctrl) >> 9) & 0x1f;
+	od = ((pConf->lcd_timing.pll_ctrl) >> 16) & 0x3;
+	div = ((pConf->lcd_timing.div_ctrl) >> 4) & 0x7;
+	h_period = pConf->lcd_basic.h_period;
+	v_period = pConf->lcd_basic.v_period;
+	
+	od = (od == 0) ? 1:((od == 1) ? 2:4);
+	switch(pConf->lcd_basic.lcd_type)
+	{
+		case LCD_DIGITAL_TTL:
+			xd = ((pConf->lcd_timing.clk_ctrl) >> 0) & 0xf;
+			pre_div = 1;
+			break;
+		case LCD_DIGITAL_LVDS:
+			xd = 1;
+			pre_div = 7;
+			break;
+		case LCD_DIGITAL_MINILVDS:
+			xd = 1;
+			pre_div = 6;
+			break;	
+		default:
+			pre_div = 1;
+			break;
+	}
+	
+	sync_duration = m*24*1000/(n*od*(div+1)*xd*pre_div);		
+	sync_duration = ((sync_duration * 10000 / h_period) * 10) / v_period;
+	sync_duration = (sync_duration + 5) / 10;	
+	
+	pConf->lcd_timing.sync_duration_num = sync_duration;
+	pConf->lcd_timing.sync_duration_den = 10;
+}
+
+static void save_lcd_config(Lcd_Config_t *pConf)
+{
+	lcd_config_temp.lcd_basic.h_active = pConf->lcd_basic.h_active;
+	lcd_config_temp.lcd_basic.v_active = pConf->lcd_basic.v_active;
+	lcd_config_temp.lcd_basic.h_period = pConf->lcd_basic.h_period;
+	lcd_config_temp.lcd_basic.v_period = pConf->lcd_basic.v_period;
+	lcd_config_temp.lcd_basic.lcd_type = pConf->lcd_basic.lcd_type;
+	lcd_config_temp.lcd_basic.lcd_bits = pConf->lcd_basic.lcd_bits;
+			
+	lcd_config_temp.lcd_timing.pll_ctrl = pConf->lcd_timing.pll_ctrl;
+	lcd_config_temp.lcd_timing.div_ctrl = pConf->lcd_timing.div_ctrl;
+	lcd_config_temp.lcd_timing.clk_ctrl = pConf->lcd_timing.clk_ctrl;
+	lcd_config_temp.lcd_timing.sth1_hs_addr = pConf->lcd_timing.sth1_hs_addr;
+	lcd_config_temp.lcd_timing.sth1_he_addr = pConf->lcd_timing.sth1_he_addr;
+	lcd_config_temp.lcd_timing.sth1_vs_addr = pConf->lcd_timing.sth1_vs_addr;
+	lcd_config_temp.lcd_timing.sth1_ve_addr = pConf->lcd_timing.sth1_ve_addr;
+	lcd_config_temp.lcd_timing.stv1_hs_addr = pConf->lcd_timing.stv1_hs_addr;
+	lcd_config_temp.lcd_timing.stv1_he_addr = pConf->lcd_timing.stv1_he_addr;
+	lcd_config_temp.lcd_timing.stv1_vs_addr = pConf->lcd_timing.stv1_vs_addr;
+	lcd_config_temp.lcd_timing.stv1_ve_addr = pConf->lcd_timing.stv1_ve_addr;
+	lcd_config_temp.lcd_timing.oeh_hs_addr = pConf->lcd_timing.oeh_hs_addr;
+	lcd_config_temp.lcd_timing.oeh_he_addr = pConf->lcd_timing.oeh_he_addr;
+	lcd_config_temp.lcd_timing.oeh_vs_addr = pConf->lcd_timing.oeh_vs_addr;
+	lcd_config_temp.lcd_timing.oeh_ve_addr = pConf->lcd_timing.oeh_ve_addr;
+
+	lcd_config_temp.lcd_timing.pol_cntl_addr = pConf->lcd_timing.pol_cntl_addr;
+	lcd_config_temp.lcd_timing.dual_port_cntl_addr = pConf->lcd_timing.dual_port_cntl_addr;
+	
+	if (pConf->lcd_basic.lcd_type == LCD_DIGITAL_LVDS)
+	{
+		lvds_repack_temp = pConf->lvds_mlvds_config.lvds_config->lvds_repack;
+		pn_swap_temp = pConf->lvds_mlvds_config.lvds_config->pn_swap;
+	}
+}
+
+static void reset_lcd_config(Lcd_Config_t *pConf)
+{
+	int res = 0;
+	
+	printk("reset lcd config.\n");
+	if ((pConf->lcd_basic.h_active != lcd_config_temp.lcd_basic.h_active) || (pConf->lcd_basic.v_active != lcd_config_temp.lcd_basic.v_active))
+		res = 1;
+	
+	pConf->lcd_basic.h_active = lcd_config_temp.lcd_basic.h_active;
+	pConf->lcd_basic.v_active = lcd_config_temp.lcd_basic.v_active;
+	pConf->lcd_basic.h_period = lcd_config_temp.lcd_basic.h_period;
+	pConf->lcd_basic.v_period = lcd_config_temp.lcd_basic.v_period;
+	pConf->lcd_basic.lcd_type = lcd_config_temp.lcd_basic.lcd_type;
+	pConf->lcd_basic.lcd_bits = lcd_config_temp.lcd_basic.lcd_bits;
+			
+	pConf->lcd_timing.pll_ctrl = lcd_config_temp.lcd_timing.pll_ctrl;
+	pConf->lcd_timing.div_ctrl = lcd_config_temp.lcd_timing.div_ctrl;
+	pConf->lcd_timing.clk_ctrl = lcd_config_temp.lcd_timing.clk_ctrl;
+	pConf->lcd_timing.sth1_hs_addr = lcd_config_temp.lcd_timing.sth1_hs_addr;
+	pConf->lcd_timing.sth1_he_addr = lcd_config_temp.lcd_timing.sth1_he_addr;
+	pConf->lcd_timing.sth1_vs_addr = lcd_config_temp.lcd_timing.sth1_vs_addr;
+	pConf->lcd_timing.sth1_ve_addr = lcd_config_temp.lcd_timing.sth1_ve_addr;
+	pConf->lcd_timing.stv1_hs_addr = lcd_config_temp.lcd_timing.stv1_hs_addr;
+	pConf->lcd_timing.stv1_he_addr = lcd_config_temp.lcd_timing.stv1_he_addr;
+	pConf->lcd_timing.stv1_vs_addr = lcd_config_temp.lcd_timing.stv1_vs_addr;
+	pConf->lcd_timing.stv1_ve_addr = lcd_config_temp.lcd_timing.stv1_ve_addr;
+	pConf->lcd_timing.oeh_hs_addr = lcd_config_temp.lcd_timing.oeh_hs_addr;
+	pConf->lcd_timing.oeh_he_addr = lcd_config_temp.lcd_timing.oeh_he_addr;
+	pConf->lcd_timing.oeh_vs_addr = lcd_config_temp.lcd_timing.oeh_vs_addr;
+	pConf->lcd_timing.oeh_ve_addr = lcd_config_temp.lcd_timing.oeh_ve_addr;
+
+	pConf->lcd_timing.pol_cntl_addr = lcd_config_temp.lcd_timing.pol_cntl_addr;
+	pConf->lcd_timing.dual_port_cntl_addr = lcd_config_temp.lcd_timing.dual_port_cntl_addr;
+	
+	if (lcd_config_temp.lcd_basic.lcd_type == LCD_DIGITAL_LVDS)
+	{
+		lcd_lvds_config.lvds_repack = lvds_repack_temp;
+		lcd_lvds_config.pn_swap = pn_swap_temp;
+	}
+	
+	lcd_sync_duration(&pDev->conf);
+	_init_display_driver(&pDev->conf);
+	enalbe_lcd_ports(&pDev->conf);
+	if (res)
+	{
+		printk("\nPlease input below commands:\n");		
+		printk("echo 0 > /sys/class/graphics/fb0/free_scale\n\n");
+	}
+}
+
+static ssize_t lcd_debug(struct class *class, struct class_attribute *attr, const char *buf, size_t count)
+{
+	unsigned int ret;
+	unsigned t[8];
+	
+	switch (buf[0])
+	{
+		case 'r':	
+			if (buf[2] == 'a')	//read lcd config
+			{
+				read_current_lcd_config(&pDev->conf);
+			}
+			else if (buf[2] == 's')	//reset lcd config
+			{			
+				reset_lcd_config(&pDev->conf);				
+			}
+			break;
+		case 'b':	//write basic config
+			t[0] = 1024;
+			t[1] = 768;
+			t[2] = 1344;
+			t[3] = 806;
+			t[4] = 2;
+			t[5] = 8;
+			ret = sscanf(buf, "basic %d %d %d %d %d %d", &t[0], &t[1], &t[2], &t[3], &t[4], &t[5]);
+			pDev->conf.lcd_basic.h_active = t[0];
+			pDev->conf.lcd_basic.v_active = t[1];
+			pDev->conf.lcd_basic.h_period = t[2];
+			pDev->conf.lcd_basic.v_period = t[3];
+			pDev->conf.lcd_basic.lcd_type = t[4];
+			pDev->conf.lcd_basic.lcd_bits = t[5];
+			printk("write lcd basic config:\n");
+			printk("h_active=%d, v_active=%d, h_period=%d, v_period=%d, lcd_type: %s, lcd_bits: %d\n", t[0], t[1], t[2], t[3], ((t[4] == LCD_DIGITAL_TTL) ? "TTL" : ((t[4] == LCD_DIGITAL_LVDS) ? "LVDS" : "miniLVDS")), t[5]);
+			break;
+		case 't':	
+			if (buf[1] == 'i') //write display timing
+			{
+				t[0] = 0x10220;
+				t[1] = 0x18803;
+				t[2] = 0x1111;
+				t[3] = 10;
+				t[4] = 20;
+				t[5] = 2;
+				t[6] = 4;
+				ret = sscanf(buf, "timing %x %x %x %d %d %d %d", &t[0], &t[1], &t[2], &t[3], &t[4], &t[5], &t[6]);
+				pDev->conf.lcd_timing.pll_ctrl = t[0];
+				pDev->conf.lcd_timing.div_ctrl = t[1];
+				pDev->conf.lcd_timing.clk_ctrl = t[2];
+				pDev->conf.lcd_timing.sth1_hs_addr = t[3];
+				pDev->conf.lcd_timing.sth1_he_addr = t[4];
+				pDev->conf.lcd_timing.stv1_vs_addr = t[5];
+				pDev->conf.lcd_timing.stv1_ve_addr = t[6];
+				pDev->conf.lcd_timing.oeh_hs_addr = pDev->conf.lcd_timing.video_on_pixel+ 19;
+				pDev->conf.lcd_timing.oeh_he_addr = pDev->conf.lcd_timing.video_on_pixel + 19 + pDev->conf.lcd_basic.h_active;
+				pDev->conf.lcd_timing.oeh_vs_addr = pDev->conf.lcd_timing.video_on_line;
+				pDev->conf.lcd_timing.oeh_ve_addr = pDev->conf.lcd_timing.video_on_line + pDev->conf.lcd_basic.v_active - 1;
+				printk("write lcd timing config:\n");
+				printk("pll_ctrl=0x%x, div_ctrl=0x%x, clk_ctrl=0x%x, hs_rising=%d, hs_falling=%d, vs_rising=%d, vs_falling=%d\n", t[0], t[1], t[2], t[3], t[4], t[5], t[6]);
+			}
+			else if (buf[1] == 't')	//write ttl config	//clk_pol, rb_swap, bit_swap
+			{
+				t[0] = 1;
+				t[1] = 0;
+				t[2] = 0;
+				ret = sscanf(buf, "ttl %d %d %d", &t[0], &t[1], &t[2]);
+				pDev->conf.lcd_timing.pol_cntl_addr = (t[0] << LCD_CPH1_POL) |(0x1 << LCD_HS_POL) | (0x1 << LCD_VS_POL);
+				pDev->conf.lcd_timing.dual_port_cntl_addr = (1<<LCD_TTL_SEL) | (1<<LCD_ANALOG_SEL_CPH3) | (1<<LCD_ANALOG_3PHI_CLK_SEL) | (t[1]<<LCD_RGB_SWP) | (t[2]<<LCD_BIT_SWP);
+				printk("write ttl config:\n");
+				printk("clk_pol: %s, rb_swap: %s, bit_swap: %s\n", ((t[0] == 1) ? "positive" : "negative"), ((t[1] == 1) ? "enable" : "disable"), ((t[2] == 1) ? "enable" : "disable"));
+			}
+			break;		
+		case 'l':	//write lvds config		//lvds_repack, pn_swap
+			t[0] = 1;
+			t[1] = 0;
+			ret = sscanf(buf, "lvds %d %d", &t[0], &t[1]);
+			lcd_lvds_config.lvds_repack = t[0];
+			lcd_lvds_config.pn_swap = t[1];
+			pDev->conf.lvds_mlvds_config.lvds_config = &lcd_lvds_config;
+			pDev->conf.lvds_mlvds_config.lvds_phy_control = &lcd_lvds_phy_control;
+			printk("write lvds config:\n");
+			printk("lvds_repack: %s, rb_swap: %s\n", ((t[0] == 1) ? "VESA mode" : "JEIDA mode"), ((t[1] == 1) ? "enable" : "disable"));
+			break;
+		case 'm':	//write mlvds config
+			//to do
+			break;
+		case 'w':	//update display config
+			if (pDev->conf.lcd_basic.lcd_type == LCD_DIGITAL_MINILVDS)
+			{
+				printk("Don't support miniLVDS yet. Will reset to original lcd config.\n");
+				reset_lcd_config(&pDev->conf);
+			}
+			else
+			{
+				lcd_tcon_config(&pDev->conf);
+				lcd_sync_duration(&pDev->conf);
+				_init_display_driver(&pDev->conf);
+				enalbe_lcd_ports(&pDev->conf);
+				scale_framebuffer();
+			}
+			break;
+		case 'd':
+			printk("power off lcd.\n");
+			_disable_backlight();
+			pDev->conf.lcd_power_ctrl.power_ctrl?pDev->conf.lcd_power_ctrl.power_ctrl(OFF):0;
+			//_disable_display_driver(&pDev->conf);
+			break;
+		case 'e':
+			printk("power on lcd.\n");
+			//_lcd_module_enable();			
+			if (pDev->conf.lcd_basic.lcd_type != LCD_DIGITAL_TTL)
+			{	
+				init_lvds_phy(&pDev->conf);	
+			}
+			pDev->conf.lcd_power_ctrl.power_ctrl?pDev->conf.lcd_power_ctrl.power_ctrl(ON):0;							
+			_enable_backlight(BL_MAX_LEVEL);
+			break;
+		default:
+			printk("wrong format of lcd debug command.\n");			
+	}	
+	
+	if (ret != 1 || ret !=2)
+		return -EINVAL;
+	
+	return count;
+	//return 0;
+}
+
+static struct class_attribute lcd_debug_class_attrs[] = {   
+	__ATTR(debug,  S_IRUGO | S_IWUSR, lcd_debug_help, lcd_debug),	
+	__ATTR(help,  S_IRUGO | S_IWUSR, lcd_debug_help, NULL),
+    __ATTR_NULL
+};
+
+static struct class aml_lcd_debug_class = {
+    .name = "lcd",
+    .class_attrs = lcd_debug_class_attrs,
+};
+//****************************
+
 static struct notifier_block lcd_reboot_nb;
 static int lcd_probe(struct platform_device *pdev)
 {
@@ -1686,6 +2387,27 @@ static int lcd_probe(struct platform_device *pdev)
 	{
 		printk("notifier register lcd_reboot_notifier fail!\n");
 	}
+	
+	int ret;
+	
+	save_lcd_config(&pDev->conf);
+	ret = class_register(&aml_lcd_debug_class);
+	if(ret){
+		printk("class register aml_lcd_debug_class fail!\n");
+	}
+#ifdef CONFIG_AML_GAMMA_DEBUG	
+	int i;
+	for (i=0; i<256; i++) {
+        gamma_adjust_r[i] = pDev->conf.lcd_effect.GammaTableR[i];
+        gamma_adjust_g[i] = pDev->conf.lcd_effect.GammaTableG[i];
+		gamma_adjust_b[i] = pDev->conf.lcd_effect.GammaTableB[i];
+    }
+	
+	ret = class_register(&aml_gamma_class);
+	if(ret){
+		printk("class register aml_gamma_class fail!\n");
+	}
+#endif
 
     return 0;
 }

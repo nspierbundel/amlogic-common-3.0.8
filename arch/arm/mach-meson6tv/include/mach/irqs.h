@@ -54,7 +54,7 @@
 #define INT_SYS_ARC_SLEEP_RATIO     AM_IRQ0(9)
 #define INT_TIMER_A                 AM_IRQ0(10)
 #define INT_TIMER_B                 AM_IRQ0(11)
-/* IRQ0: 12,13,14 Unused in M6TV 
+/* IRQ0: 12,13,14 Unused in M6TV
 #define INT_VIU2_HSYNC              AM_IRQ0(12)
 #define INT_VIU2_VSYNC              AM_IRQ0(13)
 #define INT_MIPI_PHY								AM_IRQ2(14)
@@ -126,10 +126,10 @@
 #define INT_VIDEO_WR                AM_IRQ2(15)
 #define INT_SPI                     AM_IRQ2(16)
 #define INT_SPI_1                   AM_IRQ2(17)
-#define INT_VDIN_HSYNC              AM_IRQ2(18)
-#define INT_VDIN_VSYNC              AM_IRQ2(19)
-#define INT_VDIN_HSYNC1             AM_IRQ2(20)
-#define INT_VDIN_VSYNC1             AM_IRQ2(21)
+#define INT_VDIN0_HSYNC             AM_IRQ2(18)
+#define INT_VDIN0_VSYNC             AM_IRQ2(19)
+#define INT_VDIN1_HSYNC             AM_IRQ2(20)
+#define INT_VDIN1_VSYNC             AM_IRQ2(21)
 #define INT_VD1_WR									AM_IRQ2(22)
 #define INT_TVFE										AM_IRQ2(23)
 #define INT_I2C_CBUS_DDR            AM_IRQ2(24)

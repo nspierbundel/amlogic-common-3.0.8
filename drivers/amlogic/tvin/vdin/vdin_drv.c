@@ -49,6 +49,7 @@
 #include "../tvin_global.h"
 #include "../tvin_format_table.h"
 #include "../tvin_frontend.h"
+#include "../vdin_v4l2/vdin_v4l2.h"
 #include "vdin_regs.h"
 #include "vdin_drv.h"
 #include "vdin_ctl.h"
@@ -63,6 +64,7 @@
 #define VDIN_CLS_NAME		"vdin"
 #define PROVIDER_NAME		"vdin"
 
+#define SMOOTH_DEBUG
 
 #define VDIN_PUT_INTERVAL		(HZ/100)   //10ms, #define HZ 100
 
@@ -109,26 +111,70 @@ static bool vdin_dbg_en = 0;
 module_param(vdin_dbg_en,bool,0664);
 MODULE_PARM_DESC(vdin_dbg_en,"enable/disable vdin debug information");
 
+static bool reverse_flag = false;
+module_param(reverse_flag,bool,0644);
+MODULE_PARM_DESC(reverse_flag,"reverse/disreverse vdin buffer & osd");
+
+static bool invert_top_bot = false;
+module_param(invert_top_bot,bool,0644);
+MODULE_PARM_DESC(invert_top_bot,"invert field type top or bottom");
+
+/*
+*the check flag in vdin_isr 
+*bit0:bypass stop check,bit1:bypass cyc check
+*bit2:bypass vsync check,bit3:bypass vga check
+*/
+static unsigned int isr_flag = 0;
+module_param(isr_flag,uint,0664);
+MODULE_PARM_DESC(isr_flag,"flag which affect the skip field");
+
 static int irq_max_count = 0;
+
+static unsigned char hscl_ratio = 0, vscl_ratio = 0;
 
 static irqreturn_t vdin_isr_simple(int irq, void *dev_id);
 static irqreturn_t vdin_isr(int irq, void *dev_id);
 static irqreturn_t vdin_v4l2_isr(int irq, void *dev_id);
 
+static int __init vdin_reverse(char *str)
+{
+        unsigned char *ptr = str;
+        pr_info("[vdin..] %s bootargs is %s.\n",__func__,str);
+        if(strstr(ptr,"true")){
+                reverse_flag = true;
+                invert_top_bot = true;
+                /*osd reverese*/
+                WRITE_MPEG_REG_BITS(VIU_OSD1_BLK0_CFG_W0,3,28,2);
+        }
+        else if(strstr(ptr,"false")){
+                reverse_flag = false;
+                invert_top_bot = false;
+                /*disable osd reverese*/
+                WRITE_MPEG_REG_BITS(VIU_OSD1_BLK0_CFG_W0,0,28,2);
+        }
+        else
+                return -1;
+        return 0;
+}
+__setup("reverse=",vdin_reverse);
+
+
 static u32 vdin_get_curr_field_type(struct vdin_dev_s *devp)
 {
 	u32 field_status;
 	u32 type = VIDTYPE_VIU_SINGLE_PLANE | VIDTYPE_VIU_FIELD ;
-	struct tvin_parm_s *parm = &devp->parm;
+	//struct tvin_parm_s *parm = &devp->parm;
 	const struct tvin_format_s *fmt_info = devp->fmt_info_p;
 
-	if (fmt_info->scan_mode == TVIN_SCAN_MODE_PROGRESSIVE) {
+	if (fmt_info->scan_mode == TVIN_SCAN_MODE_PROGRESSIVE){
 		type |= VIDTYPE_PROGRESSIVE;
 	}
-	else
-	{
+	else{
 		field_status = vdin_get_field_type(devp->addr_offset);
-		type |= field_status ? VIDTYPE_INTERLACE_BOTTOM : VIDTYPE_INTERLACE_TOP;
+                if(invert_top_bot)
+                        type |= field_status ? VIDTYPE_INTERLACE_TOP : VIDTYPE_INTERLACE_BOTTOM;
+                else
+		        type |= field_status ? VIDTYPE_INTERLACE_BOTTOM : VIDTYPE_INTERLACE_TOP;
 	}
 	if ((devp->format_convert == VDIN_FORMAT_CONVERT_YUV_YUV444) ||
 			(devp->format_convert == VDIN_FORMAT_CONVERT_RGB_YUV444))
@@ -146,7 +192,6 @@ void vdin_timer_func(unsigned long arg)
 
 	/* state machine routine */
 	tvin_smr(devp);
-
 	/* add timer */
 	devp->timer.expires = jiffies + VDIN_PUT_INTERVAL;
 	add_timer(&devp->timer);
@@ -178,14 +223,15 @@ static const struct vframe_operations_s vdin_vf_ops =
 static int vdin_open_fe(enum tvin_port_e port, int index,  struct vdin_dev_s *devp)
 {
 	struct tvin_frontend_s *fe = tvin_get_frontend(port, index);
+	int ret = 0;
 	if (!fe) {
 		pr_err("%s(%d): not supported port 0x%x \n", __func__, devp->index, port);
 		return -1;
 	}
 
 	devp->frontend = fe;
-	devp->parm.port 	= port;
-	devp->parm.info.fmt  = TVIN_SIG_FMT_NULL;
+	devp->parm.port        = port;
+	devp->parm.info.fmt    = TVIN_SIG_FMT_NULL;
 	devp->parm.info.status = TVIN_SIG_STATUS_NULL;
 #ifdef TVAFE_SET_CVBS_MANUAL_FMT_POS
 	devp->cvbs_pos_chg = TVIN_CVBS_POS_NULL;  //init position value
@@ -195,7 +241,10 @@ static int vdin_open_fe(enum tvin_port_e port, int index,  struct vdin_dev_s *de
 	vdin_set_default_regmap(devp->addr_offset);
 
 	if (devp->frontend->dec_ops && devp->frontend->dec_ops->open)
-		devp->frontend->dec_ops->open(devp->frontend, port);
+		ret = devp->frontend->dec_ops->open(devp->frontend, port);
+	/* check open status */
+	if (ret)
+	    return 1;
 
 	/* init vdin state machine */
 	tvin_smr_init(devp->index);
@@ -385,8 +434,8 @@ static void vdin_vf_init(struct vdin_dev_s *devp)
 		vf->width = devp->h_active;
 		vf->height = devp->v_active;
 		if ((devp->fmt_info_p->scan_mode == TVIN_SCAN_MODE_INTERLACED) &&
-				(!(devp->parm.flag & TVIN_PARM_FLAG_2D_TO_3D) &&
-				 (devp->parm.info.fmt != TVIN_SIG_FMT_NULL))
+		    (!(devp->parm.flag & TVIN_PARM_FLAG_2D_TO_3D) &&
+                      (devp->parm.info.fmt != TVIN_SIG_FMT_NULL))                  
 		   )
 			vf->height <<= 1;
 #ifndef VDIN_DYNAMIC_DURATION
@@ -460,10 +509,18 @@ static void vdin_start_dec(struct vdin_dev_s *devp)
 	/* h_active/v_active will be recalculated by bellow calling */
 	vdin_set_decimation(devp);
 	vdin_set_cutwin(devp);
-
+	vdin_set_hscale(devp->addr_offset, devp->h_active, (devp->h_active >> hscl_ratio));
+	devp->h_active = devp->h_active >> hscl_ratio;
+#if MESON_CPU_TYPE >= MESON_CPU_TYPE_MESON6TV
+	vdin_set_vscale(devp->addr_offset, devp->v_active, (devp->v_active >> vscl_ratio));
+	devp->v_active = devp->v_active >> vscl_ratio;
+#endif
+        /*reverse / disable reverse write buffer*/        
+        vdin_wr_reverse(devp->addr_offset,reverse_flag,reverse_flag);
+                
 	pr_info("h_active = %d, v_active = %d\n", devp->h_active, devp->v_active);
-	pr_info("signal format	= %s(%d)\n"
-			"trans_fmt		= %s(%d)\n"
+	pr_info("signal format	= %s(0x%x)\n"
+			"trans_fmt	= %s(%d)\n"
 			"color_format	= %s(%d)\n"
 			"format_convert = %s(%d)\n"
 			"aspect_ratio	= %s(%d)\n"
@@ -515,6 +572,7 @@ static void vdin_start_dec(struct vdin_dev_s *devp)
 	devp->vs_cnt_valid = 0;
 	devp->vs_cnt_ignore = 0;
 
+        devp->curr_field_type = vdin_get_curr_field_type(devp);
 	//pr_info("start clean_counter is %d\n",clean_counter);
 	/* configure regs and enable hw */
 	vdin_hw_enable(devp->addr_offset);
@@ -532,9 +590,11 @@ static void vdin_start_dec(struct vdin_dev_s *devp)
 	vf_reg_provider(&devp->vprov);
 	vf_notify_receiver(devp->name,VFRAME_EVENT_PROVIDER_START,NULL);
 
+        /*enable irq */
+        enable_irq(devp->irq);
+
 	/* enable system_time */
 	timestamp_pcrscr_enable(1);
-
 	pr_info("%s port:0x%x ok\n", __func__, devp->parm.port);
 }
 
@@ -558,7 +618,7 @@ static void vdin_stop_dec(struct vdin_dev_s *devp)
 		devp->frontend->dec_ops->stop(devp->frontend, devp->parm.port);
 	vdin_set_default_regmap(devp->addr_offset);
 	vdin_hw_disable(devp->addr_offset);
-	//disable_irq_nosync(devp->irq);
+	disable_irq_nosync(devp->irq);
 	/* reset default canvas  */
 	vdin_set_def_wr_canvas(devp);
 
@@ -570,21 +630,27 @@ static void vdin_stop_dec(struct vdin_dev_s *devp)
 int start_tvin_service(int no ,vdin_parm_t *para)
 {
 	struct tvin_frontend_s *fe;
-	struct vdin_dev_s  *devp = vdin_devp[0];
-	if(!para){
-                printk("[vdin..]%s null pointer error.\n",__func__);
-		return -1;
+        int ret = 0;
+	struct vdin_dev_s *devp = vdin_devp[no];
+        if(IS_ERR(devp)){
+                printk(KERN_ERR "[vdin..]%s vdin%d has't registered,please register.\n",__func__,no);
+                return -1;
+        }
+        if (devp->flags & VDIN_FLAG_DEC_STARTED) {
+		pr_err("%s: port 0x%x, decode started already.\n",__func__,para->port);
+		ret = -EBUSY;
 	}
-
         snprintf(devp->irq_name, sizeof(devp->irq_name),  "vdin%d-irq", devp->index);
 	if (work_mode_simple) {
 		pr_info("vdin work in simple mode\n");
-		request_irq(devp->irq, vdin_isr_simple, IRQF_SHARED, devp->irq_name, (void *)devp);
+		ret = request_irq(devp->irq, vdin_isr_simple, IRQF_SHARED, devp->irq_name, (void *)devp);
 	}
 	else {
 		pr_info("vdin work in normal mode\n");
-		request_irq(devp->irq, vdin_v4l2_isr, IRQF_SHARED, devp->irq_name, (void *)devp);
+		ret = request_irq(devp->irq, vdin_v4l2_isr, IRQF_SHARED, devp->irq_name, (void *)devp);
 	}
+        /*disable vsync irq until vdin configured completely*/
+        disable_irq_nosync(devp->irq);
         /*config the vdin use default value*/
         vdin_set_default_regmap(devp->addr_offset);
 
@@ -610,14 +676,21 @@ int start_tvin_service(int no ,vdin_parm_t *para)
 	}else{
                 devp->fmt_info_p = tvin_get_fmt_info(devp->parm.info.fmt);
         }
-                fe = tvin_get_frontend(para->port, 0);
+        if(!devp->fmt_info_p) {
+		pr_err("%s(%d): error, fmt is null!!!\n", __func__, no);
+		return -1;
+        }
+        fe = tvin_get_frontend(para->port, 0);       
         if(fe){
                 fe->private_data = para;
                 fe->port         = para->port;
 	        devp->frontend   = fe;
                 if(fe->dec_ops->open)
                         fe->dec_ops->open(fe,fe->port);
-        }
+        }else{
+		pr_err("%s(%d): not supported port 0x%x \n", __func__, no, para->port);
+		return -1;
+	}
 	//disable cut window?
 	devp->parm.cutwin.he = 0;
 	devp->parm.cutwin.hs = 0;
@@ -637,7 +710,7 @@ EXPORT_SYMBOL(start_tvin_service);
 int stop_tvin_service(int no)
 {
 	struct vdin_dev_s *devp;
-	devp = vdin_devp[0];
+	devp = vdin_devp[no];
 	devp->flags |= VDIN_FLAG_DEC_STOP_ISR;
 	vdin_stop_dec(devp);
         /*close fe*/
@@ -663,6 +736,14 @@ void get_tvin_canvas_info(int* start , int* num)
 	*num = vdin_devp[0]->canvas_max_num;
 }
 EXPORT_SYMBOL(get_tvin_canvas_info);
+
+static vdin_v4l2_ops_t vdin_4v4l2_ops = {
+        .start_tvin_service = start_tvin_service,
+        .stop_tvin_service = stop_tvin_service,
+        .get_tvin_canvas_info = get_tvin_canvas_info,
+        .set_tvin_canvas_info = NULL,
+};
+
 static void vdin_pause_dec(struct vdin_dev_s *devp)
 {
 	vdin_hw_disable(devp->addr_offset);
@@ -690,6 +771,11 @@ static inline void vdin_set_view(struct vdin_dev_s *devp, struct vframe_s *vf)
 	struct vframe_view_s *left_eye, *right_eye;
 	enum tvin_sig_fmt_e fmt = devp->parm.info.fmt;
 	const struct tvin_format_s *fmt_info = tvin_get_fmt_info(fmt);
+
+    if(!fmt_info) {
+        pr_err("[tvafe..] %s: error,fmt is null!!! \n",__func__);
+        return;
+    }
 
 	left_eye  = &vf->left_eye;
 	right_eye = &vf->right_eye;
@@ -807,6 +893,19 @@ static void vdin_backup_histgram(struct vframe_s *vf, struct vdin_dev_s *devp)
  *3--it is better to shorter the time,
  */
 #define VDIN_MEAS_24M_1MS 24000
+
+#ifdef SMOOTH_DEBUG
+static int isr_count = 0;
+static int notify_count = 0;
+static unsigned char count_start = 0;
+int get_vsync_count(unsigned char reset);
+static void dump_count(void)
+{
+    int output_vsync_count = get_vsync_count(0);
+    printk("display %d vdin %d diff %d notify %d\n",output_vsync_count, isr_count, output_vsync_count-isr_count, notify_count);   
+}
+#endif
+
 static irqreturn_t vdin_isr(int irq, void *dev_id)
 {
 	ulong flags;
@@ -827,7 +926,8 @@ static irqreturn_t vdin_isr(int irq, void *dev_id)
 	bool is_vga = false;
 
 	if (!devp) return IRQ_HANDLED;
-
+        
+        isr_log(devp->vfp);
 	/* debug interrupt interval time
 	 *
 	 * this code about system time must be outside of spinlock.
@@ -835,6 +935,15 @@ static irqreturn_t vdin_isr(int irq, void *dev_id)
 
 	 devp->v.isr_count++;
 	 */
+
+#ifdef SMOOTH_DEBUG
+	 if(count_start == 0){
+	    get_vsync_count(1);
+	    count_start = 1;
+	 }
+	 isr_count++;
+#endif
+	 
 	spin_lock_irqsave(&devp->isr_lock, flags);
 
 	/* avoid null pointer oops */
@@ -844,7 +953,8 @@ static irqreturn_t vdin_isr(int irq, void *dev_id)
 
 	//vdin_write_done_check(devp->addr_offset, devp);
 
-	if (devp->flags & VDIN_FLAG_DEC_STOP_ISR)
+	if ((devp->flags & VDIN_FLAG_DEC_STOP_ISR)&&
+                        (!(isr_flag & VDIN_BYPASS_STOP_CHECK)))
 	{
 		vdin_hw_disable(devp->addr_offset);
 		devp->flags &= ~VDIN_FLAG_DEC_STOP_ISR;
@@ -858,13 +968,13 @@ static irqreturn_t vdin_isr(int irq, void *dev_id)
 		goto irq_handled;
 	}
 	/*check vs is valid base on the time during continuous vs*/
-	if(vdin_check_cycle(devp))
+	if(vdin_check_cycle(devp) && (!(isr_flag & VDIN_BYPASS_CYC_CHECK)))
 		goto irq_handled;
 
 	devp->hcnt64 = vdin_get_meas_hcnt64(devp->addr_offset);
 
 	/* ignore invalid vs base on the continuous fields different cnt to void screen flicker */
-	if (vdin_check_vs(devp))
+	if (vdin_check_vs(devp)&&(!(isr_flag & VDIN_BYPASS_VSYNC_CHECK)))
 	{
 		goto irq_handled;
 	}
@@ -874,7 +984,8 @@ static irqreturn_t vdin_isr(int irq, void *dev_id)
 			(devp->parm.port <= TVIN_PORT_VGA7) &&
 			(devp->dec_enable))
 	{
-		is_vga = true;
+                if(!(isr_flag && VDIN_BYPASS_VGA_CHECK))
+		        is_vga = true;
 	}
 	else{
 		is_vga = false;
@@ -897,7 +1008,7 @@ static irqreturn_t vdin_isr(int irq, void *dev_id)
 		goto irq_handled;
 	}
 	curr_wr_vfe = devp->curr_wr_vfe;
-	curr_wr_vf	= &curr_wr_vfe->vf;
+	curr_wr_vf  = &curr_wr_vfe->vf;
 
 	decops = devp->frontend->dec_ops;
 	if (decops->decode_isr(devp->frontend, devp->hcnt64) == -1) {
@@ -957,8 +1068,12 @@ static irqreturn_t vdin_isr(int irq, void *dev_id)
 	if (!next_wr_vfe) {
 		goto irq_handled;
 	}
+	/*if vdin-nr,di must get vdin current field type which di pre will read*/
+  if(vf_notify_receiver(devp->name,VFRAME_EVENT_PROVIDER_QUREY_VDIN2NR,NULL))
+		curr_wr_vf->type = devp->curr_field_type;
+	else 
+		curr_wr_vf->type = last_field_type;
 
-	curr_wr_vf->type = last_field_type;
 	/* for 2D->3D mode & interlaced format, fill-in as progressive format */
 	if ((devp->parm.flag & TVIN_PARM_FLAG_2D_TO_3D) &&
 			(last_field_type & VIDTYPE_INTERLACE)
@@ -1017,6 +1132,10 @@ static irqreturn_t vdin_isr(int irq, void *dev_id)
         devp->curr_wr_vfe = next_wr_vfe;
 	vf_notify_receiver(devp->name,VFRAME_EVENT_PROVIDER_VFRAME_READY,NULL);
 
+#ifdef SMOOTH_DEBUG
+	 notify_count++;
+#endif
+
 	/* 1.csc=blank wr=default*/
 	if (is_vga &&
 			((vga_parm.hpos_step != next_wr_vfe->vf.vga_parm.hpos_step) ||
@@ -1044,6 +1163,8 @@ static irqreturn_t vdin_isr(int irq, void *dev_id)
 	}
 irq_handled:
 	spin_unlock_irqrestore(&devp->isr_lock, flags);
+        
+        isr_log(devp->vfp);
 	return IRQ_HANDLED;
 }
 /*
@@ -1060,14 +1181,13 @@ static irqreturn_t vdin_v4l2_isr(int irq, void *dev_id)
 	struct vframe_s *curr_wr_vf = NULL;
 	unsigned int last_field_type, stamp;
 	struct tvin_decoder_ops_s *decops;
-
+                struct tvin_state_machine_ops_s *sm_ops;
 	if (!devp) 
                 return IRQ_HANDLED;
 
 	spin_lock_irqsave(&devp->isr_lock, flags);
-
-	/* avoid null pointer oops */
-	
+                if(devp)
+	/* avoid null pointer oops */	
 	stamp  = vdin_get_meas_vstamp(devp->addr_offset);
 	if (!devp->curr_wr_vfe) {
 		devp->curr_wr_vfe = provider_vf_get(devp->vfp);
@@ -1079,6 +1199,13 @@ static irqreturn_t vdin_v4l2_isr(int irq, void *dev_id)
 	if(vdin_check_cycle(devp)){
 		goto irq_handled;
 	}
+        /*check the skip frame*/
+        if(devp->frontend && devp->frontend->sm_ops){
+                sm_ops = devp->frontend->sm_ops;
+                if(sm_ops->check_frame_skip)
+                        sm_ops->check_frame_skip(devp->frontend);
+        }
+
 	if (devp->flags & VDIN_FLAG_DEC_STOP_ISR){
 		vdin_hw_disable(devp->addr_offset);
 		devp->flags &= ~VDIN_FLAG_DEC_STOP_ISR;
@@ -1092,24 +1219,24 @@ static irqreturn_t vdin_v4l2_isr(int irq, void *dev_id)
 	curr_wr_vfe = devp->curr_wr_vfe;
 	curr_wr_vf  = &curr_wr_vfe->vf;
 
-	if(devp->frontend && devp->frontend->dec_ops){
+	curr_wr_vf->type = last_field_type;
+
+	vdin_set_vframe_prop_info(curr_wr_vf, devp);
+	vdin_backup_histgram(curr_wr_vf, devp);
+    
+        if(devp->frontend && devp->frontend->dec_ops){
 		decops = devp->frontend->dec_ops;
+                /*pass the histogram information to viuin frontend*/
+                devp->frontend->private_data = &curr_wr_vf->prop;
 		if (decops->decode_isr(devp->frontend, devp->hcnt64) == -1) {
 			goto irq_handled;
 		}
 	}
 
-	next_wr_vfe = provider_vf_peek(devp->vfp);
+        next_wr_vfe = provider_vf_peek(devp->vfp);
 	if (!next_wr_vfe) {
 		goto irq_handled;
 	}
-
-	curr_wr_vf->type = last_field_type;
-
-	vdin_set_vframe_prop_info(curr_wr_vf, devp);
-	vdin_backup_histgram(curr_wr_vf, devp);
-
-
 	curr_wr_vfe->flag |= VF_FLAG_NORMAL_FRAME;
 	provider_vf_put(curr_wr_vfe, devp->vfp);
 
@@ -1134,7 +1261,7 @@ irq_handled:
 static int vdin_open(struct inode *inode, struct file *file)
 {
 	vdin_dev_t *devp;
-
+                int ret = 0;
 	/* Get the per-device structure that contains this cdev */
 	devp = container_of(inode->i_cdev, vdin_dev_t, cdev);
 	file->private_data = devp;
@@ -1153,18 +1280,19 @@ static int vdin_open(struct inode *inode, struct file *file)
 	snprintf(devp->irq_name, sizeof(devp->irq_name),  "vdin%d-irq", devp->index);
 	if (work_mode_simple) {
 		pr_info("vdin work in simple mode\n");
-		request_irq(devp->irq, vdin_isr_simple, IRQF_SHARED, devp->irq_name, (void *)devp);
+		ret = request_irq(devp->irq, vdin_isr_simple, IRQF_SHARED, devp->irq_name, (void *)devp);
 	}
 	else {
 		pr_info("vdin work in normal mode\n");
-		request_irq(devp->irq, vdin_isr, IRQF_SHARED, devp->irq_name, (void *)devp);
+		ret = request_irq(devp->irq, vdin_isr, IRQF_SHARED, devp->irq_name, (void *)devp);
 	}
-
+        /*disable irq untill vdin is configured completely*/
+        disable_irq_nosync(devp->irq);
 
 	/* remove the hardware limit to vertical [0-max]*/
 	WRITE_CBUS_REG(VPP_PREBLEND_VD1_V_START_END, 0x00000fff);
 	pr_info("open device %s ok\n", dev_name(devp->dev));
-	return 0;
+	return ret;
 }
 
 static int vdin_release(struct inode *inode, struct file *file)
@@ -1189,9 +1317,9 @@ static int vdin_release(struct inode *inode, struct file *file)
 	return 0;
 }
 
-static int vdin_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+static long vdin_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
-	int ret = 0;
+	long ret = 0;
 	unsigned int delay_cnt = 0;
 	vdin_dev_t *devp = NULL;
 	void __user *argp = (void __user *)arg;
@@ -1288,9 +1416,14 @@ static int vdin_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				devp->parm.cutwin.he = parm.cutwin.he;
 				devp->parm.cutwin.vs = parm.cutwin.vs;
 				devp->parm.cutwin.ve = parm.cutwin.ve;
-                                
-                                                                devp->parm.info.fmt = parm.info.fmt;
-                                                                devp->fmt_info_p  = tvin_get_fmt_info(devp->parm.info.fmt);
+                                devp->parm.info.fmt = parm.info.fmt;
+                                devp->fmt_info_p  = tvin_get_fmt_info(devp->parm.info.fmt);
+                                if(!devp->fmt_info_p) {
+					pr_err("TVIN_IOC_START_DEC(%d) error, fmt is null \n", devp->index);
+					ret = -EFAULT;
+					mutex_unlock(&devp->fe_lock);
+					break;
+                                }
 				vdin_start_dec(devp);
 
 				devp->flags |= VDIN_FLAG_DEC_STARTED;
@@ -1477,6 +1610,36 @@ static int vdin_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		case TVIN_IOC_RESUME_DEC:
 			vdin_resume_dec(devp);
 			break;
+                case TVIN_IOC_FREEZE_VF:
+                        {
+                                mutex_lock(&devp->fe_lock);
+		                if(!(devp->flags & VDIN_FLAG_DEC_STARTED)) {
+		                        pr_err("TVIN_IOC_FREEZE_BUF(%d) decode havn't started\n", devp->index);
+			                ret = -EPERM;
+			                mutex_unlock(&devp->fe_lock);
+			                break;
+                                }
+		                  
+                                if(devp->fmt_info_p->scan_mode == TVIN_SCAN_MODE_PROGRESSIVE)    
+                                        vdin_vf_freeze(devp->vfp, 1);
+                                else
+                                        vdin_vf_freeze(devp->vfp, 2);
+                                mutex_lock(&devp->fe_lock);
+                                break;
+                        }
+                case TVIN_IOC_UNFREEZE_VF:
+                        {
+                                mutex_lock(&devp->fe_lock);
+		                if(!(devp->flags & VDIN_FLAG_DEC_STARTED)) {
+		                        pr_err("TVIN_IOC_FREEZE_BUF(%d) decode havn't started\n", devp->index);
+			                ret = -EPERM;
+			                mutex_unlock(&devp->fe_lock);
+			                break;
+		                }               
+                                vdin_vf_unfreeze(devp->vfp);
+                                mutex_lock(&devp->fe_lock);
+                                break;
+                        }
 		default:
 			ret = -ENOIOCTLCMD;
 			pr_info("%s %d is not supported command\n", __func__, cmd);
@@ -1522,28 +1685,223 @@ static int vdin_mmap(struct file *file, struct vm_area_struct * vma)
 static struct file_operations vdin_fops = {
 	.owner	         = THIS_MODULE,
 	.open	         = vdin_open,
-	.release            = vdin_release,
-	.unlocked_ioctl = vdin_ioctl,
-	.mmap	        = vdin_mmap,
+	.release         = vdin_release,
+	.unlocked_ioctl  = vdin_ioctl,
+	.mmap	         = vdin_mmap,
 };
+
+static ssize_t vdin_attr_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+        //struct vdin_dev_s *devp = dev_get_drvdata(dev);
+        ssize_t len = 0;
+        len += sprintf(buf+len,"\n0 HDMI0\t1 HDMI1\t2 HDMI2\t3 Component0\t4 Component1"
+                               "\n5 CVBS0\t6 CVBS1\t7 Vga0\t8 CVBS2\n");
+        len += sprintf(buf+len,"echo tvstart/v4l2start port fmt_id/resolution >/sys/class/vdin/vdinx/attr.\n");
+        return len;
+}
+static void vdin_dump_mem(char *path, vdin_dev_t *devp)
+{
+        struct file *filp = NULL;
+        loff_t pos = 0;
+        void * buf = NULL;
+        int i = 0;
+        unsigned int canvas_real_size = devp->canvas_h * devp->canvas_w;
+        mm_segment_t old_fs = get_fs();
+        set_fs(KERNEL_DS);
+        filp = filp_open(path,O_RDWR|O_CREAT,0666);
+        
+        if(IS_ERR(filp)){
+                printk(KERN_ERR"create %s error.\n",path);
+                return;
+        }
+        
+        for(i=0; i < devp->canvas_max_num; i++){
+                pos = canvas_real_size * i;
+                buf = ioremap(devp->mem_start + devp->canvas_max_size*i,canvas_real_size);
+                vfs_write(filp,buf,canvas_real_size,&pos);
+                iounmap(buf);
+                pr_info("write buffer %2d of %2u  to %s.\n",i,devp->canvas_max_num,path);
+        }
+        vfs_fsync(filp,0);
+        filp_close(filp,NULL);
+        set_fs(old_fs);
+}
+
 /*
 * 1.show the current frame rate
 * echo fps >/sys/class/vdin/vdinx/attr
+* 2.dump the data from vdin memory
+* echo capture dir >/sys/class/vdin/vdinx/attr
+* 3.start the vdin hardware
+* echo tvstart/v4l2start port fmt_id/resolution(width height frame_rate) >dir
+* 4.freeze the vdin buffer
+* echo freeze/unfreeze >/sys/class/vdin/vdinx/attr
+* 5.enable vdin0-nr path or vdin0-mem
+* echo output2nr >/sys/class/vdin/vdin0/attr
+* echo output2mem >/sys/class/vdin/vdin0/attr
 */
-static ssize_t vdin_attr_show(struct device *dev, struct device_attribute *attr, char *buf)
-{
-        struct vdin_dev_s *devp = dev_get_drvdata(dev);
-        return 0;
-}
 static ssize_t vdin_attr_store(struct device *dev,struct device_attribute *attr,const char *buf, size_t len)
 {
-        struct vdin_dev_s *devp = dev_get_drvdata(dev);
-        unsigned int fps = 0;
-        if(!strncmp(buf, "fps", 3)){
+        unsigned int n=0, fps=0;
+        unsigned char ret=0;
+        char *buf_orig, *ps, *token;
+        char *parm[5] = {NULL};
+        struct vdin_dev_s *devp;
+        buf_orig = kstrdup(buf, GFP_KERNEL);
+        printk(KERN_INFO "input cmd : %s",buf_orig);
+        devp = dev_get_drvdata(dev);
+        ps = buf_orig;
+        while (1) {
+        token = strsep(&ps, " \n");
+        if (token == NULL)
+            break;
+        if (*token == '\0')
+            continue;
+        parm[n++] = token;
+        }
+        if(!strncmp(parm[0], "fps", 3)){
 		if(devp->cycle)
 			fps = (24000000 + (devp->cycle>>3))/devp->cycle;
-                printk("[frame_rate..] current frame rate is %u.\n",fps);
+                pr_info("[frame_rate..] current frame rate is %u.\n",fps);
         }
+        else if(!strcmp(parm[0],"capture")){
+                if(parm[1] != NULL){                        
+                        vdin_dump_mem(parm[1],devp);                        
+                }
+        }
+        else if(!strcmp(parm[0],"tvstart")){                
+                unsigned int port, fmt;                
+                port = simple_strtol(parm[1],NULL,10);
+                switch(port){
+                        case 0://HDMI0
+                                port = TVIN_PORT_HDMI0;
+                                break;
+                        case 1://HDMI1
+                                port = TVIN_PORT_HDMI1;
+                                break;
+                        case 2://HDMI2
+                                port = TVIN_PORT_HDMI2;
+                                break;
+                        case 3://Component0
+                                port = TVIN_PORT_COMP0;
+                                break;
+                        case 4://Component1
+                                port = TVIN_PORT_COMP1;
+                                break;
+                        case 5://CVBS0
+                                port = TVIN_PORT_CVBS0;
+                                break;
+                        case 6://CVBS1
+                                port = TVIN_PORT_CVBS1;
+                                break;
+                        case 7://Vga0
+                                port = TVIN_PORT_VGA0;
+                                break;                                
+                        case 8://CVBS2
+                                port = TVIN_PORT_CVBS2;
+                                break;                 
+                        default:
+                                port = TVIN_PORT_CVBS0;
+                                break;        
+                }
+                fmt = simple_strtol(parm[2],NULL,16);
+                
+                devp->flags |= VDIN_FLAG_FS_OPENED;
+	        /* request irq */
+	        snprintf(devp->irq_name, sizeof(devp->irq_name),  "vdin%d-irq", devp->index);
+	        if (work_mode_simple) {
+		        pr_info("vdin work in simple mode\n");
+		        ret = request_irq(devp->irq, vdin_isr_simple, IRQF_SHARED, devp->irq_name, (void *)devp);
+	        }
+	        else {
+		        pr_info("vdin work in normal mode\n");
+		        ret = request_irq(devp->irq, vdin_isr, IRQF_SHARED, devp->irq_name, (void *)devp);
+	        }
+                
+                /*disable irq untill vdin is configured completely*/
+                disable_irq_nosync(devp->irq);
+	        /* remove the hardware limit to vertical [0-max]*/
+	        WRITE_CBUS_REG(VPP_PREBLEND_VD1_V_START_END, 0x00000fff);
+	        pr_info("open device %s ok\n", dev_name(devp->dev));
+                vdin_open_fe(port,0,devp);
+                devp->parm.port = port;
+                devp->parm.info.fmt = fmt;
+                devp->fmt_info_p  = tvin_get_fmt_info(fmt);
+		devp->flags |= VDIN_FLAG_DEC_STARTED;
+                vdin_start_dec(devp);
+        }
+        else if(!strcmp(parm[0],"tvstop")){                
+                vdin_stop_dec(devp);
+                vdin_close_fe(devp);
+                devp->flags &= (~VDIN_FLAG_FS_OPENED);
+		devp->flags &= (~VDIN_FLAG_DEC_STARTED);
+	        /* free irq */
+	        free_irq(devp->irq,(void *)devp);
+	        /* reset the hardware limit to vertical [0-1079]  */
+	        WRITE_CBUS_REG(VPP_PREBLEND_VD1_V_START_END, 0x00000437);
+        }
+        else if(!strcmp(parm[0],"v4l2stop")){
+                stop_tvin_service(devp->index);
+        }
+        else if(!strcmp(parm[0],"v4l2start")){
+                struct vdin_parm_s param;
+                if(!parm[4]){
+                        pr_err("usage: echo v4l2start port width height fps >/sys/class/vdin/vdinx/attr."
+                                     "\n port mybe bt656 or viuin,fps the frame rate of input.\n");
+                        return len;
+                }
+                memset(&param,0,sizeof(vdin_parm_t));
+                /*parse the port*/
+                if(!strcmp(parm[1],"bt656"))
+                param.port = TVIN_PORT_CAMERA;
+                else if(!strcmp(parm[1],"viuin"))
+                param.port = TVIN_PORT_VIU;
+                /*parse the resolution*/
+                param.h_active = simple_strtol(parm[2],NULL,10);
+                param.v_active = simple_strtol(parm[3],NULL,10);
+                param.frame_rate = simple_strtol(parm[4],NULL,10);
+                param.fmt = TVIN_SIG_FMT_MAX;
+                param.scan_mode = TVIN_SCAN_MODE_PROGRESSIVE;
+                /*start the vdin hardware*/
+                start_tvin_service(devp->index, &param);
+        }
+        else if(!strcmp(parm[0],"disablesm"))
+                del_timer_sync(&devp->timer);
+        else if(!strcmp(parm[0],"freeze")){
+                if (!(devp->flags & VDIN_FLAG_DEC_STARTED))
+                        return len;
+                if(devp->fmt_info_p->scan_mode == TVIN_SCAN_MODE_PROGRESSIVE)    
+                        vdin_vf_freeze(devp->vfp, 1);
+                else
+                        vdin_vf_freeze(devp->vfp, 2);
+
+        }
+        else if(!strcmp(parm[0],"unfreeze")){    
+                if (!(devp->flags & VDIN_FLAG_DEC_STARTED))
+                        return len;
+                vdin_vf_unfreeze(devp->vfp);
+        }		
+        else if(!strcmp(parm[0],"hv_scaler")){
+            hscl_ratio = simple_strtol(parm[1],NULL,10);
+            if (hscl_ratio > 5)
+                hscl_ratio = 5;
+            vscl_ratio = simple_strtol(parm[2],NULL,10);
+            if (vscl_ratio > 6)
+                vscl_ratio = 6;
+        }
+	else if(!strcmp(parm[0],"state")){
+                struct vframe_s *vf = &devp->curr_wr_vfe->vf;
+                struct tvin_parm_s *curparm = &devp->parm;
+                if(vf)
+		      pr_info("current vframe(%u):buf(w%u,h%u),type (0x%x,%u).\n",
+                               vf->index,vf->width,vf->height,vf->type,vf->type);
+                pr_info("current parameters:\nfrontend of vdin index: %d, port: 0x%x,\n"
+                        "flag: 0x%x, reserved 0x%x.\n",curparm->index, curparm->port,
+                         curparm->flag,curparm->reserved);
+	}
+                
+	
+        kfree(buf_orig);
         return len;
 }
 static DEVICE_ATTR(attr, S_IWUGO | S_IRUGO, vdin_attr_show, vdin_attr_store);
@@ -1564,6 +1922,12 @@ static ssize_t vdin_vf_log_store(struct device * dev,
 {
 	struct vdin_dev_s *devp = dev_get_drvdata(dev);
 
+#ifdef SMOOTH_DEBUG
+  if(!strncmp(buf, "count", 5)){
+    dump_count();
+  }  
+	else 
+#endif
 	if(!strncmp(buf, "start", 5)){
 		vf_log_init(devp->vfp);
 	}
@@ -1619,29 +1983,120 @@ static DEVICE_ATTR(vf_log, S_IWUGO | S_IRUGO, vdin_vf_log_show, vdin_vf_log_stor
  */
 #endif //VF_LOG_EN
 
-
-static ssize_t vdin_dev_test_show(struct device *dev,
+#ifdef ISR_LOG_EN
+static ssize_t vdin_isr_log_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	u32 len = 0;
 	struct vdin_dev_s *vdevp;
 	vdevp = dev_get_drvdata(dev);
-	len += sprintf(buf + len, "%d:%d\n", MAJOR(vdevp->dev->devt),
-			MINOR(vdevp->dev->devt));
+                len += sprintf(buf + len, "%d of %d\n", vdevp->vfp->isr_log.log_cur, ISR_LOG_LEN);
 	return len;
 }
-
-static ssize_t vdin_dev_test_store(struct device *dev,
+/*
+*1. show isr log length.
+*cat /sys/class/vdin/vdin0/vf_log
+*2. clear isr log buffer and start log.
+*echo start > /sys/class/vdin/vdinx/isr_log
+*3. print isr log
+*echo print > /sys/class/vdin/vdinx/isr_log
+*/
+static ssize_t vdin_isr_log_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
 	struct vdin_dev_s *vdevp;
 	vdevp = dev_get_drvdata(dev);
-	pr_info("%d:%d\n", MAJOR(vdevp->dev->devt), MINOR(vdevp->dev->devt));
+        if(!strncmp(buf,"start",5))
+	        isr_log_init(vdevp->vfp);
+        else if(!strncmp(buf,"print",5))
+                isr_log_print(vdevp->vfp);
 	return count;
 }
 
-static DEVICE_ATTR(test,  S_IWUSR|S_IRUGO, vdin_dev_test_show,
-		vdin_dev_test_store);
+static DEVICE_ATTR(isr_log,  S_IWUSR|S_IRUGO, vdin_isr_log_show,vdin_isr_log_store);
+#endif
+
+static int memp = -1;
+
+static char * memp_str(int profile)
+{
+	switch (profile) {
+	case MEMP_VDIN_WITHOUT_3D:
+		return "vdin without 3d";
+	case MEMP_VDIN_WITH_3D:
+		return "vdin with 3d";
+	case MEMP_DCDR_WITHOUT_3D:
+		return "decoder without 3d";
+	case MEMP_DCDR_WITH_3D:
+		return "decoder with 3d";
+	default:
+		return "unkown";
+	}
+}
+
+/*
+ * cat /sys/class/vdin/memp
+ */
+static ssize_t memp_show(struct class *class,
+	struct class_attribute *attr, char *buf)
+{
+	int len = 0;
+	len += sprintf(buf+len, "%d: %s\n", memp, memp_str(memp));
+	return len;
+}
+
+/*
+ * echo 0|1|2|3 > /sys/class/vdin/memp
+ */
+static ssize_t memp_store(struct class *class,
+	struct class_attribute *attr, const char *buf, size_t count)
+{
+	memp = simple_strtol(buf, NULL, 0);
+
+	switch (memp) {
+	case MEMP_VDIN_WITHOUT_3D:
+	case MEMP_VDIN_WITH_3D:
+#ifdef CONFIG_ARCH_MESON6TV
+		aml_clr_reg32_mask(P_VPU_DI_MEM_MMC_CTRL, 1<<12);
+		aml_set_reg32_mask(P_VPU_DI_INP_MMC_CTRL, 1<<12);
+		aml_set_reg32_mask(P_VPU_DI_CHAN2_MMC_CTRL, 1<<12);
+		aml_set_reg32_mask(P_VPU_DI_MTNWR_MMC_CTRL, 1<<12);
+		aml_clr_reg32_mask(P_VPU_DI_NRWR_MMC_CTRL, 1<<12);
+		aml_write_reg32(P_MMC_CHAN0_CTRL, 0x610ff);
+		aml_write_reg32(P_MMC_CHAN1_CTRL, 0x10ff);
+		aml_write_reg32(P_MMC_CHAN2_CTRL, 0x70ff);
+		aml_write_reg32(P_MMC_CHAN3_CTRL, 0xc01f);
+		aml_write_reg32(P_MMC_CHAN6_CTRL, 0x10ff);
+		aml_write_reg32(P_MMC_CHAN7_CTRL, 0x10ff);
+		aml_write_reg32(P_MMC_CHAN8_CTRL, 0x10ff);
+#endif
+		break;
+	case MEMP_DCDR_WITHOUT_3D:
+	case MEMP_DCDR_WITH_3D:
+#ifdef CONFIG_ARCH_MESON6TV
+		aml_clr_reg32_mask(P_VPU_DI_MEM_MMC_CTRL, 1<<12);
+		aml_clr_reg32_mask(P_VPU_DI_INP_MMC_CTRL, 1<<12);
+		aml_clr_reg32_mask(P_VPU_DI_CHAN2_MMC_CTRL, 1<<12);
+		aml_clr_reg32_mask(P_VPU_DI_MTNWR_MMC_CTRL, 1<<12);
+		aml_clr_reg32_mask(P_VPU_DI_NRWR_MMC_CTRL, 1<<12);
+		aml_write_reg32(P_MMC_CHAN0_CTRL, 0x6307f);
+		aml_write_reg32(P_MMC_CHAN1_CTRL, 0x70ff);
+		aml_write_reg32(P_MMC_CHAN2_CTRL, 0x30ff);
+		aml_write_reg32(P_MMC_CHAN3_CTRL, 0x10ff);
+		aml_write_reg32(P_MMC_CHAN6_CTRL, 0x30ff);
+		aml_write_reg32(P_MMC_CHAN7_CTRL, 0x307f);
+		aml_write_reg32(P_MMC_CHAN8_CTRL, 0x30ff);
+#endif
+		break;
+	default:
+		/* @todo */
+		break;
+	}
+	return count;
+}
+
+static CLASS_ATTR(memp, 0644, memp_show, memp_store);
+
 
 
 static int vdin_add_cdev(struct cdev *cdevp, struct file_operations *fops,
@@ -1670,43 +2125,46 @@ static void vdin_delete_device(int minor)
 
 static int vdin_drv_probe(struct platform_device *pdev)
 {
-	int ret;
+	int ret = 0;
 	struct vdin_dev_s *vdevp;
 	struct resource *res;
-
+                
 	/* malloc vdev */
 	vdevp = kmalloc(sizeof(struct vdin_dev_s), GFP_KERNEL);
 	if (!vdevp) {
-		pr_err("%s: failed to allocate memory\n", __func__);
+		pr_err("%s: failed to allocate memory.\n", __func__);
 		goto fail_kmalloc_vdev;
 	}
 	memset(vdevp, 0, sizeof(struct vdin_dev_s));
 	vdin_devp[pdev->id] = vdevp;
 	vdevp->index = pdev->id;
+                
 	/* create cdev and reigser with sysfs */
 	ret = vdin_add_cdev(&vdevp->cdev, &vdin_fops, pdev->id);
 	if (ret) {
-		pr_err("%s: failed to add cdev\n", __func__);
+		pr_err("%s: failed to add cdev.\n", __func__);
 		goto fail_add_cdev;
 	}
 	vdevp->dev = vdin_create_device(&pdev->dev, pdev->id);
 	if (IS_ERR(vdevp->dev)) {
-		pr_err("%s: failed to create device\n", __func__);
+		pr_err("%s: failed to create device.\n", __func__);
 		ret = PTR_ERR(vdevp->dev);
 		goto fail_create_device;
 	}
 
 	/* create sysfs attribute files */
-	ret = device_create_file(vdevp->dev, &dev_attr_vf_log);
+        #ifdef VF_LOG_EN
+        ret = device_create_file(vdevp->dev,&dev_attr_vf_log);
+        #endif
+        #ifdef ISR_LOG_EN
+        ret = device_create_file(vdevp->dev,&dev_attr_isr_log);
+        #endif
+        ret = device_create_file(vdevp->dev,&dev_attr_attr);
 	if(ret < 0) {
-		pr_err("hdmirx: fail to create vf_log attribute file\n");
-		goto fail_create_vf_log_file;
+		pr_err("%s: fail to create vdin attribute files.\n", __func__);
+		goto fail_create_dev_file;
 	}
-	ret = device_create_file(vdevp->dev, &dev_attr_attr);
-	if(ret < 0) {
-		pr_err("hdmirx: fail to create attr attribute file\n");
-		goto fail_create_vf_log_file;
-	}
+
 
 	/* get memory address from resource */
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
@@ -1740,6 +2198,8 @@ static int vdin_drv_probe(struct platform_device *pdev)
 
 	/* @todo vdin_addr_offset */
 	vdevp->addr_offset = vdin_addr_offset[vdevp->index];
+        /*disable vdin hardware*/
+        vdin_enable_module(vdevp->addr_offset, false);
 	vdevp->flags = 0;
 
 	/* create vf pool */
@@ -1749,7 +2209,9 @@ static int vdin_drv_probe(struct platform_device *pdev)
 	/* @todo provider name */
 	sprintf(vdevp->name, "%s%d", PROVIDER_NAME, pdev->id);
 	vf_provider_init(&vdevp->vprov, vdevp->name, &vdin_vf_ops, vdevp->vfp);
-
+        /*register vdin for v4l2 interface*/
+        if(vdin_reg_v4l2(&vdin_4v4l2_ops))
+                pr_err("[vdin..] %s: register vdin v4l2 error.\n",__func__);
 	/* @todo canvas_config_mode */
 	if (canvas_config_mode == 0 || canvas_config_mode == 1) {
 		vdin_canvas_init(vdevp);
@@ -1764,7 +2226,7 @@ static int vdin_drv_probe(struct platform_device *pdev)
 
 fail_get_resource_irq:
 fail_get_resource_mem:
-fail_create_vf_log_file:
+fail_create_dev_file:
 	vdin_delete_device(pdev->id);
 fail_create_device:
 	cdev_del(&vdevp->cdev);
@@ -1782,8 +2244,16 @@ static int vdin_drv_remove(struct platform_device *pdev)
 	mutex_destroy(&vdevp->mm_lock);
 	mutex_destroy(&vdevp->fe_lock);
 
-	vf_pool_free(vdevp->vfp);
-                device_remove_file(vdevp->dev,&dev_attr_vf_log);
+	vf_pool_free(vdevp->vfp);     
+                
+        #ifdef VF_LOG_EN
+        device_remove_file(vdevp->dev,&dev_attr_vf_log);
+        #endif
+        #ifdef ISR_LOG_EN
+        device_remove_file(vdevp->dev,&dev_attr_isr_log);
+        #endif
+        device_remove_file(vdevp->dev,&dev_attr_attr);
+
 	vdin_delete_device(pdev->id);
 	cdev_del(&vdevp->cdev);
 	kfree(vdevp);
@@ -1799,13 +2269,19 @@ static int vdin_drv_remove(struct platform_device *pdev)
 #ifdef CONFIG_PM
 static int vdin_drv_suspend(struct platform_device *pdev, pm_message_t state)
 {
-	/* @todo vdin_drv_suspend */
+	struct vdin_dev_s *vdevp;
+	vdevp = platform_get_drvdata(pdev);
+        vdin_enable_module(vdevp->addr_offset, false);
+        pr_info("%s ok.\n",__func__);
 	return 0;
 }
 
 static int vdin_drv_resume(struct platform_device *pdev)
 {
-	/* @todo vdin_drv_resume */
+	struct vdin_dev_s *vdevp;
+	vdevp = platform_get_drvdata(pdev);
+        vdin_enable_module(vdevp->addr_offset, true);
+        pr_info("%s ok.\n",__func__);
 	return 0;
 }
 #endif
@@ -1843,13 +2319,16 @@ static int __init vdin_drv_init(void)
 
 	/* @todo class_attr_test */
 	//device_create_file(vdin_clsp, &dev_attr_test);
+	ret = class_create_file(vdin_clsp, &class_attr_memp);
 
 	ret = platform_driver_register(&vdin_driver);
 	if (ret != 0) {
 		pr_err("%s: failed to register driver\n", __func__);
 		goto fail_pdrv_register;
 	}
-
+#ifdef CONFIG_ARCH_MESON6TV
+	aml_write_reg32(P_MMC_CHAN5_CTRL, 0xc01f); // adjust vdin weight and age limit
+#endif
 	return 0;
 
 fail_pdrv_register:
@@ -1863,6 +2342,7 @@ fail_alloc_cdev_region:
 static void __exit vdin_drv_exit(void)
 {
 	//device_remove_file(vdin_clsp, &dev_attr_test);
+	class_remove_file(vdin_clsp, &class_attr_memp);
 	class_destroy(vdin_clsp);
 	unregister_chrdev_region(vdin_devno, VDIN_MAX_DEVS);
 	platform_driver_unregister(&vdin_driver);
