@@ -1951,7 +1951,7 @@ static void aml_eth_clock_enable(void)
 	// old: eth_clk_set(ETH_CLKSRC_MISC_CLK, get_misc_pll_clk(), (50 * CLK_1M), 0);
 	/* Internal Clock */
 	// get_misc_pll_clk() = 480M
-	clk_divider = (unsigned int)480/50;		// Clock Divider
+	clk_divider = (unsigned int)504/50;		// Clock Divider
 	clk_invert  = 0;				// 1 = invert, 0 = non-invert clock signal
 	clk_source  = ETH_CLKSRC_MISC_CLK;		// Source, see clk_set.h
 #endif
@@ -2049,9 +2049,7 @@ static struct platform_device  *platform_devs[] = {
     &aml_hdmi_device,
 #endif
 #if defined(CONFIG_I2C_AML) || defined(CONFIG_I2C_HW_AML)
-    &aml_i2c_device_a,
     &aml_i2c_device_b,
-    &aml_i2c_device_ao,
 #endif
     &aml_uart_device,
     &meson_device_fb,
@@ -2064,9 +2062,6 @@ static struct platform_device  *platform_devs[] = {
 #endif
 #if defined(CONFIG_TVIN_VDIN)
     &vdin_device,
-#endif
-#if defined(CONFIG_TVIN_BT656IN)
-    &bt656in_device,
 #endif
 #ifdef CONFIG_AMLOGIC_VIDEOIN_MANAGER
     &vm_device,
@@ -2097,12 +2092,6 @@ static struct platform_device  *platform_devs[] = {
 #endif
     &aml_audio,
     &aml_audio_dai,
-#if defined(CONFIG_SND_SOC_RT5631)
-    &aml_rt5631_audio,
-#endif
-#if defined(CONFIG_SND_SOC_WM8960)
-    &aml_wm8960_audio,
-#endif
 #ifdef CONFIG_AM_WIFI
     &wifi_power_device,
 #endif
@@ -2118,7 +2107,7 @@ static struct platform_device  *platform_devs[] = {
     &ppmgr_device,
 #endif
 #if defined(CONFIG_AM_DEINTERLACE) || defined (CONFIG_DEINTERLACE)
-  &deinterlace_device,
+    &deinterlace_device,
 #endif
 #if defined(CONFIG_AM_TV_OUTPUT2)
     &vout2_device,
@@ -2147,10 +2136,10 @@ static void __init power_hold(void)
 	gpio_direction_output( GPIO_PWR_HDMI, 1);
 
 	// Turn On Wifi Power. So the wifi-module can be detected.
-	// extern_usb_wifi_power(1);
-
-	// gpio_out(PAD_GPIOD_1, gpio_status_out);
-    // gpio_out_high(PAD_GPIOD_1);
+#ifdef CONFIG_AM_WIFI_USB
+	if(wifi_plat_data.usb_set_power)
+		wifi_plat_data.usb_set_power(1);//power on built-in usb wifi
+#endif
 
 }
 
@@ -2165,10 +2154,6 @@ static __init void meson_init_machine(void)
 
 #if defined(CONFIG_I2C_AML) || defined(CONFIG_I2C_HW_AML)
     aml_i2c_init();
-#endif
-#ifdef CONFIG_AM_WIFI_USB
-    if(wifi_plat_data.usb_set_power)
-        wifi_plat_data.usb_set_power(0);//power off built-in usb wifi
 #endif
 
 #ifdef CONFIG_AM_ETHERNET
