@@ -1615,8 +1615,8 @@ static __init void meson_m3ref_init(void)
     ///platform_device_register(&aml_uart_device);
     platform_add_devices(platform_devs, ARRAY_SIZE(platform_devs));
 
-    m3ref_lcd_init();
-    m3ref_power_init();
+    //m3ref_lcd_init();
+    //m3ref_power_init();
     m3ref_set_vccx2(1);
     setup_usb_devices();
 
