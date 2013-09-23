@@ -53,7 +53,7 @@ CONFIG_BSD_PROCESS_ACCT=y
 # CONFIG_TASKSTATS is not set
 # CONFIG_AUDIT is not set
 CONFIG_HAVE_GENERIC_HARDIRQS=y
-CONFIG_AM_VDEC_H264_DECODER_MEM_SIZE=64
+
 #
 # IRQ subsystem
 #
@@ -403,7 +403,7 @@ CONFIG_ALIGNMENT_TRAP=y
 # CONFIG_USE_OF is not set
 CONFIG_ZBOOT_ROM_TEXT=0
 CONFIG_ZBOOT_ROM_BSS=0
-CONFIG_CMDLINE="root=/dev/mtdblock2 rw rootfstype=yaffs2 init=/sbin/init rootwait"
+CONFIG_CMDLINE="root=/dev/mtdblock4 rw rootfstype=yaffs2 init=/sbin/init rootwait"
 # CONFIG_CMDLINE_FROM_BOOTLOADER is not set
 CONFIG_CMDLINE_EXTEND=y
 # CONFIG_CMDLINE_FORCE is not set
@@ -1034,15 +1034,12 @@ CONFIG_POST_PROCESS_MANAGER_3D_PROCESS=y
 #
 # Mali 400 UMP device driver
 #
-# CONFIG_UMP is not set
+CONFIG_UMP=m
 
 #
-# Mali GPU OpenGL device driver
+# Mali 400 GPU OpenGL device driver
 #
-CONFIG_MALI400=m
-CONFIG_MALI400_DEBUG=y
-# CONFIG_MALI400_PROFILING is not set
-CONFIG_MALI400_GPU_UTILIZATION=y
+CONFIG_MALI=m
 
 #
 # Generic Driver Options
@@ -2403,7 +2400,9 @@ CONFIG_HAVE_ARCH_KGDB=y
 # CONFIG_STRICT_DEVMEM is not set
 # CONFIG_ARM_UNWIND is not set
 # CONFIG_DEBUG_USER is not set
-# CONFIG_DEBUG_LL is not set
+CONFIG_DEBUG_LL=y
+CONFIG_EARLY_PRINTK=y
+# CONFIG_DEBUG_ICEDCC is not set
 # CONFIG_OC_ETM is not set
 
 #

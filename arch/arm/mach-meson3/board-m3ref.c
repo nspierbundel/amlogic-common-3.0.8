@@ -890,7 +890,7 @@ static struct platform_device bt656in_device = {
 
 #ifdef CONFIG_AM_NAND
 static struct mtd_partition normal_partition_info[] = {
-    {
+  /*  {
         .name = "logo",
         .offset = 32*SZ_1M+40*SZ_1M,
         .size = 8*SZ_1M,
@@ -930,6 +930,44 @@ static struct mtd_partition normal_partition_info[] = {
         .offset = MTDPART_OFS_APPEND,
         .size = MTDPART_SIZ_FULL,
     },
+*/
+
+  {
+    .name   = "ubootenv",
+    .offset = (12)*1024*1024,
+    .size   = 4*1024*1024,
+  },
+  {
+    .name   = "aml_logo",
+    .offset = (20)*1024*1024,
+    .size   = 16*1024*1024,
+  },
+  {
+    .name   = "recovery",
+    .offset = (36)*1024*1024,
+    .size   = 16*1024*1024,
+  },
+  {
+    .name   = "boot",
+    .offset = (52)*1024*1024,
+    .size   = 20*1024*1024,
+  },
+  {
+    .name   = "system",
+    .offset = (72)*1024*1024,
+    .size   = 512*1024*1024,
+  },
+  {
+    .name   = "cache",
+    .offset = (584)*1024*1024,
+    .size   = 192*1024*1024,
+  },
+  {
+    .name = "userdata",
+    .offset=MTDPART_OFS_APPEND,
+    .size=MTDPART_SIZ_FULL,
+  },
+
 };
 
 
