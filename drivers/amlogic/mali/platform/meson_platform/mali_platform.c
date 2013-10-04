@@ -114,8 +114,8 @@ static const u32 poweron_data[] =
 #define MMU_FLAG_PTE_WR_PERMISSION      0x04
 #define INT_ALL              (0xffffffff)
 
-static spinlock_t lock = SPIN_LOCK_UNLOCKED;
-
+//static spinlock_t lock = SPIN_LOCK_UNLOCKED;
+static DEFINE_SPINLOCK(lock);
 void mali_meson_poweron(int first_poweron)
 {
     unsigned long flags;
