@@ -1,34 +1,13 @@
 menu "Mali GPU OpenGL device driver"
 config MALI400
-	tristate "Mali support"
-	depends on m
-	default m
+	tristate "Mali-300/400/450 support"
+	depends on ARM
 	select FB
 	---help---
 	  This enables support for the Mali-300, Mali-400, and Mali-450 GPUs.
 
 	  To compile this driver as a module, choose M here: the module will be
 	  called mali.
-choice
-	prompt "Mali frequency"
-	default MALI_CLK_333M
-	depends on ARCH_MESON6 || ARCH_MESON3 
-	depends on MALI400
-	
-config MALI_CLK_400M
-	bool "Mali clock 400M"
-	help	
-		Mali clock set to 400M
-config MALI_CLK_333M
-	bool"Mali clock 333M"
-	help
-		Mali clock set to 333M
-config MALI_CLK_250M
-	bool"Mali clock 250M"
-	help
-		Mali clock set to 250M		
-
-endchoice
 
 config MALI400_DEBUG
 	bool "Enable debug in Mali driver"
@@ -49,6 +28,5 @@ config MALI400_GPU_UTILIZATION
 	---help---
 	  This enables gathering and processing of the utilization of Mali GPU.
 	  This data can be used as a basis to change GPU operating frequency.
-	  
-endmenu
 
+endmenu

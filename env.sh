@@ -12,7 +12,7 @@ export CROSS_COMPILE=arm-linux-gnueabihf-
 #make meson_stv_mbx_mc_atv1200_defconfig
 #make meson6_refg02_defconfig
 #make oldconfig
-#make menuconfig
+make menuconfig
 #cp .config arch/arm/configs/meson6_atv1200_defconfig
 #cp .config arch/arm/configs/meson_stv_mbx_mc_atv1200_defconfig
 #make vmlinux
