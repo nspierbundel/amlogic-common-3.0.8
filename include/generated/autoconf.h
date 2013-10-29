@@ -470,7 +470,7 @@
 #define CONFIG_CRYPTO 1
 #define CONFIG_DEFAULT_MMAP_MIN_ADDR 4096
 #define CONFIG_IP_NF_IPTABLES 1
-#define CONFIG_CMDLINE "root=/dev/mtdblock4 rw rootfstype=yaffs2 init=/sbin/init rootwait"
+#define CONFIG_CMDLINE "root=/dev/nfs nfsroot=192.168.1.100:/srv/nfs/rootfs ip=dhcp init=/sbin/init rootwait"
 #define CONFIG_MESON_SUSPEND_FIRMWARE_BASE 0x1ff00000
 #define CONFIG_HAVE_DMA_API_DEBUG 1
 #define CONFIG_USB_DWC_OTG_HCD 1

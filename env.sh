@@ -20,6 +20,6 @@ export CROSS_COMPILE=arm-linux-gnueabihf-
 TOP=${PWD}
 export MKIMAGE=${TOP}/arch/arm/boot/mkimage
 
-#make uImage -j$1 
+make uImage -j$1 
 #make uImage
-make modules -j$1 
+#make modules -j$1 
